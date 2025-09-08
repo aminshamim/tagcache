@@ -162,12 +162,46 @@ Set `TAGCACHE_URL` for a custom base URL.
 
 ## Benchmarking
 ### Included TCP Bench Tool
-Build (already built with release):
+
+Basic usage:
 ```bash
-cargo run --release --bin bench_tcp -- --mode put --conns 64 --duration 8 --keys 2000
-cargo run --release --bin bench_tcp -- --mode get --conns 64 --duration 8 --keys 2000
+# Using cargo (recommended)
+cargo run --release --bin bench_tcp
+
+# Using compiled binary directly
+./target/release/bench_tcp
 ```
-Sample (captured locally, reference only):
+
+Advanced usage with parameters:
+```bash
+# Basic benchmark with defaults (GET mode, 32 connections, 10 seconds, 100 keys)
+cargo run --release --bin bench_tcp
+
+# PUT benchmark with custom settings
+cargo run --release --bin bench_tcp -- --mode put --conns 64 --duration 8 --keys 2000
+
+# GET benchmark with custom settings  
+cargo run --release --bin bench_tcp -- --mode get --conns 64 --duration 8 --keys 2000
+
+# High-load benchmark
+cargo run --release --bin bench_tcp -- --conns 100 --duration 30 --keys 1000 --mode put
+
+# Custom host and port
+cargo run --release --bin bench_tcp -- --host 127.0.0.1 --port 1984 --conns 50 --duration 15
+```
+
+Available parameters:
+- `--host` - Server host (default: 127.0.0.1)
+- `--port` - Server port (default: 1984) 
+- `--conns` - Number of concurrent connections (default: 32)
+- `--duration` - Test duration in seconds (default: 10)
+- `--keys` - Number of keys to use (default: 100)
+- `--mode` - Benchmark mode: `get` or `put` (default: get)
+- `--ttl` - TTL in milliseconds (default: 60000)
+
+**Note:** Make sure TagCache server is running first using `./tagcache.sh`
+
+Sample results (reference only):
 ```
 PUT:  ~69.9 K ops/sec  p50 ~0.87 ms  p99 ~1.79 ms
 GET:  ~65.2 K ops/sec  p50 ~0.95 ms  p99 ~2.25 ms
@@ -229,4 +263,3 @@ cargo build --release
 
 ---
 PRs and issues welcome.
-
