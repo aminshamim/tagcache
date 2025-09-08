@@ -2,7 +2,7 @@
 // The goal of these comments is to explain: types, ownership, concurrency primitives,
 // async runtime usage, data model, and protocol handling. Feel free to trim later.
 
-use axum::{routing::{get, post}, Json, Router, extract::{Path, Query}, response::Json as ResponseJson}; // Axum web framework imports for routing & JSON
+use axum::{routing::{get, post, put, delete}, Json, Router, extract::{Path, Query, FromRequestParts, State}, response::Json as ResponseJson, http::{request::Parts, StatusCode}}; // Axum web framework imports for routing & JSON
 use serde::{Deserialize, Serialize}; // Serde for (de)serialization of JSON payloads
 use std::{sync::Arc, time::{Duration, Instant}, env}; // Arc = thread-safe reference counting; time utilities; env vars
 use dashmap::{DashMap, DashSet}; // Concurrent hash map + set (lock sharded) for high concurrency
@@ -10,11 +10,18 @@ use smallvec::SmallVec; // Optimized small vector that stores small number of el
 use tokio::time; // Tokio timing utilities (interval)
 use ahash::{RandomState}; // Fast hashing state for consistent shard distribution
 use std::hash::{Hash, Hasher, BuildHasher}; // Traits for custom hashing
-use tower_http::cors::{CorsLayer, Any}; // CORS middleware for HTTP
+use tower_http::cors::{CorsLayer}; // CORS middleware for HTTP
 use tracing::{info}; // Structured logging (use RUST_LOG=info to see)
 use parking_lot::Mutex; // Faster, simpler mutex vs std::sync::Mutex (not poisonable)
 use tokio::net::{TcpListener, TcpStream}; // Async TCP server primitives
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader}; // Async buffered IO extensions
+use rand::{Rng, distributions::Alphanumeric};
+use std::fs;
+use std::path::Path as FsPath;
+use std::io::Write;
+use std::collections::HashMap;
+use base64::engine::general_purpose::STANDARD as B64;
+use base64::Engine;
 
 // =============================
 // DATA MODEL TYPES
@@ -80,6 +87,53 @@ pub struct CacheStats {
     pub puts: u64,
     pub invalidations: u64,
 }
+
+// =============================
+// AUTH TYPES
+// =============================
+#[derive(Clone, Debug)]
+pub struct Credentials { pub username: String, pub password: String }
+
+#[derive(Clone, Debug)]
+pub struct AuthState { credentials: Arc<Mutex<Credentials>>, tokens: DashSet<String> }
+
+impl AuthState {
+    fn new(creds: Credentials) -> Self { Self { credentials: Arc::new(Mutex::new(creds)), tokens: DashSet::new() } }
+    fn issue_token(&self) -> String { let token: String = rand::thread_rng().sample_iter(&Alphanumeric).take(48).map(char::from).collect(); self.tokens.insert(token.clone()); token }
+    fn rotate(&self) -> Credentials { let new = Credentials { username: rand::thread_rng().sample_iter(&Alphanumeric).take(16).map(char::from).collect(), password: rand::thread_rng().sample_iter(&Alphanumeric).take(24).map(char::from).collect() }; *self.credentials.lock() = new.clone(); self.tokens.clear(); new }
+    fn validate_basic(&self, u:&str, p:&str) -> bool { let c = self.credentials.lock(); c.username==u && c.password==p }
+    fn validate_token(&self, t:&str) -> bool { self.tokens.contains(t) }
+}
+
+#[derive(Clone)]
+pub struct AppState { pub cache: Arc<Cache>, pub auth: Arc<AuthState> }
+
+// Request guard for auth (per-route, simpler + fast)
+pub struct Authenticated;
+#[axum::async_trait]
+impl FromRequestParts<Arc<AppState>> for Authenticated {
+    type Rejection = (StatusCode, ResponseJson<serde_json::Value>);
+    async fn from_request_parts(parts: &mut Parts, state: &Arc<AppState>) -> Result<Self, Self::Rejection> {
+        if let Some(hv) = parts.headers.get(axum::http::header::AUTHORIZATION) {
+            if let Ok(s) = hv.to_str() {
+                if let Some(bearer) = s.strip_prefix("Bearer ") { if state.auth.validate_token(bearer) { return Ok(Authenticated); } }
+                if let Some(basic) = s.strip_prefix("Basic ") {
+                    if let Ok(decoded) = B64.decode(basic) {
+                        if let Ok(pair) = String::from_utf8(decoded) {
+                            if let Some((u,p)) = pair.split_once(':') { if state.auth.validate_basic(u,p) { return Ok(Authenticated); } }
+                        }
+                    }
+                }
+            }
+        }
+        Err((StatusCode::UNAUTHORIZED, ResponseJson(serde_json::json!({"error":"unauthorized"}))))
+    }
+}
+
+#[derive(Deserialize)] struct LoginBody { username:String, password:String }
+#[derive(Serialize)] struct LoginResponse { token:String, expires_in:u64 }
+#[derive(Serialize)] struct RotateResponse { ok:bool, username:String, password:String }
+#[derive(Serialize)] struct SetupRequired { setup_required: bool }
 
 impl Cache {
     // Create a new cache with N shards.
@@ -308,99 +362,252 @@ pub struct StatsResponse { // /stats output
     pub puts: u64,
     pub invalidations: u64,
     pub hit_ratio: f64,
+    pub items: usize,
+    pub bytes: usize,
 }
+
+// RESTful key endpoints types
+#[derive(Deserialize)]
+pub struct KeyUpsertBody {
+    pub value: serde_json::Value,
+    pub ttl_ms: Option<u64>,
+    pub tags: Option<Vec<String>>, // optional to allow updating value only
+}
+
+#[derive(Serialize)]
+pub struct KeyMetadataResponse {
+    pub key: String,
+    pub value: serde_json::Value,
+    pub ttl_ms: Option<u64>, // remaining ttl
+    pub tags: Vec<String>,
+}
+
+#[derive(Deserialize, Default)]
+pub struct SearchBody {
+    pub q: Option<String>,
+    pub tag_any: Option<Vec<String>>,
+    pub tag_all: Option<Vec<String>>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Serialize)]
+pub struct SearchResultItem { pub key: String, pub ttl_ms: Option<u64>, pub tags: Vec<String> }
+#[derive(Serialize)]
+pub struct SearchResult { pub keys: Vec<SearchResultItem> }
+
+#[derive(Deserialize)]
+pub struct InvalidateTagsBody { pub tags: Vec<String>, pub mode: Option<String> }
+#[derive(Deserialize)]
+pub struct InvalidateKeysBody { pub keys: Vec<String> }
 
 // =============================
 // HTTP HANDLERS
 // Each handler is async and receives shared state via Axum's State extractor.
 // =============================
-async fn put_handler(
-    axum::extract::State(cache): axum::extract::State<Arc<Cache>>, // Arc<Cache> clone is cheap (just increments ref count)
-    Json(req): Json<PutRequest>,                                   // Deserialize JSON body
-) -> ResponseJson<PutResponse> {                                   // We always return JSON
-    let key = Key(req.key);                                        // Wrap raw String into Key
-    let tags = req.tags.into_iter().map(Tag).collect();             // Convert Vec<String> -> Vec<Tag>
-    let ttl = req.ttl_ms.map(Duration::from_millis)                 // Prefer millisecond TTL
-        .or_else(|| req.ttl_seconds.map(Duration::from_secs));      // Fallback seconds
-    let ttl_ms_return = ttl.map(|d| d.as_millis() as u64);          // For response
-    cache.put(key, req.value, tags, ttl);                          // Store entry
+async fn put_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Json(req): Json<PutRequest>) -> ResponseJson<PutResponse> {
+    let key = Key(req.key);
+    let tags = req.tags.into_iter().map(Tag).collect();
+    let ttl = req.ttl_ms.map(Duration::from_millis).or_else(|| req.ttl_seconds.map(Duration::from_secs));
+    let ttl_ms_return = ttl.map(|d| d.as_millis() as u64);
+    state.cache.put(key, req.value, tags, ttl);
     ResponseJson(PutResponse { ok: true, ttl_ms: ttl_ms_return })
 }
 
 // GET handler returns either {value: ...} or {error: "not_found"}
-async fn get_handler(
-    axum::extract::State(cache): axum::extract::State<Arc<Cache>>, // Shared cache
-    Path(key): Path<String>,                                      // Path param extraction
-) -> ResponseJson<serde_json::Value> {                           // Dynamic JSON (value OR error)
+async fn get_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Path(key): Path<String>) -> ResponseJson<serde_json::Value> {
     let key = Key(key);
-    if let Some(value) = cache.get(&key) {                       // Attempt retrieval
-        ResponseJson(serde_json::json!({"value": value}))
-    } else {
-        ResponseJson(serde_json::json!({"error": "not_found"}))
-    }
+    if let Some(value) = state.cache.get(&key) { ResponseJson(serde_json::json!({"value": value})) } else { ResponseJson(serde_json::json!({"error": "not_found"})) }
 }
 
 // List keys associated with a tag.
-async fn keys_by_tag_handler(
-    axum::extract::State(cache): axum::extract::State<Arc<Cache>>,
-    Query(query): Query<KeysByTagQuery>,
-) -> ResponseJson<KeysByTagResponse> {
-    let tag = Tag(query.tag);                                    // Wrap tag
-    let mut keys = cache.get_keys_by_tag(&tag).into_iter().map(|k| k.0).collect::<Vec<_>>(); // Extract inner Strings
-    if let Some(limit) = query.limit {                           // Apply optional limit
-        if keys.len() > limit { keys.truncate(limit); }
-    }
+async fn keys_by_tag_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Query(query): Query<KeysByTagQuery>) -> ResponseJson<KeysByTagResponse> {
+    let tag = Tag(query.tag);
+    let mut keys = state.cache.get_keys_by_tag(&tag).into_iter().map(|k| k.0).collect::<Vec<_>>();
+    if let Some(limit) = query.limit { if keys.len() > limit { keys.truncate(limit); } }
     ResponseJson(KeysByTagResponse { keys })
 }
 
 // Invalidate single key.
-async fn invalidate_key_handler(
-    axum::extract::State(cache): axum::extract::State<Arc<Cache>>,
-    Json(req): Json<InvalidateKeyRequest>,
-) -> ResponseJson<InvalidateResponse> {
+async fn invalidate_key_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Json(req): Json<InvalidateKeyRequest>) -> ResponseJson<InvalidateResponse> {
     let key = Key(req.key);
-    let success = cache.invalidate_key(&key);                    // Remove key if exists
+    let success = state.cache.invalidate_key(&key);
     ResponseJson(InvalidateResponse { success, count: None })
 }
 
 // Invalidate all keys with a tag.
-async fn invalidate_tag_handler(
-    axum::extract::State(cache): axum::extract::State<Arc<Cache>>,
-    Json(req): Json<InvalidateTagRequest>,
-) -> ResponseJson<InvalidateResponse> {
+async fn invalidate_tag_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Json(req): Json<InvalidateTagRequest>) -> ResponseJson<InvalidateResponse> {
     let tag = Tag(req.tag);
-    let count = cache.invalidate_tag(&tag);                      // Number removed
+    let count = state.cache.invalidate_tag(&tag);
     ResponseJson(InvalidateResponse { success: count > 0, count: Some(count) })
 }
 
 // Flush all keys (dangerous – no auth layer here)
-async fn flush_handler(
-    axum::extract::State(cache): axum::extract::State<Arc<Cache>>,
-) -> ResponseJson<InvalidateResponse> {
-    let count = cache.flush_all();
-    ResponseJson(InvalidateResponse { success: true, count: Some(count) })
-}
+async fn flush_handler(State(state): State<Arc<AppState>>, _auth: Authenticated) -> ResponseJson<InvalidateResponse> { let count = state.cache.flush_all(); ResponseJson(InvalidateResponse { success: true, count: Some(count) }) }
 
 // Return stats snapshot.
-async fn stats_handler(
-    axum::extract::State(cache): axum::extract::State<Arc<Cache>>,
-) -> ResponseJson<StatsResponse> {
-    let stats = cache.get_stats();                               // Snapshot counts
+async fn stats_handler(State(state): State<Arc<AppState>>) -> ResponseJson<StatsResponse> {
+    let stats = state.cache.get_stats();
     let hit_ratio = if stats.hits + stats.misses > 0 {            // Avoid divide by zero
         stats.hits as f64 / (stats.hits + stats.misses) as f64
     } else { 0.0 };
+    // aggregate item & byte counts
+    let mut items = 0usize;
+    let mut bytes = 0usize;
+    for shard in &state.cache.shards {
+        items += shard.entries.len();
+        for e in shard.entries.iter() { bytes += e.value().value.len(); }
+    }
     ResponseJson(StatsResponse {                                   // Build JSON struct
         hits: stats.hits,
         misses: stats.misses,
         puts: stats.puts,
         invalidations: stats.invalidations,
         hit_ratio,
+        items,
+        bytes,
     })
 }
 
+// =============================
+// REST: GET /keys/:key -> metadata
+// =============================
+async fn rest_get_key(State(state): State<Arc<AppState>>, _auth: Authenticated, Path(key): Path<String>) -> ResponseJson<serde_json::Value> {
+    let key_wrap = Key(key.clone());
+    let shard_idx = state.cache.hash_key(&key_wrap);
+    let shard = &state.cache.shards[shard_idx];
+    if let Some(entry) = shard.entries.get(&key_wrap) {
+        if entry.is_expired() { shard.entries.remove(&key_wrap); return ResponseJson(serde_json::json!({"error":"not_found"})); }
+        let remaining = entry.ttl.map(|ttl| {
+            let elapsed = entry.created_at.elapsed();
+            if elapsed >= ttl { 0 } else { (ttl - elapsed).as_millis() as u64 }
+        });
+        // try parse JSON value
+        let parsed = serde_json::from_str::<serde_json::Value>(&entry.value).unwrap_or(serde_json::Value::String(entry.value.clone()));
+        let tags: Vec<String> = entry.tags.iter().map(|t| t.0.clone()).collect();
+        return ResponseJson(serde_json::json!({"key": key_wrap.0, "value": parsed, "ttl_ms": remaining, "tags": tags}));
+    }
+    ResponseJson(serde_json::json!({"error":"not_found"}))
+}
+
+// PUT /keys/:key
+async fn rest_put_key(State(state): State<Arc<AppState>>, _auth: Authenticated, Path(key): Path<String>, Json(body): Json<KeyUpsertBody>) -> ResponseJson<serde_json::Value> {
+    let ttl = body.ttl_ms.map(Duration::from_millis);
+    let tags_vec = body.tags.unwrap_or_default().into_iter().map(Tag).collect::<Vec<_>>();
+    // store string representation
+    let value_str = if body.value.is_string() { body.value.as_str().unwrap().to_string() } else { body.value.to_string() };
+    state.cache.put(Key(key.clone()), value_str, tags_vec, ttl);
+    ResponseJson(serde_json::json!({"ok":true,"ttl_ms": ttl.map(|d| d.as_millis() as u64)}))
+}
+
+// DELETE /keys/:key
+async fn rest_delete_key(State(state): State<Arc<AppState>>, _auth: Authenticated, Path(key): Path<String>) -> ResponseJson<serde_json::Value> {
+    let removed = state.cache.invalidate_key(&Key(key));
+    ResponseJson(serde_json::json!({"ok": removed, "deleted": if removed {1} else {0}}))
+}
+
+// POST /search
+async fn search_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Json(body): Json<SearchBody>) -> ResponseJson<SearchResult> {
+    let mut results: Vec<SearchResultItem> = Vec::new();
+    let limit = body.limit.unwrap_or(100);
+    // Build tag sets for all/all semantics
+    if body.tag_all.as_ref().map(|v| !v.is_empty()).unwrap_or(false) {
+        // Intersection of keys across all tags
+        let tag_objs: Vec<Tag> = body.tag_all.clone().unwrap().into_iter().map(Tag).collect();
+    let key_counts: dashmap::DashMap<String, usize> = dashmap::DashMap::new();
+        for tag in &tag_objs {
+            let keys = state.cache.get_keys_by_tag(tag);
+            for k in keys { key_counts.entry(k.0).and_modify(|c| *c+=1).or_insert(1); }
+        }
+        for kv in key_counts.iter() {
+            if *kv.value() == tag_objs.len() { // present in all
+                if results.len() >= limit { break; }
+                // fetch metadata
+                if let Some(meta) = fetch_meta_simple(&state.cache, &kv.key()) { results.push(meta); }
+            }
+        }
+    } else if body.tag_any.as_ref().map(|v| !v.is_empty()).unwrap_or(false) {
+        let mut seen = std::collections::HashSet::new();
+    for t in body.tag_any.clone().unwrap() { if results.len()>=limit { break; } let keys = state.cache.get_keys_by_tag(&Tag(t)); for k in keys { if seen.insert(k.0.clone()) { if let Some(meta) = fetch_meta_simple(&state.cache, &k.0) { results.push(meta); if results.len()>=limit { break; } } } } }
+    } else if let Some(q) = body.q.clone() {
+        let qlower = q.to_string();
+    for shard in &state.cache.shards {
+            for entry in shard.entries.iter() {
+                let kref = &entry.key().0;
+                if kref.starts_with(&qlower) {
+            if let Some(meta) = fetch_meta_simple(&state.cache, kref) { results.push(meta); }
+                    if results.len()>=limit { break; }
+                }
+            }
+            if results.len()>=limit { break; }
+        }
+    }
+    ResponseJson(SearchResult { keys: results })
+}
+
+fn fetch_meta_simple(cache: &Cache, key_str: &str) -> Option<SearchResultItem> {
+    let key = Key(key_str.to_string());
+    let shard_idx = cache.hash_key(&key);
+    let shard = &cache.shards[shard_idx];
+    if let Some(entry) = shard.entries.get(&key) {
+        if entry.is_expired() { return None; }
+        let remaining = entry.ttl.map(|ttl| {
+            let elapsed = entry.created_at.elapsed();
+            if elapsed >= ttl { 0 } else { (ttl - elapsed).as_millis() as u64 }
+        });
+        let tags = entry.tags.iter().map(|t| t.0.clone()).collect();
+        return Some(SearchResultItem { key: key_str.to_string(), ttl_ms: remaining, tags });
+    }
+    None
+}
+
+// POST /invalidate/tags
+async fn invalidate_tags_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Json(body): Json<InvalidateTagsBody>) -> ResponseJson<serde_json::Value> {
+    let mode = body.mode.unwrap_or_else(|| "any".to_string());
+    let mut count = 0usize;
+    if mode == "any" { for t in body.tags { count += state.cache.invalidate_tag(&Tag(t)); } }
+    else { // all: collect keys having all tags
+        let tags: Vec<Tag> = body.tags.into_iter().map(Tag).collect();
+        if !tags.is_empty() {
+            let first_keys = state.cache.get_keys_by_tag(&tags[0]);
+            for k in first_keys {
+                let shard_idx = state.cache.hash_key(&k);
+                let shard = &state.cache.shards[shard_idx];
+                if let Some(entry) = shard.entries.get(&k) {
+                    let tagset: std::collections::HashSet<_> = entry.tags.iter().map(|t| &t.0).collect();
+                    if tags.iter().all(|t| tagset.contains(&t.0)) { if state.cache.invalidate_key(&k) { count+=1; } }
+                }
+            }
+        }
+    }
+    ResponseJson(serde_json::json!({"success": true, "count": count}))
+}
+
+// POST /invalidate/keys
+async fn invalidate_keys_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Json(body): Json<InvalidateKeysBody>) -> ResponseJson<serde_json::Value> {
+    let mut count = 0usize;
+    for k in body.keys { if state.cache.invalidate_key(&Key(k)) { count+=1; } }
+    ResponseJson(serde_json::json!({"success": true, "count": count}))
+}
+
+// AUTH handlers
+async fn login_handler(State(state): State<Arc<AppState>>, Json(body): Json<LoginBody>) -> (StatusCode, ResponseJson<serde_json::Value>) {
+    if state.auth.validate_basic(&body.username, &body.password) { let token = state.auth.issue_token(); return (StatusCode::OK, ResponseJson(serde_json::json!({"token": token, "expires_in": 3600 }))); }
+    (StatusCode::UNAUTHORIZED, ResponseJson(serde_json::json!({"error":"invalid_credentials"})))
+}
+
+async fn rotate_handler(State(state): State<Arc<AppState>>, _authd: Authenticated) -> ResponseJson<RotateResponse> { let new = state.auth.rotate();
+    // Write file
+    if let Err(e) = write_credentials_file(&new) { eprintln!("credential rotate write error: {e}"); }
+    ResponseJson(RotateResponse { ok: true, username: new.username, password: new.password }) }
+
+async fn setup_required_handler() -> ResponseJson<SetupRequired> {
+    let need = !FsPath::new("credential.txt").exists();
+    ResponseJson(SetupRequired { setup_required: need })
+}
+
 // Build the Axum HTTP router configuration.
-pub fn build_app(cache: Arc<Cache>) -> Router {
-    Router::new()
+pub fn build_app(app_state: Arc<AppState>, allowed_origin: Option<String>) -> Router {
+    let router = Router::new()
         // Each route maps path + method to handler. State cloned into each closure.
         .route("/put", post(put_handler))
         .route("/get/:key", get(get_handler))
@@ -409,8 +616,51 @@ pub fn build_app(cache: Arc<Cache>) -> Router {
         .route("/invalidate-tag", post(invalidate_tag_handler))
         .route("/flush", post(flush_handler))
         .route("/stats", get(stats_handler))
-        .layer(CorsLayer::new().allow_origin(Any)) // Very permissive CORS (adjust for production)
-        .with_state(cache)                         // Provide shared state to handlers
+    // New RESTful routes
+    .route("/keys/:key", get(rest_get_key).put(rest_put_key).delete(rest_delete_key))
+    .route("/search", post(search_handler))
+    .route("/invalidate/tags", post(invalidate_tags_handler))
+    .route("/invalidate/keys", post(invalidate_keys_handler))
+        // auth endpoints
+        .route("/auth/login", post(login_handler))
+        .route("/auth/rotate", post(rotate_handler))
+    .route("/auth/setup_required", get(setup_required_handler))
+    .route("/health", get(health_handler))
+    .with_state(app_state.clone());
+
+    // CORS: allow specified origin or fallback * (dev). Allow auth headers.
+    let cors = if let Some(origin) = allowed_origin { CorsLayer::very_permissive().allow_origin(origin.parse::<axum::http::HeaderValue>().unwrap()) } else { CorsLayer::very_permissive() };
+    router.layer(cors)
+}
+
+async fn health_handler() -> ResponseJson<serde_json::Value> { ResponseJson(serde_json::json!({"status":"ok","time": chrono::Utc::now().to_rfc3339()})) }
+
+fn load_or_create_credentials() -> anyhow::Result<Credentials> {
+    let path = FsPath::new("credential.txt");
+    if path.exists() {
+        let content = fs::read_to_string(path)?;
+        let mut map = HashMap::new();
+        for line in content.lines() { if let Some((k,v)) = line.split_once('=') { map.insert(k.trim().to_string(), v.trim().to_string()); } }
+        let username = map.get("username").cloned().ok_or_else(|| anyhow::anyhow!("username missing"))?;
+        let password = map.get("password").cloned().ok_or_else(|| anyhow::anyhow!("password missing"))?;
+        return Ok(Credentials { username, password });
+    }
+    let creds = Credentials {
+        username: rand::thread_rng().sample_iter(&Alphanumeric).take(16).map(char::from).collect(),
+        password: rand::thread_rng().sample_iter(&Alphanumeric).take(24).map(char::from).collect()
+    };
+    write_credentials_file(&creds)?;
+    Ok(creds)
+}
+
+fn write_credentials_file(creds: &Credentials) -> anyhow::Result<()> {
+    let mut file = fs::File::create("credential.txt")?;
+    #[cfg(unix)] {
+        use std::os::unix::fs::PermissionsExt; let mut perms = file.metadata()?.permissions(); perms.set_mode(0o600); fs::set_permissions("credential.txt", perms)?;
+    }
+    let now = chrono::Utc::now().to_rfc3339();
+    write!(file, "username={}\npassword={}\ncreated_at={}\nversion=1\n", creds.username, creds.password, now)?;
+    Ok(())
 }
 
 // =============================
@@ -533,6 +783,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Build the cache (Arc so it can be shared across tasks / threads).
     let cache = Arc::new(Cache::new(num_shards));
+    let creds = load_or_create_credentials()?;
+    let auth_state = Arc::new(AuthState::new(creds));
+    let app_state = Arc::new(AppState { cache: cache.clone(), auth: auth_state.clone() });
+    let allowed_origin = env::var("ALLOWED_ORIGIN").ok();
 
     // Background task: periodically sweep expired entries to free memory.
     let cleanup_cache = cache.clone();
@@ -554,7 +808,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Build Axum router with all endpoints.
-    let app = build_app(cache.clone());
+    let app = build_app(app_state.clone(), allowed_origin);
 
     // Bind TCP listener for HTTP (await returns listener only when bind succeeds).
     let listener = tokio::net::TcpListener::bind(&format!("0.0.0.0:{}", port)).await?;
