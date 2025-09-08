@@ -66,3 +66,14 @@ bench_output/
 .env.test.local
 .env.production.local
 
+# ---- Secrets / Credentials ----
+credential.txt
+
+# ---- Frontend (Vite/React) ----
+app/node_modules/
+app/dist/
+app/.vite/
+app/coverage/
+app/test-results/
+app/playwright-report/
+
