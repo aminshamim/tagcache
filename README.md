@@ -34,15 +34,110 @@ Primary (preferred):
 Legacy (still accepted, logged when used):
 - `TC_HTTP_PORT`, `TC_TCP_PORT`, `TC_NUM_SHARDS`, `TC_SWEEP_INTERVAL_MS`
 
+## Authentication
+
+TagCache ships with a lightweight built‑in authentication layer used by both the dashboard UI and any API clients.
+
+### Credential File (bootstrap)
+On first startup (when `credential.txt` is absent) the server auto‑generates a file in the working directory:
+```
+credential.txt
+username=<random>
+password=<random>
+created_at=2025-09-09T00:00:00Z
+version=1
+```
+File permissions on Unix are restricted to `600` (owner read/write) for basic safety. Keep this file secret; anyone with it can obtain an auth token. You may commit a different credentials management flow in production (env injection / secret manager) by pre‑creating `credential.txt` before launch.
+
+### Login Flow
+Login uses a POST to `/auth/login` with:
+1. A Basic Auth header (`Authorization: Basic base64(username:password)`) – used server side for quick validation.
+2. The same credentials in a JSON body (mirrors header for clarity & future flexibility).
+
+Example:
+```bash
+USER=$(grep '^username=' credential.txt | cut -d= -f2)
+PASS=$(grep '^password=' credential.txt | cut -d= -f2)
+B64=$(printf '%s:%s' "$USER" "$PASS" | base64)
+curl -s -X POST http://127.0.0.1:8080/auth/login \
+  -H "Authorization: Basic $B64" \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"'"$USER"'","password":"'"$PASS"'"}'
+```
+Response:
+```json
+{"token":"<48-char-random>","expires_in":3600}
+```
+
+### Using the Token
+Pass the token with the Bearer scheme:
+```bash
+TOKEN="<token-from-login>"
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/stats
+```
+The dashboard automatically stores the token (localStorage) so refreshes keep the session.
+
+### Rotation
+POST `/auth/rotate` with a **current valid token** rotates both username/password (new random values) and invalidates **all existing tokens**:
+```bash
+curl -X POST http://127.0.0.1:8080/auth/rotate \
+  -H "Authorization: Bearer $TOKEN"
+```
+Response:
+```json
+{"ok":true,"username":"<newUser>","password":"<newPass>"}
+```
+Update any external clients with the new credentials, then obtain a new token via `/auth/login`.
+
+### Setup Detection
+`GET /auth/setup_required` returns `{ "setup_required": true }` only before the first credential file is created, enabling UI onboarding flows.
+
+### Fallbacks & Validation Order
+For every protected endpoint the server checks:
+1. `Authorization: Bearer <token>` (valid token present in in‑memory token set)
+2. If not a bearer match, `Authorization: Basic <base64>` (compared to current credential pair)
+If neither matches: HTTP 401 `{ "error":"unauthorized" }`.
+
+### Hardening Tips
+- Mount the working directory with proper file ownership (`credential.txt` should not be writable by untrusted users).
+- Put the server behind TLS (reverse proxy like Caddy, Nginx, Traefik) – the server itself is plaintext HTTP.
+- Use a secret manager or inject credentials via volume mount and rebuild the file with the same format if you prefer deterministic credentials.
+- Set `ALLOWED_ORIGIN` (env var) for strict CORS if exposing dashboard remotely.
+
+### Quick Scripted Login Helper
+```bash
+login() { local host=${1:-http://127.0.0.1:8080}; \
+  local u=$(grep '^username=' credential.txt|cut -d= -f2); \
+  local p=$(grep '^password=' credential.txt|cut -d= -f2); \
+  local b=$(printf '%s:%s' "$u" "$p" | base64); \
+  curl -s -X POST "$host/auth/login" -H "Authorization: Basic $b" -H 'Content-Type: application/json' -d '{"username":"'"$u"'","password":"'"$p"'"}'; }
+```
+
+### Frontend Behavior
+- On successful login: token + username persisted; all API calls automatically attach `Authorization: Bearer <token>`.
+- On 401 responses (not yet implemented): a future enhancement can clear stored token and redirect to the login screen.
+
+---
+
 ## HTTP API
 Base URL: `http://host:PORT`
+
+For all examples below, first export a Basic Auth header (reads bootstrap credentials from `credential.txt`):
+```bash
+USER=$(grep '^username=' credential.txt | cut -d= -f2)
+PASS=$(grep '^password=' credential.txt | cut -d= -f2)
+B64=$(printf '%s:%s' "$USER" "$PASS" | base64)
+AUTH="-H Authorization: Basic $B64"
+```
+Then prepend `$AUTH` (or copy the header literal) to every curl command.
 
 ### PUT /put
 Store/update a value.
 ```bash
 curl -X POST http://127.0.0.1:8080/put \
+  -H "Authorization: Basic $B64" \
   -H 'Content-Type: application/json' \
-  -d '{"key":"user:42","value":"hello","tags":["users","trial"],"ttl_ms":60000}'
+  -d '{"key":"user:42","value":"hello","tags":["users","trial"],"ttl_ms":6000000}'
 ```
 Response:
 ```json
@@ -51,7 +146,7 @@ Response:
 
 ### GET /get/:key
 ```bash
-curl http://127.0.0.1:8080/get/user:42
+curl -H "Authorization: Basic $B64" http://127.0.0.1:8080/get/user:42
 ```
 Response (hit):
 ```json
@@ -64,7 +159,7 @@ Response (miss):
 
 ### GET /keys-by-tag?tag=TAG&limit=N
 ```bash
-curl 'http://127.0.0.1:8080/keys-by-tag?tag=users&limit=50'
+curl -H "Authorization: Basic $B64" 'http://127.0.0.1:8080/keys-by-tag?tag=users&limit=50'
 ```
 Response:
 ```json
@@ -74,6 +169,7 @@ Response:
 ### POST /invalidate-key
 ```bash
 curl -X POST http://127.0.0.1:8080/invalidate-key \
+  -H "Authorization: Basic $B64" \
   -H 'Content-Type: application/json' \
   -d '{"key":"user:42"}'
 ```
@@ -82,6 +178,7 @@ Response: `{ "success": true }`
 ### POST /invalidate-tag
 ```bash
 curl -X POST http://127.0.0.1:8080/invalidate-tag \
+  -H "Authorization: Basic $B64" \
   -H 'Content-Type: application/json' \
   -d '{"tag":"trial"}'
 ```
@@ -89,7 +186,7 @@ Response: `{ "success": true, "count": <removed> }`
 
 ### GET /stats
 ```bash
-curl http://127.0.0.1:8080/stats
+curl -H "Authorization: Basic $B64" http://127.0.0.1:8080/stats
 ```
 Response (extended fields may appear in newer versions):
 ```json

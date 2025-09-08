@@ -44,6 +44,9 @@ export default function App() {
     window.addEventListener('keydown', onKey); return ()=>window.removeEventListener('keydown', onKey);
   },[navigate]);
 
+  // Sync persisted token to API client on load/changes
+  useEffect(()=>{ if(token){ setAuthToken(token); } },[token]);
+
   if(!token) {
     return (
       <div className="h-full flex items-center justify-center p-4 bg-gray-50">
@@ -94,13 +97,21 @@ export default function App() {
           </NavLink>
         </nav>
         <div className="mt-auto flex flex-col items-center gap-4">
-          <button className="w-12 h-12 flex items-center justify-center rounded-xl hover:bg-white/10 transition-colors relative">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor"/></svg>
-            <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
-          <div className="w-10 h-10 bg-white/20 rounded-full overflow-hidden">
-            <div className="w-full h-full bg-gradient-to-br from-purple-400 to-pink-400"></div>
+          <div className="w-10 h-10 bg-white/20 rounded-full overflow-hidden flex items-center justify-center text-xs font-medium uppercase tracking-wide">
+            {username ? username.slice(0,2) : 'TC'}
           </div>
+          <button
+            onClick={doLogout}
+            title="Logout"
+            aria-label="Logout"
+            className="w-12 h-12 flex items-center justify-center rounded-xl hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40 transition-colors group"
+          >
+            <svg className="w-5 h-5 text-white/80 group-hover:text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </button>
         </div>
       </aside>
       <div className="flex-1 flex flex-col">

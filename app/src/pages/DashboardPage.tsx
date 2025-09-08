@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { api } from '../api/client';
 import { useAuthStore } from '../store/auth';
 import { TagDistribution } from '../components/TagDistribution';
@@ -9,6 +9,7 @@ export default function DashboardPage() {
   const [stats,setStats] = useState<Stats|null>(null);
   const [memSeries,setMemSeries] = useState<{ts:number; bytes:number}[]>([]);
   const [err,setErr] = useState<string|null>(null);
+  const prevStatsRef = useRef<Stats|null>(null);
   
   const token = useAuthStore(s=>s.token);
   useEffect(()=>{
@@ -53,6 +54,8 @@ export default function DashboardPage() {
       setHistory(h=>[...h,{ts:Date.now(), hits:stats.hits, misses:stats.misses, puts:stats.puts, invalidations:stats.invalidations, items:stats.items||0, bytes:stats.bytes||0, hit_ratio:stats.hit_ratio }].slice(-90));
     }
   },[stats]);
+  const prevStats = prevStatsRef.current; // snapshot before updating ref below
+  useEffect(()=>{ prevStatsRef.current = stats; },[stats]);
 
   function RatesChart(){
     if(history.length<2) return <div className="h-48 flex items-center justify-center text-sm text-gray-500">Collecting data...</div>;
@@ -118,16 +121,23 @@ export default function DashboardPage() {
               const fullHeight = scale * (barH-4);
               let yCursor = barH-2;
               const seg = (val:number,color:string)=>{
-                const hSeg = (val/total)*fullHeight;
+                if(total <= 0 || fullHeight <= 0) return null;
+                const hSeg = total > 0 ? (val/total)*fullHeight : 0;
+                if(!isFinite(hSeg) || hSeg <= 0) return null;
                 yCursor -= hSeg;
                 return <rect key={color} x={x} y={yCursor} width={barWidth} height={hSeg} fill={color} rx={1} />;
               };
-              return <g key={p.ts}>{[
+              const segments = [
                 seg(p.hit_r,'#10b981'),
                 seg(p.miss_r,'#ef4444'),
                 seg(p.put_r,'#6366f1'),
                 seg(p.inv_r,'#f59e0b')
-              ]}</g>;
+              ].filter(Boolean);
+              if(segments.length===0){
+                // draw a minimal placeholder bar to indicate time slot with zero ops
+                return <rect key={p.ts} x={x} y={barH-5} width={barWidth} height={3} fill="#e2e8f0" rx={1} />;
+              }
+              return <g key={p.ts}>{segments}</g>;
             })}
             {/* axis line */}
             <line x1={0} x2={w} y1={barH-1} y2={barH-1} stroke="#e2e8f0" />
@@ -246,30 +256,68 @@ export default function DashboardPage() {
             <h3 className="text-lg font-semibold text-gray-800">Shard Breakdown</h3>
             <span className="text-xs text-gray-500">{stats.shard_count} shards</span>
           </div>
+          {(()=>{
+            // Precompute maxima for dynamic color scaling
+            const maxShardItems = Math.max(...stats.shard_items!);
+            const maxShardBytes = Math.max(...stats.shard_bytes!);
+            function loadColor(load:number,max:number){
+              if(max<=0) return '#94a3b8';
+              const r = Math.min(1, load/max);
+              // Map load 0..1 to hue 140 (green) -> 25 (orange) -> 0 (red) for heavy
+              const hue = r < 0.5 ? 140 - (r*2)*(140-80) : 80 - ((r-0.5)*2*55); // two‑segment curve
+              const sat = 70 + r*20; // 70%..90%
+              const light = 55 - r*15; // 55%..40%
+              return `hsl(${Math.round(hue)}deg ${sat.toFixed(1)}% ${light.toFixed(1)}%)`;
+            }
+            return null; // just defining helpers in closure scope for the table below
+          })()}
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-left text-gray-500 border-b"><th className="py-2 pr-4">Shard</th><th className="py-2 pr-4">Items</th><th className="py-2 pr-4">Bytes</th><th className="py-2 pr-4">% Items</th><th className="py-2 pr-4">% Bytes</th></tr>
               </thead>
               <tbody>
-                {stats.shard_items.map((it,i)=>{
-                  const bytes = stats.shard_bytes![i];
-                  const pctI = stats.items? (it/Math.max(1,stats.items))*100:0;
-                  const pctB = stats.bytes? (bytes/Math.max(1,stats.bytes))*100:0;
-                  return (
-                    <tr key={i} className="border-b last:border-none hover:bg-gray-50">
-                      <td className="py-1 pr-4 font-mono">#{i}</td>
-                      <td className="py-1 pr-4 tabular-nums">{it}</td>
-                      <td className="py-1 pr-4 tabular-nums">{(bytes/1024).toFixed(1)} KB</td>
-                      <td className="py-1 pr-4">
-                        <div className="w-24 h-2 bg-gray-200 rounded overflow-hidden"><div className="h-full bg-brand-blue" style={{width:pctI+'%'}} /></div>
-                      </td>
-                      <td className="py-1 pr-4">
-                        <div className="w-24 h-2 bg-gray-200 rounded overflow-hidden"><div className="h-full bg-brand-purple" style={{width:pctB+'%'}} /></div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {(()=>{
+                  const maxShardItems = Math.max(...stats.shard_items!);
+                  const maxShardBytes = Math.max(...stats.shard_bytes!);
+                  function loadColor(load:number,max:number){
+                    if(max<=0) return '#94a3b8';
+                    const r = Math.min(1, load/max);
+                    const hue = 140 - r*140; // 140 (green) -> 0 (red)
+                    const sat = 65 + r*25; // 65%..90%
+                    const light = 52 - r*20; // 52%..32%
+                    return `hsl(${hue.toFixed(0)}deg ${sat.toFixed(1)}% ${light.toFixed(1)}%)`;
+                  }
+                  return stats.shard_items.map((it,i)=>{
+                    const bytes = stats.shard_bytes![i];
+                    const pctI = stats.items? (it/Math.max(1,stats.items))*100:0;
+                    const pctB = stats.bytes? (bytes/Math.max(1,stats.bytes))*100:0;
+                    const colorI = loadColor(it, maxShardItems);
+                    const colorB = loadColor(bytes, maxShardBytes);
+                    const prevIt = prevStats?.shard_items?.[i];
+                    const prevBytes = prevStats?.shard_bytes?.[i];
+                    const deltaIt = prevIt!==undefined? it - prevIt : 0;
+                    const deltaB = prevBytes!==undefined? bytes - prevBytes : 0;
+          const deltaBadge = (d:number)=> d===0? null : <span className={`ml-1 inline-block align-middle ${d>0?'text-emerald-600':'text-red-600'}`}>{d>0?'▲':'▼'}</span>;
+                    return (
+                      <tr key={i} className="border-b last:border-none hover:bg-gray-50 transition-colors">
+                        <td className="py-1 pr-4 font-mono">#{i}</td>
+            <td className="py-1 pr-4 tabular-nums whitespace-nowrap">{it}{deltaBadge(deltaIt)}</td>
+            <td className="py-1 pr-4 tabular-nums whitespace-nowrap">{(bytes/1024).toFixed(1)} KB{deltaBadge(deltaB)}</td>
+                        <td className="py-1 pr-4">
+                          <div className="w-24 h-2 bg-gray-200 rounded overflow-hidden">
+                            <div className="h-full transition-all duration-500" style={{width:pctI+'%', background:colorI}} />
+                          </div>
+                        </td>
+                        <td className="py-1 pr-4">
+                          <div className="w-24 h-2 bg-gray-200 rounded overflow-hidden">
+                            <div className="h-full transition-all duration-500" style={{width:pctB+'%', background:colorB}} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>
