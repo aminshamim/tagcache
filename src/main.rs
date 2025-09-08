@@ -1,15 +1,17 @@
 // abridged for readability; full logic is in your ZIP
-use axum::{routing::{get, post}, Json, Router, extract::{Path, Query}, response::Json as ResponseJson, http::StatusCode};
+use axum::{routing::{get, post}, Json, Router, extract::{Path, Query}, response::Json as ResponseJson};
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::{Duration, Instant}, env};
 use dashmap::{DashMap, DashSet};
 use smallvec::SmallVec;
 use tokio::time;
 use ahash::{RandomState};
-use std::hash::{Hash, Hasher};
+use std::hash::{Hash, Hasher, BuildHasher};
 use tower_http::cors::{CorsLayer, Any};
 use tracing::{info};
 use parking_lot::Mutex;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 // Key, Tag, Entry structs
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -361,6 +363,92 @@ pub fn build_app(cache: Arc<Cache>) -> Router {
         .with_state(cache)
 }
 
+// TCP protocol handler
+// Commands (tab-delimited, single line):
+// PUT <key> <ttl_ms|- > <tag1,tag2|- > <value>
+// GET <key>
+// DEL <key>
+// INV_TAG <tag>
+// KEYS_BY_TAG <tag>
+// STATS
+// Responses end with \n:
+// OK | ERR <msg>
+// VALUE <value> | NF
+// DEL ok|nf
+// INV_TAG <count>
+// KEYS <k1,k2,...>
+// STATS <hits> <misses> <puts> <invalidations> <hit_ratio>
+async fn handle_tcp_client(cache: Arc<Cache>, mut stream: TcpStream) {
+    let peer = stream.peer_addr().ok();
+    let (r, mut w) = stream.split();
+    let mut reader = BufReader::new(r);
+    let mut line = String::new();
+    while let Ok(n) = reader.read_line(&mut line).await {
+        if n == 0 { break; }
+        // trim trailing newline / carriage return
+        while line.ends_with(['\n','\r']) { line.pop(); }
+        if line.is_empty() { continue; }
+        let mut parts = line.splitn(5, '\t');
+        let cmd = parts.next().unwrap_or("").to_ascii_uppercase();
+        let resp = match cmd.as_str() {
+            "PUT" => {
+                let maybe_key = parts.next();
+                match maybe_key {
+                    Some(k) if !k.is_empty() => {
+                        let ttl_part = parts.next().unwrap_or("-");
+                        let tags_part = parts.next().unwrap_or("-");
+                        let value = parts.next().unwrap_or("");
+                        let ttl = if ttl_part == "-" || ttl_part.is_empty() { None } else { ttl_part.parse::<u64>().ok().map(|ms| Duration::from_millis(ms)) };
+                        let tags: Vec<Tag> = if tags_part == "-" || tags_part.is_empty() { Vec::new() } else { tags_part.split(',').filter(|s| !s.is_empty()).map(|s| Tag(s.to_string())).collect() };
+                        cache.put(Key(k.to_string()), value.to_string(), tags, ttl);
+                        "OK".to_string()
+                    }
+                    _ => "ERR missing_key".to_string()
+                }
+            }
+            "GET" => {
+                let key = parts.next();
+                match key { Some(k) => {
+                    match cache.get(&Key(k.to_string())) { Some(v) => format!("VALUE\t{}", v), None => "NF".to_string() }
+                }, None => "ERR missing_key".to_string() }
+            }
+            "DEL" => {
+                let key = parts.next();
+                match key { Some(k) => { if cache.invalidate_key(&Key(k.to_string())) { "DEL ok".to_string() } else { "DEL nf".to_string() } }, None => "ERR missing_key".to_string() }
+            }
+            "INV_TAG" => {
+                let tag = parts.next();
+                match tag { Some(t) => { let count = cache.invalidate_tag(&Tag(t.to_string())); format!("INV_TAG\t{}", count) }, None => "ERR missing_tag".to_string() }
+            }
+            "KEYS_BY_TAG" | "KEYS" => {
+                let tag = parts.next();
+                match tag { Some(t) => { let keys = cache.get_keys_by_tag(&Tag(t.to_string())); let list = keys.into_iter().map(|k| k.0).collect::<Vec<_>>().join(","); format!("KEYS\t{}", list) }, None => "ERR missing_tag".to_string() }
+            }
+            "STATS" => {
+                let s = cache.get_stats();
+                let hit_ratio = if s.hits + s.misses > 0 { s.hits as f64 / (s.hits + s.misses) as f64 } else { 0.0 };
+                format!("STATS\t{}\t{}\t{}\t{}\t{:.6}", s.hits, s.misses, s.puts, s.invalidations, hit_ratio)
+            }
+            _ => "ERR unknown_command".to_string(),
+        };
+        if let Err(_) = (&mut w).write_all(resp.as_bytes()).await { break; }
+        let _ = (&mut w).write_all(b"\n").await;
+        line.clear();
+    }
+    let _ = (&mut w).shutdown().await;
+    drop(peer);
+}
+
+async fn run_tcp_server(cache: Arc<Cache>, port: u16) -> anyhow::Result<()> {
+    let listener = TcpListener::bind(("0.0.0.0", port)).await?;
+    info!("TCP cache protocol listening on {}", port);
+    loop {
+        let (sock, _) = listener.accept().await?;
+        let c = cache.clone();
+        tokio::spawn(async move { handle_tcp_client(c, sock).await; });
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // tracing setup + env vars
@@ -368,20 +456,23 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let port = env::var("PORT")
-        .unwrap_or_else(|_| "8080".to_string())
-        .parse::<u16>()
-        .unwrap_or(8080);
+    // Helper closures to fetch env with fallback
+    let fetch = |primary: &str, legacy: &str| -> Option<String> {
+        if let Ok(v) = env::var(primary) { return Some(v); }
+        if let Ok(v) = env::var(legacy) { println!("Using legacy env var {legacy} for {primary}"); return Some(v); }
+        None
+    };
 
-    let num_shards = env::var("NUM_SHARDS")
-        .unwrap_or_else(|_| "16".to_string())
-        .parse::<usize>()
-        .unwrap_or(16);
+    let port: u16 = fetch("PORT", "TC_HTTP_PORT").unwrap_or_else(|| "8080".to_string()).parse().unwrap_or(8080);
+    let tcp_port: u16 = fetch("TCP_PORT", "TC_TCP_PORT").unwrap_or_else(|| "1984".to_string()).parse().unwrap_or(1984);
+    let num_shards: usize = fetch("NUM_SHARDS", "TC_NUM_SHARDS").unwrap_or_else(|| "16".to_string()).parse().unwrap_or(16);
 
-    let cleanup_interval = env::var("CLEANUP_INTERVAL_SECONDS")
-        .unwrap_or_else(|_| "60".to_string())
-        .parse::<u64>()
-        .unwrap_or(60);
+    let cleanup_interval = if let Some(ms) = fetch("CLEANUP_INTERVAL_MS", "TC_SWEEP_INTERVAL_MS") {
+        // Provided in ms
+        ms.parse::<u64>().ok().map(|v| (v.max(1)+999)/1000).unwrap_or(60)
+    } else if let Some(secs) = fetch("CLEANUP_INTERVAL_SECONDS", "CLEANUP_INTERVAL_SECS") {
+        secs.parse::<u64>().unwrap_or(60)
+    } else { 60 };
 
     // build cache + sweeper
     let cache = Arc::new(Cache::new(num_shards));
@@ -399,13 +490,18 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // build Axum routes
-    let app = build_app(cache);
+    // Start TCP server early
+    let tcp_cache = cache.clone();
+    tokio::spawn(async move {
+        if let Err(e) = run_tcp_server(tcp_cache, tcp_port).await { eprintln!("TCP server error: {e}"); }
+    });
 
-    // start server
+    // build Axum routes
+    let app = build_app(cache.clone());
+
+    // start HTTP server
     let listener = tokio::net::TcpListener::bind(&format!("0.0.0.0:{}", port)).await?;
-    info!("TagCache server starting on port {}", port);
-    info!("Using {} shards, cleanup interval: {}s", num_shards, cleanup_interval);
+    info!("TagCache HTTP port={} TCP port={} shards={} cleanup={}s", port, tcp_port, num_shards, cleanup_interval);
 
     axum::serve(listener, app).await?;
 
