@@ -1,0 +1,68 @@
+# ---- Rust / Cargo ----
+/target/
+**/target/
+# Optional: Uncomment if you use sccache or other local build caches
+# .cache/
+
+# Debug / profiling artifacts
+*.profraw
+*.gcno
+*.gcda
+*.gcov
+
+# If you build with different target triples
+**/*.rlib
+
+# Executables / binaries (if copied out)
+*.exe
+*.out
+*.app
+
+# Lockfiles are usually checked in for libraries; keep Cargo.lock since this is an app
+# (Remove next line if you ever convert to a library crate and want a floating dependency tree)
+# Cargo.lock
+
+# Rustfmt / Clippy generated backups
+**/*.rs.bk
+
+# ---- IDE / Editor ----
+# VSCode
+.vscode/
+# IntelliJ / CLion / RustRover
+.idea/
+*.iml
+# Other editors
+*.swp
+*~
+
+# ---- OS / System ----
+.DS_Store
+Thumbs.db
+
+# ---- Logs / Temp ----
+logs/
+*.log
+/tmp/
+.cache/
+
+# ---- Coverage ----
+coverage/
+htmlcov/
+
+# ---- Docker / Containers ----
+*.tar
+
+# ---- Misc ----
+# Generated benchmark data or artifacts
+bench_output/
+
+# Ignore dist or packaged release directories (optional)
+/dist/
+
+# ---- Custom Project Notes ----
+# Add any local override env files here if you create them
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
