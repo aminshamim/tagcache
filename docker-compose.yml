@@ -1,0 +1,8 @@
+services:
+  tagcache:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - TC_NUM_SHARDS=128
+      - TC_SWEEP_INTERVAL_MS=250
