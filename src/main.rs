@@ -358,7 +358,7 @@ pub struct InvalidateResponse { // Shared invalidation response
 }
 
 #[derive(Serialize, Clone)]
-pub struct StatsResponse { // /stats output
+pub struct StatsResponse { // /stats output (extended)
     pub hits: u64,
     pub misses: u64,
     pub puts: u64,
@@ -367,6 +367,9 @@ pub struct StatsResponse { // /stats output
     pub items: usize,
     pub bytes: usize,
     pub tags: usize,
+    pub shard_count: usize,
+    pub shard_items: Vec<usize>,   // length = shard_count
+    pub shard_bytes: Vec<usize>,   // length = shard_count
 }
 
 // RESTful key endpoints types
@@ -457,9 +460,16 @@ async fn stats_handler(State(state): State<Arc<AppState>>) -> ResponseJson<Stats
     let mut items = 0usize;
     let mut bytes = 0usize;
     let mut tag_set: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut shard_items_vec = Vec::with_capacity(state.cache.shards.len());
+    let mut shard_bytes_vec = Vec::with_capacity(state.cache.shards.len());
     for shard in &state.cache.shards {
-        items += shard.entries.len();
-        for e in shard.entries.iter() { bytes += e.value().value.len(); }
+        let si = shard.entries.len();
+        let mut sb = 0usize;
+        for e in shard.entries.iter() { sb += e.value().value.len(); }
+        shard_items_vec.push(si);
+        shard_bytes_vec.push(sb);
+        items += si;
+        bytes += sb;
         for t in shard.tag_to_keys.iter() { tag_set.insert(t.key().0.clone()); }
     }
     ResponseJson(StatsResponse {                                   // Build JSON struct
@@ -471,6 +481,9 @@ async fn stats_handler(State(state): State<Arc<AppState>>) -> ResponseJson<Stats
         items,
         bytes,
         tags: tag_set.len(),
+        shard_count: state.cache.shards.len(),
+        shard_items: shard_items_vec,
+        shard_bytes: shard_bytes_vec,
     })
 }
 
