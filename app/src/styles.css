@@ -3,3 +3,25 @@
 @tailwind utilities;
 
 html, body { height: 100%; }
+body { background: theme('colors.gray.50'); color: theme('colors.ink'); font-family: theme('fontFamily.sans'); }
+
+/* Pill search bar */
+.search-pill { @apply rounded-full bg-white shadow-sm px-4 py-2 flex items-center gap-2 border border-gray-200 focus-within:border-brand-primary transition; }
+.metric-card { @apply rounded-xl shadow-sm bg-white p-6 relative overflow-hidden border border-gray-100; }
+.metric-card::before { content:''; @apply absolute inset-0 opacity-40 pointer-events-none; background: radial-gradient(circle at 30% 20%, theme('colors.brand.alt'), transparent 60%); }
+.btn { @apply inline-flex items-center gap-1 font-medium rounded-full px-4 py-1.5 text-sm transition active:scale-[.97]; }
+.btn-primary { @apply bg-brand-primary text-white shadow-sm hover:bg-brand-primaryDark; }
+.btn-secondary { @apply bg-gray-100 text-gray-700 hover:bg-gray-200; }
+.hover-lift { @apply transition duration-150 ease-out hover:shadow-md hover:-translate-y-0.5; }
+.tag-badge { @apply inline-block rounded-full px-3 py-1 text-xs font-medium text-gray-700 bg-gray-100; }
+.card-glass { backdrop-filter: blur(10px); background: rgba(255,255,255,0.95); }
+
+/* Scrollbars subtle */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* Financial dashboard styles */
+.dashboard-card { @apply bg-white rounded-xl shadow-sm border border-gray-100; }
+.stat-box { @apply p-4 rounded-lg bg-gray-50; }
+.portfolio-chart { background: conic-gradient(#10B981 0deg 260deg, #3B82F6 260deg); }

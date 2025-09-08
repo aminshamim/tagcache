@@ -4,7 +4,7 @@
 
 use axum::{routing::{get, post, put, delete}, Json, Router, extract::{Path, Query, FromRequestParts, State}, response::Json as ResponseJson, http::{request::Parts, StatusCode}}; // Axum web framework imports for routing & JSON
 use serde::{Deserialize, Serialize}; // Serde for (de)serialization of JSON payloads
-use std::{sync::Arc, time::{Duration, Instant}, env}; // Arc = thread-safe reference counting; time utilities; env vars
+use std::{sync::Arc, time::{Duration, Instant, SystemTime, UNIX_EPOCH}, env}; // Arc = thread-safe reference counting; time utilities; env vars
 use dashmap::{DashMap, DashSet}; // Concurrent hash map + set (lock sharded) for high concurrency
 use smallvec::SmallVec; // Optimized small vector that stores small number of elements inline (avoids heap for few tags)
 use tokio::time; // Tokio timing utilities (interval)
@@ -41,6 +41,7 @@ pub struct Entry {
     pub tags: SmallVec<[Tag; 4]>,     // Tags associated with this key (SmallVec keeps up to 4 inline, no heap alloc)
     pub created_at: Instant,          // When the entry was inserted (for TTL expiration)
     pub ttl: Option<Duration>,        // Optional time-to-live; None = never expires (unless invalidated)
+    pub created_system: SystemTime,   // Wall clock creation time
 }
 
 impl Entry {
@@ -168,6 +169,7 @@ impl Cache {
             tags: SmallVec::from_vec(tags.clone()), // Clone tags so we can also iterate original vector for indexing
             created_at: Instant::now(),
             ttl,
+            created_system: SystemTime::now(),
         };
 
         // If key existed, remove old tag associations to avoid stale reverse index entries.
@@ -364,6 +366,7 @@ pub struct StatsResponse { // /stats output
     pub hit_ratio: f64,
     pub items: usize,
     pub bytes: usize,
+    pub tags: usize,
 }
 
 // RESTful key endpoints types
@@ -391,7 +394,7 @@ pub struct SearchBody {
 }
 
 #[derive(Serialize)]
-pub struct SearchResultItem { pub key: String, pub ttl_ms: Option<u64>, pub tags: Vec<String> }
+pub struct SearchResultItem { pub key: String, pub ttl_ms: Option<u64>, pub tags: Vec<String>, pub created_ms: Option<u64> }
 #[derive(Serialize)]
 pub struct SearchResult { pub keys: Vec<SearchResultItem> }
 
@@ -453,9 +456,11 @@ async fn stats_handler(State(state): State<Arc<AppState>>) -> ResponseJson<Stats
     // aggregate item & byte counts
     let mut items = 0usize;
     let mut bytes = 0usize;
+    let mut tag_set: std::collections::HashSet<String> = std::collections::HashSet::new();
     for shard in &state.cache.shards {
         items += shard.entries.len();
         for e in shard.entries.iter() { bytes += e.value().value.len(); }
+        for t in shard.tag_to_keys.iter() { tag_set.insert(t.key().0.clone()); }
     }
     ResponseJson(StatsResponse {                                   // Build JSON struct
         hits: stats.hits,
@@ -465,6 +470,7 @@ async fn stats_handler(State(state): State<Arc<AppState>>) -> ResponseJson<Stats
         hit_ratio,
         items,
         bytes,
+        tags: tag_set.len(),
     })
 }
 
@@ -482,9 +488,10 @@ async fn rest_get_key(State(state): State<Arc<AppState>>, _auth: Authenticated, 
             if elapsed >= ttl { 0 } else { (ttl - elapsed).as_millis() as u64 }
         });
         // try parse JSON value
-        let parsed = serde_json::from_str::<serde_json::Value>(&entry.value).unwrap_or(serde_json::Value::String(entry.value.clone()));
-        let tags: Vec<String> = entry.tags.iter().map(|t| t.0.clone()).collect();
-        return ResponseJson(serde_json::json!({"key": key_wrap.0, "value": parsed, "ttl_ms": remaining, "tags": tags}));
+    let parsed = serde_json::from_str::<serde_json::Value>(&entry.value).unwrap_or(serde_json::Value::String(entry.value.clone()));
+    let tags: Vec<String> = entry.tags.iter().map(|t| t.0.clone()).collect();
+    let created_ms = entry.created_system.duration_since(UNIX_EPOCH).ok().map(|d| d.as_millis() as u64);
+    return ResponseJson(serde_json::json!({"key": key_wrap.0, "value": parsed, "ttl_ms": remaining, "tags": tags, "created_ms": created_ms}));
     }
     ResponseJson(serde_json::json!({"error":"not_found"}))
 }
@@ -540,6 +547,16 @@ async fn search_handler(State(state): State<Arc<AppState>>, _auth: Authenticated
             }
             if results.len()>=limit { break; }
         }
+    } else { // enumerate newest first across ALL shards (previously stopped after first shard hit limit)
+        for shard in &state.cache.shards {
+            for entry in shard.entries.iter() {
+                if entry.value().is_expired() { continue; }
+                if let Some(meta) = fetch_meta_simple(&state.cache, &entry.key().0) { results.push(meta); }
+            }
+        }
+        // Sort newest first then enforce limit
+        results.sort_by(|a,b| b.created_ms.cmp(&a.created_ms));
+        if results.len() > limit { results.truncate(limit); }
     }
     ResponseJson(SearchResult { keys: results })
 }
@@ -554,8 +571,9 @@ fn fetch_meta_simple(cache: &Cache, key_str: &str) -> Option<SearchResultItem> {
             let elapsed = entry.created_at.elapsed();
             if elapsed >= ttl { 0 } else { (ttl - elapsed).as_millis() as u64 }
         });
-        let tags = entry.tags.iter().map(|t| t.0.clone()).collect();
-        return Some(SearchResultItem { key: key_str.to_string(), ttl_ms: remaining, tags });
+    let tags = entry.tags.iter().map(|t| t.0.clone()).collect();
+    let created_ms = entry.created_system.duration_since(UNIX_EPOCH).ok().map(|d| d.as_millis() as u64);
+    return Some(SearchResultItem { key: key_str.to_string(), ttl_ms: remaining, tags, created_ms });
     }
     None
 }
@@ -619,6 +637,7 @@ pub fn build_app(app_state: Arc<AppState>, allowed_origin: Option<String>) -> Ro
     // New RESTful routes
     .route("/keys/:key", get(rest_get_key).put(rest_put_key).delete(rest_delete_key))
     .route("/search", post(search_handler))
+    .route("/keys", get(list_keys_handler))
     .route("/invalidate/tags", post(invalidate_tags_handler))
     .route("/invalidate/keys", post(invalidate_keys_handler))
         // auth endpoints
@@ -661,6 +680,31 @@ fn write_credentials_file(creds: &Credentials) -> anyhow::Result<()> {
     let now = chrono::Utc::now().to_rfc3339();
     write!(file, "username={}\npassword={}\ncreated_at={}\nversion=1\n", creds.username, creds.password, now)?;
     Ok(())
+}
+
+// Lightweight listing of all keys with metadata (newest first)
+async fn list_keys_handler(State(state): State<Arc<AppState>>, _auth: Authenticated) -> ResponseJson<serde_json::Value> {
+    let mut out: Vec<serde_json::Value> = Vec::new();
+    for shard in &state.cache.shards {
+        for e in shard.entries.iter() {
+            if e.value().is_expired() { continue; }
+            let ttl_ms = e.value().ttl.map(|ttl| {
+                let elapsed = e.value().created_at.elapsed();
+                if elapsed >= ttl { 0 } else { (ttl - elapsed).as_millis() as u64 }
+            });
+            let created_ms = e.value().created_system.duration_since(UNIX_EPOCH).ok().map(|d| d.as_millis() as u64);
+            let tags: Vec<String> = e.value().tags.iter().map(|t| t.0.clone()).collect();
+            out.push(serde_json::json!({
+                "key": e.key().0,
+                "size": e.value().value.len(),
+                "ttl": ttl_ms,
+                "tags": tags,
+                "created_ms": created_ms
+            }));
+        }
+    }
+    out.sort_by(|a,b| b.get("created_ms").and_then(|v| v.as_u64()).cmp(&a.get("created_ms").and_then(|v| v.as_u64())));
+    ResponseJson(serde_json::json!({"keys": out}))
 }
 
 // =============================

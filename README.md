@@ -91,14 +91,17 @@ Response: `{ "success": true, "count": <removed> }`
 ```bash
 curl http://127.0.0.1:8080/stats
 ```
-Response:
+Response (extended fields may appear in newer versions):
 ```json
 {
   "hits": 10,
   "misses": 2,
   "puts": 12,
   "invalidations": 1,
-  "hit_ratio": 0.8333
+  "hit_ratio": 0.8333,
+  "items": 2500,
+  "bytes": 1827364,
+  "tags": 37
 }
 ```
 
