@@ -1,48 +1,58 @@
-// abridged for readability; full logic is in your ZIP
-use axum::{routing::{get, post}, Json, Router, extract::{Path, Query}, response::Json as ResponseJson};
-use serde::{Deserialize, Serialize};
-use std::{sync::Arc, time::{Duration, Instant}, env};
-use dashmap::{DashMap, DashSet};
-use smallvec::SmallVec;
-use tokio::time;
-use ahash::{RandomState};
-use std::hash::{Hash, Hasher, BuildHasher};
-use tower_http::cors::{CorsLayer, Any};
-use tracing::{info};
-use parking_lot::Mutex;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+// TagCache main server implementation with heavy inline comments for Rust beginners.
+// The goal of these comments is to explain: types, ownership, concurrency primitives,
+// async runtime usage, data model, and protocol handling. Feel free to trim later.
 
-// Key, Tag, Entry structs
+use axum::{routing::{get, post}, Json, Router, extract::{Path, Query}, response::Json as ResponseJson}; // Axum web framework imports for routing & JSON
+use serde::{Deserialize, Serialize}; // Serde for (de)serialization of JSON payloads
+use std::{sync::Arc, time::{Duration, Instant}, env}; // Arc = thread-safe reference counting; time utilities; env vars
+use dashmap::{DashMap, DashSet}; // Concurrent hash map + set (lock sharded) for high concurrency
+use smallvec::SmallVec; // Optimized small vector that stores small number of elements inline (avoids heap for few tags)
+use tokio::time; // Tokio timing utilities (interval)
+use ahash::{RandomState}; // Fast hashing state for consistent shard distribution
+use std::hash::{Hash, Hasher, BuildHasher}; // Traits for custom hashing
+use tower_http::cors::{CorsLayer, Any}; // CORS middleware for HTTP
+use tracing::{info}; // Structured logging (use RUST_LOG=info to see)
+use parking_lot::Mutex; // Faster, simpler mutex vs std::sync::Mutex (not poisonable)
+use tokio::net::{TcpListener, TcpStream}; // Async TCP server primitives
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader}; // Async buffered IO extensions
+
+// =============================
+// DATA MODEL TYPES
+// =============================
+// We wrap raw String keys in a newtype Key for type safety + trait impls.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Key(String);
+pub struct Key(String); // Simple wrapper; cloning duplicates the underlying String.
 
+// Same idea for Tag — improves clarity and prevents mixing strings accidentally.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Tag(String);
 
+// Represents one cached entry (the stored value + metadata).
 #[derive(Debug, Clone)]
 pub struct Entry {
-    pub value: String,
-    pub tags: SmallVec<[Tag; 4]>,
-    pub created_at: Instant,
-    pub ttl: Option<Duration>,
+    pub value: String,                // The actual cached value (here just a String; could be bytes or JSON later)
+    pub tags: SmallVec<[Tag; 4]>,     // Tags associated with this key (SmallVec keeps up to 4 inline, no heap alloc)
+    pub created_at: Instant,          // When the entry was inserted (for TTL expiration)
+    pub ttl: Option<Duration>,        // Optional time-to-live; None = never expires (unless invalidated)
 }
 
 impl Entry {
+    // Helper to check if this entry should be considered expired.
     pub fn is_expired(&self) -> bool {
-        if let Some(ttl) = self.ttl {
-            self.created_at.elapsed() > ttl
+        if let Some(ttl) = self.ttl {             // If a TTL exists
+            self.created_at.elapsed() > ttl       // Compare elapsed time to TTL
         } else {
-            false
+            false                                  // No TTL => never expires
         }
     }
 }
 
-// Shard with DashMaps
+// A Shard holds a subset of all keys. Sharding reduces contention: each DashMap already shards internally,
+// but we add an outer manual shard layer to control scaling and future distribution strategies.
 #[derive(Debug)]
 pub struct Shard {
-    pub entries: DashMap<Key, Entry>,
-    pub tag_to_keys: DashMap<Tag, DashSet<Key>>,
+    pub entries: DashMap<Key, Entry>,          // Map key -> entry
+    pub tag_to_keys: DashMap<Tag, DashSet<Key>>, // Reverse index: tag -> set of keys sharing it
 }
 
 impl Shard {
@@ -54,14 +64,15 @@ impl Shard {
     }
 }
 
-// Cache with shards, sweeper, counters
+// Overall cache — contains multiple shards and aggregated statistics.
 #[derive(Debug)]
 pub struct Cache {
-    pub shards: Vec<Shard>,
-    pub stats: Arc<Mutex<CacheStats>>,
-    hasher: RandomState,
+    pub shards: Vec<Shard>,               // Fixed number of shards selected by hashing the key
+    pub stats: Arc<Mutex<CacheStats>>,    // Shared stats protected by a Mutex (updates are small / low contention)
+    hasher: RandomState,                 // Fast hashing state (provides build_hasher())
 }
 
+// Simple counters; Clone so we can snapshot for /stats without locking long.
 #[derive(Debug, Default, Clone)]
 pub struct CacheStats {
     pub hits: u64,
@@ -71,81 +82,89 @@ pub struct CacheStats {
 }
 
 impl Cache {
+    // Create a new cache with N shards.
     pub fn new(num_shards: usize) -> Self {
         assert!(num_shards > 0, "num_shards must be > 0");
         let mut shards = Vec::with_capacity(num_shards);
-        for _ in 0..num_shards {
+        for _ in 0..num_shards { // Allocate and push each shard
             shards.push(Shard::new());
         }
-
         Self {
             shards,
             stats: Arc::new(Mutex::new(CacheStats::default())),
-            hasher: RandomState::new(),
+            hasher: RandomState::new(), // Random seed hashing state for consistent distribution
         }
     }
 
+    // Decide which shard a key belongs to using hashing.
     fn hash_key(&self, key: &Key) -> usize {
-        let mut hasher = self.hasher.build_hasher();
-        key.hash(&mut hasher);
-        (hasher.finish() as usize) % self.shards.len()
+        let mut hasher = self.hasher.build_hasher(); // Build a new hasher instance
+        key.hash(&mut hasher); // Feed the key
+        (hasher.finish() as usize) % self.shards.len() // Map to shard index
     }
 
+    // Insert or update a key with value + tags + optional TTL.
     pub fn put(&self, key: Key, value: String, tags: Vec<Tag>, ttl: Option<Duration>) {
-        let shard_idx = self.hash_key(&key);
+        let shard_idx = self.hash_key(&key);      // Pick shard
         let shard = &self.shards[shard_idx];
 
+        // Build new entry (Instant::now() captured here).
         let entry = Entry {
             value,
-            tags: SmallVec::from_vec(tags.clone()),
+            tags: SmallVec::from_vec(tags.clone()), // Clone tags so we can also iterate original vector for indexing
             created_at: Instant::now(),
             ttl,
         };
 
-        // Remove old tag associations if key exists
+        // If key existed, remove old tag associations to avoid stale reverse index entries.
         if let Some(old_entry) = shard.entries.get(&key) {
             for tag in &old_entry.tags {
-                if let Some(keys) = shard.tag_to_keys.get(tag) {
-                    keys.remove(&key);
+                if let Some(keys) = shard.tag_to_keys.get(tag) { // Look up DashSet for this tag
+                    keys.remove(&key);                           // Remove key from tag set
                 }
             }
         }
 
-        // Add new tag associations
+        // Add reverse index entries for each new tag.
         for tag in &tags {
-            shard.tag_to_keys.entry(tag.clone()).or_insert_with(DashSet::new).insert(key.clone());
+            shard
+                .tag_to_keys
+                .entry(tag.clone())              // Get or insert a DashSet for this tag
+                .or_insert_with(DashSet::new)
+                .insert(key.clone());            // Insert key into the tag set
         }
 
-        shard.entries.insert(key, entry);
-        self.stats.lock().puts += 1;
+        shard.entries.insert(key, entry);        // Upsert the actual entry
+        self.stats.lock().puts += 1;              // Increment PUT counter (lock is short-lived)
     }
 
+    // Retrieve a value if present and not expired.
     pub fn get(&self, key: &Key) -> Option<String> {
         let shard_idx = self.hash_key(key);
         let shard = &self.shards[shard_idx];
-
-        if let Some(entry) = shard.entries.get(key) {
-            if entry.is_expired() {
-                shard.entries.remove(key);
-                self.stats.lock().misses += 1;
+        if let Some(entry) = shard.entries.get(key) {   // entry = DashMap reference guard
+            if entry.is_expired() {                     // TTL check
+                shard.entries.remove(key);              // Eager removal of expired entry
+                self.stats.lock().misses += 1;          // Count as miss
                 None
             } else {
-                self.stats.lock().hits += 1;
-                Some(entry.value.clone())
+                self.stats.lock().hits += 1;            // Count as hit
+                Some(entry.value.clone())               // Clone value out (cheap relative to network cost)
             }
         } else {
-            self.stats.lock().misses += 1;
+            self.stats.lock().misses += 1;              // Key absent
             None
         }
     }
 
+    // Return all keys that have a given tag (filtering expired ones).
     pub fn get_keys_by_tag(&self, tag: &Tag) -> Vec<Key> {
         let mut result = Vec::new();
-        for shard in &self.shards {
-            if let Some(keys) = shard.tag_to_keys.get(tag) {
-                for key in keys.iter() {
+        for shard in &self.shards {                     // Scan every shard (O(shards + keys_for_tag))
+            if let Some(keys) = shard.tag_to_keys.get(tag) { // If this shard has any keys for the tag
+                for key in keys.iter() {                     // Iterate the set of keys
                     if let Some(entry) = shard.entries.get(&key) {
-                        if !entry.is_expired() {
+                        if !entry.is_expired() {             // Avoid returning expired keys
                             result.push(key.clone());
                         }
                     }
@@ -155,55 +174,54 @@ impl Cache {
         result
     }
 
+    // Invalidate (remove) a single key (and detach all its tags).
     pub fn invalidate_key(&self, key: &Key) -> bool {
         let shard_idx = self.hash_key(key);
         let shard = &self.shards[shard_idx];
-
-        if let Some((_, entry)) = shard.entries.remove(key) {
-            // Remove tag associations
-            for tag in &entry.tags {
+        if let Some((_, entry)) = shard.entries.remove(key) { // Remove returns (key, value)
+            for tag in &entry.tags {                          // Clean reverse index
                 if let Some(keys) = shard.tag_to_keys.get(tag) {
                     keys.remove(key);
                 }
             }
-            self.stats.lock().invalidations += 1;
+            self.stats.lock().invalidations += 1;             // Increment invalidations counter
             true
         } else {
             false
         }
     }
 
+    // Invalidate all keys for a tag; returns number of removed entries.
     pub fn invalidate_tag(&self, tag: &Tag) -> usize {
         let mut count = 0;
-        for shard in &self.shards {
+        for shard in &self.shards {                          // Scan all shards
             if let Some(keys) = shard.tag_to_keys.get(tag) {
-                let keys_to_remove: Vec<Key> = keys.iter().map(|k| k.clone()).collect();
-                for key in keys_to_remove {
+                let keys_to_remove: Vec<Key> = keys.iter().map(|k| k.clone()).collect(); // Snapshot to avoid mutation while iterating
+                for key in keys_to_remove {                   // Remove each key
                     if shard.entries.remove(&key).is_some() {
                         count += 1;
                     }
                 }
-                keys.clear();
+                keys.clear();                                 // Clear the tag's set after removals
             }
         }
-        self.stats.lock().invalidations += count as u64;
+        self.stats.lock().invalidations += count as u64;      // Record count
         count
     }
 
+    // Sweep pass: remove all expired entries (lazy removal also happens on get()).
     pub fn cleanup_expired(&self) -> usize {
         let mut count = 0;
-        for shard in &self.shards {
-            let mut keys_to_remove = Vec::new();
-
-            for entry in shard.entries.iter() {
-                if entry.value().is_expired() {
-                    keys_to_remove.push(entry.key().clone());
+        for shard in &self.shards {                 // Visit each shard
+            let mut to_remove = Vec::new();         // Collect keys to remove (avoid holding ref across mutation)
+            for entry in shard.entries.iter() {     // Iterate all entries in shard (read guards)
+                if entry.value().is_expired() {     // Check expiration
+                    to_remove.push(entry.key().clone());
                 }
             }
-
-            for key in keys_to_remove {
+            for key in to_remove {                  // Remove expired ones
                 if let Some((_, entry)) = shard.entries.remove(&key) {
-                    for tag in &entry.tags {
+                    for tag in &entry.tags {        // Clean reverse mappings
                         if let Some(keys) = shard.tag_to_keys.get(tag) {
                             keys.remove(&key);
                         }
@@ -215,61 +233,76 @@ impl Cache {
         count
     }
 
+    // Snapshot statistics (cheap clone of small struct).
     pub fn get_stats(&self) -> CacheStats {
         self.stats.lock().clone()
     }
+
+    pub fn flush_all(&self) -> usize { // Remove ALL entries and tag indexes; return number removed
+        let mut total = 0;
+        for shard in &self.shards {
+            total += shard.entries.len();
+            shard.entries.clear();
+            shard.tag_to_keys.clear();
+        }
+        self.stats.lock().invalidations += total as u64;
+        total
+    }
 }
 
-// Request/Response structs
+// =============================
+// HTTP REQUEST / RESPONSE TYPES
+// =============================
+// Structures below represent shapes of JSON payloads. serde derives (Deserialize/Serialize) generate code.
 #[derive(Deserialize)]
-pub struct PutRequest {
+pub struct PutRequest { // Input for /put
     pub key: String,
     pub value: String,
     pub tags: Vec<String>,
-    pub ttl_seconds: Option<u64>,
-    pub ttl_ms: Option<u64>,
+    pub ttl_seconds: Option<u64>, // Alternative TTL unit
+    pub ttl_ms: Option<u64>,      // Preferred millisecond TTL
 }
 
 #[derive(Serialize)]
-pub struct PutResponse {
+pub struct PutResponse { // Output of /put
     pub ok: bool,
     pub ttl_ms: Option<u64>,
 }
 
 #[derive(Serialize)]
-pub struct GetResponse {
+pub struct GetResponse { // Could be used if we wanted a typed success response
     pub value: String,
 }
 
 #[derive(Deserialize)]
-pub struct KeysByTagQuery {
+pub struct KeysByTagQuery { // Query parameters (?tag=...&limit=...)
     pub tag: String,
     pub limit: Option<usize>,
 }
 
 #[derive(Serialize)]
-pub struct KeysByTagResponse {
+pub struct KeysByTagResponse { // Response for keys-by-tag
     pub keys: Vec<String>,
 }
 
 #[derive(Deserialize)]
-pub struct InvalidateKeyRequest {
+pub struct InvalidateKeyRequest { // Body for /invalidate-key
     pub key: String,
 }
 
 #[derive(Deserialize)]
-pub struct InvalidateTagRequest {
+pub struct InvalidateTagRequest { // Body for /invalidate-tag
     pub tag: String,
 }
 
 #[derive(Serialize)]
-pub struct InvalidateResponse {
+pub struct InvalidateResponse { // Shared invalidation response
     pub success: bool,
-    pub count: Option<usize>,
+    pub count: Option<usize>, // Present for tag invalidation
 }
 
 #[derive(Serialize, Clone)]
-pub struct StatsResponse {
+pub struct StatsResponse { // /stats output
     pub hits: u64,
     pub misses: u64,
     pub puts: u64,
@@ -277,71 +310,86 @@ pub struct StatsResponse {
     pub hit_ratio: f64,
 }
 
-// Endpoints:
+// =============================
+// HTTP HANDLERS
+// Each handler is async and receives shared state via Axum's State extractor.
+// =============================
 async fn put_handler(
-    axum::extract::State(cache): axum::extract::State<Arc<Cache>>,
-    Json(req): Json<PutRequest>,
-) -> ResponseJson<PutResponse> {
-    let key = Key(req.key);
-    let tags = req.tags.into_iter().map(Tag).collect();
-    let ttl = req.ttl_ms.map(|ms| Duration::from_millis(ms))
-        .or_else(|| req.ttl_seconds.map(|s| Duration::from_secs(s)));
-    let ttl_ms_return = ttl.map(|d| d.as_millis() as u64);
-    cache.put(key, req.value, tags, ttl);
+    axum::extract::State(cache): axum::extract::State<Arc<Cache>>, // Arc<Cache> clone is cheap (just increments ref count)
+    Json(req): Json<PutRequest>,                                   // Deserialize JSON body
+) -> ResponseJson<PutResponse> {                                   // We always return JSON
+    let key = Key(req.key);                                        // Wrap raw String into Key
+    let tags = req.tags.into_iter().map(Tag).collect();             // Convert Vec<String> -> Vec<Tag>
+    let ttl = req.ttl_ms.map(Duration::from_millis)                 // Prefer millisecond TTL
+        .or_else(|| req.ttl_seconds.map(Duration::from_secs));      // Fallback seconds
+    let ttl_ms_return = ttl.map(|d| d.as_millis() as u64);          // For response
+    cache.put(key, req.value, tags, ttl);                          // Store entry
     ResponseJson(PutResponse { ok: true, ttl_ms: ttl_ms_return })
 }
 
+// GET handler returns either {value: ...} or {error: "not_found"}
 async fn get_handler(
-    axum::extract::State(cache): axum::extract::State<Arc<Cache>>,
-    Path(key): Path<String>,
-) -> ResponseJson<serde_json::Value> {
+    axum::extract::State(cache): axum::extract::State<Arc<Cache>>, // Shared cache
+    Path(key): Path<String>,                                      // Path param extraction
+) -> ResponseJson<serde_json::Value> {                           // Dynamic JSON (value OR error)
     let key = Key(key);
-    if let Some(value) = cache.get(&key) {
+    if let Some(value) = cache.get(&key) {                       // Attempt retrieval
         ResponseJson(serde_json::json!({"value": value}))
     } else {
         ResponseJson(serde_json::json!({"error": "not_found"}))
     }
 }
 
+// List keys associated with a tag.
 async fn keys_by_tag_handler(
     axum::extract::State(cache): axum::extract::State<Arc<Cache>>,
     Query(query): Query<KeysByTagQuery>,
 ) -> ResponseJson<KeysByTagResponse> {
-    let tag = Tag(query.tag);
-    let mut keys = cache.get_keys_by_tag(&tag).into_iter().map(|k| k.0).collect::<Vec<_>>();
-    if let Some(limit) = query.limit { if keys.len() > limit { keys.truncate(limit); } }
+    let tag = Tag(query.tag);                                    // Wrap tag
+    let mut keys = cache.get_keys_by_tag(&tag).into_iter().map(|k| k.0).collect::<Vec<_>>(); // Extract inner Strings
+    if let Some(limit) = query.limit {                           // Apply optional limit
+        if keys.len() > limit { keys.truncate(limit); }
+    }
     ResponseJson(KeysByTagResponse { keys })
 }
 
+// Invalidate single key.
 async fn invalidate_key_handler(
     axum::extract::State(cache): axum::extract::State<Arc<Cache>>,
     Json(req): Json<InvalidateKeyRequest>,
 ) -> ResponseJson<InvalidateResponse> {
     let key = Key(req.key);
-    let success = cache.invalidate_key(&key);
+    let success = cache.invalidate_key(&key);                    // Remove key if exists
     ResponseJson(InvalidateResponse { success, count: None })
 }
 
+// Invalidate all keys with a tag.
 async fn invalidate_tag_handler(
     axum::extract::State(cache): axum::extract::State<Arc<Cache>>,
     Json(req): Json<InvalidateTagRequest>,
 ) -> ResponseJson<InvalidateResponse> {
     let tag = Tag(req.tag);
-    let count = cache.invalidate_tag(&tag);
+    let count = cache.invalidate_tag(&tag);                      // Number removed
     ResponseJson(InvalidateResponse { success: count > 0, count: Some(count) })
 }
 
+// Flush all keys (dangerous – no auth layer here)
+async fn flush_handler(
+    axum::extract::State(cache): axum::extract::State<Arc<Cache>>,
+) -> ResponseJson<InvalidateResponse> {
+    let count = cache.flush_all();
+    ResponseJson(InvalidateResponse { success: true, count: Some(count) })
+}
+
+// Return stats snapshot.
 async fn stats_handler(
     axum::extract::State(cache): axum::extract::State<Arc<Cache>>,
 ) -> ResponseJson<StatsResponse> {
-    let stats = cache.get_stats();
-    let hit_ratio = if stats.hits + stats.misses > 0 {
+    let stats = cache.get_stats();                               // Snapshot counts
+    let hit_ratio = if stats.hits + stats.misses > 0 {            // Avoid divide by zero
         stats.hits as f64 / (stats.hits + stats.misses) as f64
-    } else {
-        0.0
-    };
-
-    ResponseJson(StatsResponse {
+    } else { 0.0 };
+    ResponseJson(StatsResponse {                                   // Build JSON struct
         hits: stats.hits,
         misses: stats.misses,
         puts: stats.puts,
@@ -350,160 +398,170 @@ async fn stats_handler(
     })
 }
 
-// helper to build app (for tests)
+// Build the Axum HTTP router configuration.
 pub fn build_app(cache: Arc<Cache>) -> Router {
     Router::new()
+        // Each route maps path + method to handler. State cloned into each closure.
         .route("/put", post(put_handler))
         .route("/get/:key", get(get_handler))
         .route("/keys-by-tag", get(keys_by_tag_handler))
         .route("/invalidate-key", post(invalidate_key_handler))
         .route("/invalidate-tag", post(invalidate_tag_handler))
+        .route("/flush", post(flush_handler))
         .route("/stats", get(stats_handler))
-        .layer(CorsLayer::new().allow_origin(Any))
-        .with_state(cache)
+        .layer(CorsLayer::new().allow_origin(Any)) // Very permissive CORS (adjust for production)
+        .with_state(cache)                         // Provide shared state to handlers
 }
 
-// TCP protocol handler
-// Commands (tab-delimited, single line):
-// PUT <key> <ttl_ms|- > <tag1,tag2|- > <value>
-// GET <key>
-// DEL <key>
-// INV_TAG <tag>
-// KEYS_BY_TAG <tag>
-// STATS
-// Responses end with \n:
-// OK | ERR <msg>
-// VALUE <value> | NF
-// DEL ok|nf
-// INV_TAG <count>
-// KEYS <k1,k2,...>
-// STATS <hits> <misses> <puts> <invalidations> <hit_ratio>
+// =============================
+// TCP PROTOCOL IMPLEMENTATION
+// Custom lightweight line protocol for lower overhead than HTTP/JSON.
+// =============================
 async fn handle_tcp_client(cache: Arc<Cache>, mut stream: TcpStream) {
-    let peer = stream.peer_addr().ok();
-    let (r, mut w) = stream.split();
-    let mut reader = BufReader::new(r);
-    let mut line = String::new();
-    while let Ok(n) = reader.read_line(&mut line).await {
-        if n == 0 { break; }
-        // trim trailing newline / carriage return
-        while line.ends_with(['\n','\r']) { line.pop(); }
-        if line.is_empty() { continue; }
-        let mut parts = line.splitn(5, '\t');
-        let cmd = parts.next().unwrap_or("").to_ascii_uppercase();
+    let peer = stream.peer_addr().ok();                 // Capture peer address (optional)
+    let (r, mut w) = stream.split();                    // Split into read and write halves (independent borrowing)
+    let mut reader = BufReader::new(r);                 // Buffer reads line-by-line
+    let mut line = String::new();                       // Reusable line buffer
+    while let Ok(n) = reader.read_line(&mut line).await { // Async read until newline (includes trailing \n)
+        if n == 0 { break; }                            // EOF => client disconnected
+        while line.ends_with(['\n','\r']) { line.pop(); } // Strip CR/LF
+        if line.is_empty() { continue; }                // Ignore empty lines
+        let mut parts = line.splitn(5, '\t');          // Split into at most 5 segments by TAB
+        let cmd = parts.next().unwrap_or("").to_ascii_uppercase(); // Command verb (case-insensitive)
+        // Match command and produce a response string.
         let resp = match cmd.as_str() {
+            // PUT <key> <ttl_ms|- > <tag1,tag2|- > <value>
             "PUT" => {
                 let maybe_key = parts.next();
                 match maybe_key {
-                    Some(k) if !k.is_empty() => {
-                        let ttl_part = parts.next().unwrap_or("-");
-                        let tags_part = parts.next().unwrap_or("-");
-                        let value = parts.next().unwrap_or("");
-                        let ttl = if ttl_part == "-" || ttl_part.is_empty() { None } else { ttl_part.parse::<u64>().ok().map(|ms| Duration::from_millis(ms)) };
+                    Some(k) if !k.is_empty() => {                   // Validate non-empty key
+                        let ttl_part = parts.next().unwrap_or("-"); // TTL field
+                        let tags_part = parts.next().unwrap_or("-"); // Tags list
+                        let value = parts.next().unwrap_or("");      // Remaining value (may contain spaces, not tabs)
+                        let ttl = if ttl_part == "-" || ttl_part.is_empty() { None } else { ttl_part.parse::<u64>().ok().map(Duration::from_millis) };
                         let tags: Vec<Tag> = if tags_part == "-" || tags_part.is_empty() { Vec::new() } else { tags_part.split(',').filter(|s| !s.is_empty()).map(|s| Tag(s.to_string())).collect() };
-                        cache.put(Key(k.to_string()), value.to_string(), tags, ttl);
+                        cache.put(Key(k.to_string()), value.to_string(), tags, ttl); // Store entry
                         "OK".to_string()
                     }
                     _ => "ERR missing_key".to_string()
                 }
             }
+            // GET <key>
             "GET" => {
                 let key = parts.next();
                 match key { Some(k) => {
                     match cache.get(&Key(k.to_string())) { Some(v) => format!("VALUE\t{}", v), None => "NF".to_string() }
                 }, None => "ERR missing_key".to_string() }
             }
+            // DEL <key>
             "DEL" => {
                 let key = parts.next();
                 match key { Some(k) => { if cache.invalidate_key(&Key(k.to_string())) { "DEL ok".to_string() } else { "DEL nf".to_string() } }, None => "ERR missing_key".to_string() }
             }
+            // INV_TAG <tag>
             "INV_TAG" => {
                 let tag = parts.next();
                 match tag { Some(t) => { let count = cache.invalidate_tag(&Tag(t.to_string())); format!("INV_TAG\t{}", count) }, None => "ERR missing_tag".to_string() }
             }
+            // KEYS_BY_TAG <tag>  (alias KEYS <tag>)
             "KEYS_BY_TAG" | "KEYS" => {
                 let tag = parts.next();
                 match tag { Some(t) => { let keys = cache.get_keys_by_tag(&Tag(t.to_string())); let list = keys.into_iter().map(|k| k.0).collect::<Vec<_>>().join(","); format!("KEYS\t{}", list) }, None => "ERR missing_tag".to_string() }
             }
+            // STATS => summary counters
             "STATS" => {
                 let s = cache.get_stats();
                 let hit_ratio = if s.hits + s.misses > 0 { s.hits as f64 / (s.hits + s.misses) as f64 } else { 0.0 };
                 format!("STATS\t{}\t{}\t{}\t{}\t{:.6}", s.hits, s.misses, s.puts, s.invalidations, hit_ratio)
             }
-            _ => "ERR unknown_command".to_string(),
+            "FLUSH" => { // Remove every entry
+                let c = cache.flush_all();
+                format!("FLUSH\t{}", c)
+            }
+            _ => "ERR unknown_command".to_string(),            // Fallback for unrecognized commands
         };
-        if let Err(_) = (&mut w).write_all(resp.as_bytes()).await { break; }
-        let _ = (&mut w).write_all(b"\n").await;
-        line.clear();
+        if let Err(_) = (&mut w).write_all(resp.as_bytes()).await { break; } // Send response body
+        let _ = (&mut w).write_all(b"\n").await;                          // Terminate line
+        line.clear();                                                       // Reuse buffer
     }
-    let _ = (&mut w).shutdown().await;
-    drop(peer);
+    let _ = (&mut w).shutdown().await;             // Try to close write half cleanly
+    let _ = peer;                                  // Silence unused variable (document purpose earlier)
 }
 
+// TCP accept loop: keeps running forever unless an error bubbles up.
 async fn run_tcp_server(cache: Arc<Cache>, port: u16) -> anyhow::Result<()> {
-    let listener = TcpListener::bind(("0.0.0.0", port)).await?;
-    info!("TCP cache protocol listening on {}", port);
-    loop {
-        let (sock, _) = listener.accept().await?;
-        let c = cache.clone();
-        tokio::spawn(async move { handle_tcp_client(c, sock).await; });
+    let listener = TcpListener::bind(("0.0.0.0", port)).await?; // Bind to all interfaces
+    info!("TCP cache protocol listening on {}", port);          // Log startup
+    loop {                                                      // Accept loop
+        let (sock, _) = listener.accept().await?;               // Wait for next connection
+        let c = cache.clone();                                  // Clone Arc for task
+        tokio::spawn(async move {                               // Spawn independent task per client
+            handle_tcp_client(c, sock).await;                   // Handle lifecycle
+        });
     }
 }
 
-#[tokio::main]
+// =============================
+// MAIN ENTRY POINT
+// =============================
+#[tokio::main] // Macro sets up a multi-threaded async runtime and runs this async fn as root task.
 async fn main() -> anyhow::Result<()> {
-    // tracing setup + env vars
+    // Initialize tracing (logging). Reads RUST_LOG or default filter.
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    // Helper closures to fetch env with fallback
+    // Small helper closure: try primary env var name first, then legacy fallback; return Option<String>.
     let fetch = |primary: &str, legacy: &str| -> Option<String> {
         if let Ok(v) = env::var(primary) { return Some(v); }
         if let Ok(v) = env::var(legacy) { println!("Using legacy env var {legacy} for {primary}"); return Some(v); }
         None
     };
 
+    // Parse configuration with defaults; unwrap_or falls back if parse fails.
     let port: u16 = fetch("PORT", "TC_HTTP_PORT").unwrap_or_else(|| "8080".to_string()).parse().unwrap_or(8080);
     let tcp_port: u16 = fetch("TCP_PORT", "TC_TCP_PORT").unwrap_or_else(|| "1984".to_string()).parse().unwrap_or(1984);
     let num_shards: usize = fetch("NUM_SHARDS", "TC_NUM_SHARDS").unwrap_or_else(|| "16".to_string()).parse().unwrap_or(16);
 
+    // Cleanup interval: prefer ms, else seconds, else default 60s.
     let cleanup_interval = if let Some(ms) = fetch("CLEANUP_INTERVAL_MS", "TC_SWEEP_INTERVAL_MS") {
-        // Provided in ms
+        // Provided in ms -> convert to seconds (ceil) because we use time::interval with whole seconds.
         ms.parse::<u64>().ok().map(|v| (v.max(1)+999)/1000).unwrap_or(60)
     } else if let Some(secs) = fetch("CLEANUP_INTERVAL_SECONDS", "CLEANUP_INTERVAL_SECS") {
         secs.parse::<u64>().unwrap_or(60)
     } else { 60 };
 
-    // build cache + sweeper
+    // Build the cache (Arc so it can be shared across tasks / threads).
     let cache = Arc::new(Cache::new(num_shards));
 
-    // Start background cleanup task
+    // Background task: periodically sweep expired entries to free memory.
     let cleanup_cache = cache.clone();
-    tokio::spawn(async move {
+    tokio::spawn(async move { // Spawn detached task (no join handle needed here)
         let mut interval = time::interval(Duration::from_secs(cleanup_interval));
         loop {
-            interval.tick().await;
+            interval.tick().await;                       // Wait for next tick
             let expired_count = cleanup_cache.cleanup_expired();
-            if expired_count > 0 {
+            if expired_count > 0 {                       // Only log if we did work
                 info!("Cleaned up {} expired entries", expired_count);
             }
         }
     });
 
-    // Start TCP server early
+    // Launch TCP server early (independent of HTTP lifecycle). Errors logged to stderr.
     let tcp_cache = cache.clone();
     tokio::spawn(async move {
         if let Err(e) = run_tcp_server(tcp_cache, tcp_port).await { eprintln!("TCP server error: {e}"); }
     });
 
-    // build Axum routes
+    // Build Axum router with all endpoints.
     let app = build_app(cache.clone());
 
-    // start HTTP server
+    // Bind TCP listener for HTTP (await returns listener only when bind succeeds).
     let listener = tokio::net::TcpListener::bind(&format!("0.0.0.0:{}", port)).await?;
     info!("TagCache HTTP port={} TCP port={} shards={} cleanup={}s", port, tcp_port, num_shards, cleanup_interval);
 
+    // Serve HTTP forever (await until server stops via error / shutdown signal).
     axum::serve(listener, app).await?;
 
-    Ok(())
+    Ok(()) // Return Result success
 }
