@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { useSelectionStore } from '../store/selection';
 
@@ -8,27 +8,47 @@ export default function TagsPage() {
   const selectKey = useSelectionStore(s=>s.selectKey);
   const [tagQuery, setTagQuery] = useState('');
   const [currentFilter, setCurrentFilter] = useState<string>('All');
+  const [activeTags, setActiveTags] = useState<string[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
+  const [invLoading, setInvLoading] = useState(false);
   const [error, setError] = useState<string|null>(null);
   const [cache, setCache] = useState<Record<string,Item[]>>({});
+  // Auto-load ALL when tag filter is cleared (debounced)
+  const clearTimer = useRef<number | null>(null);
   function parseTags(input:string){
     return input.split(',').map(s=>s.trim()).filter(Boolean);
   }
+
+  // When tag input is cleared, fetch remaining items automatically
+  useEffect(()=>{
+    const val = tagQuery.trim();
+    if(val.length === 0){
+      if(clearTimer.current) { window.clearTimeout(clearTimer.current); }
+      clearTimer.current = window.setTimeout(()=>{ loadData(''); }, 300);
+    } else if (clearTimer.current) {
+      window.clearTimeout(clearTimer.current);
+      clearTimer.current = null;
+    }
+    return ()=>{ if(clearTimer.current){ window.clearTimeout(clearTimer.current); clearTimer.current = null; } };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tagQuery]);
 
   async function loadData(raw:string) {
     setLoading(true); setError(null);
     const tags = parseTags(raw);
     const sig = tags.length? tags.slice().sort().join(',') : '__ALL__';
     setCurrentFilter(tags.length? tags.join(', ') : 'All');
+    setActiveTags(tags);
     try {
       if (cache[sig]) { setItems(cache[sig]); return; }
       let list: any[] = [];
       if(tags.length===0){
-        const r = await api.post('/search', { limit: 2000 });
+        const r = await api.post('/search', { limit: 2000 }, { timeout: 30000 });
         list = r.data?.keys || [];
       } else {
-        const r = await api.post('/search', { limit: 2000, tags });
+        // Use tag_any to match items that have any of the entered tags
+        const r = await api.post('/search', { limit: 2000, tag_any: tags }, { timeout: 30000 });
         list = r.data?.keys || [];
       }
       // Normalize to Item shape
@@ -43,6 +63,31 @@ export default function TagsPage() {
 
   function onSubmit(e:React.FormEvent) { e.preventDefault(); loadData(tagQuery); }
 
+  async function onInvalidateAll(){
+    if(activeTags.length===0) return; // avoid nuking all
+    setInvLoading(true); setError(null);
+    try {
+      const resp = await api.post('/invalidate/tags', { tags: activeTags, mode: 'any' }, { timeout: 60000 });
+      // Optimistically remove matching items from current list
+      setItems(prev => prev.filter(it => !it.tags || !it.tags.some(t => activeTags.includes(t))));
+      // Invalidate caches that are impacted: current signature, ALL, and any cached signature that intersects with activeTags
+      setCache(c => {
+        const copy: Record<string, Item[]> = { ...c };
+        const sig = activeTags.slice().sort().join(',');
+        delete copy[sig];
+        delete copy['__ALL__'];
+        for(const key of Object.keys(copy)){
+          if(key === '__ALL__') continue;
+          const tags = key.split(',').map(s=>s.trim()).filter(Boolean);
+          if(tags.some(t => activeTags.includes(t))){ delete copy[key]; }
+        }
+        return copy;
+      });
+    } catch(e:any) {
+      setError(e?.response?.data?.error || e.message);
+    } finally { setInvLoading(false); }
+  }
+
   return (
     <div className="space-y-4">
       <form onSubmit={onSubmit} className="flex gap-2 items-end">
@@ -56,7 +101,16 @@ export default function TagsPage() {
       {error && <div className="text-red-600 text-xs">Error: {error}</div>}
       {(
         <div className="space-y-2">
-          <div className="text-sm font-semibold">Filter: <span className="font-mono">{currentFilter}</span> ({items.length} rows)</div>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold">Filter: <span className="font-mono">{currentFilter}</span> ({items.length} rows)</div>
+            <button
+              type="button"
+              onClick={onInvalidateAll}
+              disabled={activeTags.length===0 || invLoading}
+              className={`px-3 py-1 rounded text-white text-xs ${activeTags.length===0 ? 'bg-red-400/50 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'} disabled:opacity-60`}
+              title={activeTags.length===0 ? 'Enter tag(s) to enable' : 'Invalidate all matching keys'}
+            >{invLoading ? 'Invalidating…' : 'Invalidate all'}</button>
+          </div>
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="text-left border-b">
