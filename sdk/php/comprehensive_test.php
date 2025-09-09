@@ -11,7 +11,7 @@ echo "=== TagCache PHP SDK - Comprehensive Feature Test ===\n\n";
 $config = new Config([
     'mode' => 'http',
     'http' => [
-        'base_url' => 'http://localhost:3030',
+        'base_url' => 'http://localhost:8080',
         'timeout_ms' => 10000,
         'retries' => 3,
     ]
@@ -40,29 +40,16 @@ function runTest(string $testName, callable $test) {
 $client = new Client($config);
 
 // 1. Authentication Test
-$token = runTest('Authentication', function() use ($client) {
+$loginSuccess = runTest('Authentication', function() use ($client) {
     return $client->login('umF6zQOspeAWvyZF', 'hmH4KJP1PT9oQIGBpkpLdrgu');
 });
 
-if (!$token) {
+if (!$loginSuccess) {
     echo "❌ Cannot proceed without authentication!\n";
     exit(1);
 }
 
-// Create authenticated client
-$authConfig = new Config([
-    'mode' => 'http',
-    'http' => [
-        'base_url' => 'http://localhost:3030',
-        'timeout_ms' => 10000,
-        'retries' => 3,
-    ],
-    'auth' => [
-        'token' => $token,
-    ]
-]);
-
-$client = new Client($authConfig);
+// Client is now authenticated - no need to create a new one
 
 // 2. Health Check
 runTest('Health Check', function() use ($client) {
@@ -80,13 +67,13 @@ runTest('Basic Put/Get/Delete', function() use ($client, $testKey) {
     $tags = ['feature-test', 'basic'];
     
     // Put
-    if (!$client->put($testKey, $value, $tags, 300000)) { // 5 minute TTL
+    if (!$client->put($testKey, $value, 300000, $tags)) { // 5 minute TTL
         throw new Exception('Put failed');
     }
     
     // Get
-    $item = $client->get($testKey);
-    if (!$item || $item->value !== $value) {
+    $retrievedValue = $client->get($testKey);
+    if (!$retrievedValue || $retrievedValue !== $value) {
         throw new Exception('Get failed or value mismatch');
     }
     
@@ -95,7 +82,7 @@ runTest('Basic Put/Get/Delete', function() use ($client, $testKey) {
         throw new Exception('Delete failed');
     }
     
-    return ['put' => true, 'get' => $item->value, 'delete' => true];
+    return ['put' => true, 'get' => $retrievedValue, 'delete' => true];
 });
 
 // 4. Tag Operations
@@ -107,7 +94,7 @@ runTest('Tag Operations', function() use ($client) {
     for ($i = 1; $i <= 5; $i++) {
         $key = "tag-test:$i:" . uniqid();
         $keys[] = $key;
-        if (!$client->put($key, "value-$i", [$tag, 'tag-ops'], 300000)) {
+        if (!$client->put($key, "value-$i", 300000, [$tag, 'tag-ops'])) {
             throw new Exception("Failed to put key $key");
         }
     }
@@ -145,7 +132,7 @@ runTest('Bulk Operations', function() use ($client) {
         $keys[] = $key;
         $values[$key] = $value;
         
-        if (!$client->put($key, $value, ['bulk', 'bulk-test'], 300000)) {
+        if (!$client->put($key, $value, 300000, ['bulk', 'bulk-test'])) {
             throw new Exception("Failed to put bulk key $key");
         }
     }
@@ -160,7 +147,7 @@ runTest('Bulk Operations', function() use ($client) {
         if (!isset($results[$key]) || !$results[$key]) {
             throw new Exception("Missing result for key $key");
         }
-        if ($results[$key]->value !== $values[$key]) {
+        if ($results[$key] !== $values[$key]) {
             throw new Exception("Value mismatch for key $key");
         }
     }
@@ -183,7 +170,7 @@ runTest('Search Functionality', function() use ($client) {
     for ($i = 1; $i <= 10; $i++) {
         $key = "search-test:item-$i:" . uniqid();
         $keys[] = $key;
-        if (!$client->put($key, "search-value-$i", [$testTag, 'search-test'], 300000)) {
+        if (!$client->put($key, "search-value-$i", 300000, [$testTag, 'search-test'])) {
             throw new Exception("Failed to put search key $key");
         }
     }
@@ -211,16 +198,16 @@ runTest('Large Payload Handling', function() use ($client) {
     $key = 'large-payload:' . uniqid();
     $largeValue = str_repeat('X', 100000); // 100KB
     
-    if (!$client->put($key, $largeValue, ['large-payload'], 300000)) {
+    if (!$client->put($key, $largeValue, 300000, ['large-payload'])) {
         throw new Exception('Failed to put large payload');
     }
     
-    $item = $client->get($key);
-    if (!$item || strlen($item->value) !== strlen($largeValue)) {
+    $retrievedValue = $client->get($key);
+    if (!$retrievedValue || strlen($retrievedValue) !== strlen($largeValue)) {
         throw new Exception('Large payload retrieval failed');
     }
     
-    if ($item->value !== $largeValue) {
+    if ($retrievedValue !== $largeValue) {
         throw new Exception('Large payload content mismatch');
     }
     
@@ -238,7 +225,7 @@ runTest('Performance Test (100 operations)', function() use ($client) {
     for ($i = 1; $i <= $operations; $i++) {
         $key = "perf:$i:" . uniqid();
         $keys[] = $key;
-        if (!$client->put($key, "perf-value-$i", ['performance'], 300000)) {
+        if (!$client->put($key, "perf-value-$i", 300000, ['performance'])) {
             throw new Exception("Performance test put failed at $i");
         }
     }

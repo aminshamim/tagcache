@@ -161,7 +161,7 @@ final class Client implements ClientInterface
     {
         $res = $this->search(['tag_any' => [$tag], 'limit' => $limit]);
         $keys = [];
-        foreach (($res['keys'] ?? []) as $it) {
+        foreach ($res as $it) {
             $keys[] = $it['key'];
         }
         return $keys;
@@ -174,7 +174,7 @@ final class Client implements ClientInterface
     {
         $res = $this->search(['tag_any' => array_values($tags), 'limit' => $limit]);
         $keys = [];
-        foreach (($res['keys'] ?? []) as $it) {
+        foreach ($res as $it) {
             $keys[] = $it['key'];
         }
         return $keys;
@@ -187,7 +187,7 @@ final class Client implements ClientInterface
     {
         $res = $this->search(['tag_all' => array_values($tags), 'limit' => $limit]);
         $keys = [];
-        foreach (($res['keys'] ?? []) as $it) {
+        foreach ($res as $it) {
             $keys[] = $it['key'];
         }
         return $keys;
