@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useSelectionStore } from '../store/selection';
 
 interface SearchResultRow { key: string; ttl_ms?: number; tags?: string[] }
 
 export default function SearchPage() {
+  const navigate = useNavigate();
   const selectKey = useSelectionStore(s=>s.selectKey);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,7 +47,14 @@ export default function SearchPage() {
             <tr key={r.key} className="border-b last:border-none hover:bg-gray-50 cursor-pointer" onClick={()=>selectKey(r.key, (k)=>{ setResults(prev=>prev.filter(x=>x.key!==k)); })}>
               <td className="py-1 pr-2 font-mono text-xs">{r.key}</td>
               <td className="py-1 pr-2 text-xs">{r.ttl_ms ?? ''}</td>
-              <td className="py-1 pr-2">{r.tags?.map(t => <span key={t} className="inline-block bg-gray-200 dark:bg-gray-700 rounded px-1 mr-1 mb-1 text-[10px]">{t}</span>)}</td>
+              <td className="py-1 pr-2">{r.tags?.map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={(e)=>{ e.stopPropagation(); navigate(`/tags?tags=${encodeURIComponent(t)}`); }}
+                  className="inline-flex items-center rounded-full border border-brand-teal/30 bg-white text-brand-teal px-1.5 py-0.5 mr-1 mb-1 text-[10px] shadow-sm hover:bg-brand-teal/10"
+                >{t}</button>
+              ))}</td>
             </tr>
           ))}
           {!loading && results.length === 0 && <tr><td colSpan={3} className="py-4 text-center text-xs text-gray-500">No results</td></tr>}

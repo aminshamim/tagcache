@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useSelectionStore } from '../store/selection';
 
 interface Item { key: string; created_ms?: number; ttl_ms?: number; tags?: string[] }
 
 export default function TagsPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const selectKey = useSelectionStore(s=>s.selectKey);
   const [tagQuery, setTagQuery] = useState('');
   const [currentFilter, setCurrentFilter] = useState<string>('All');
@@ -63,6 +66,31 @@ export default function TagsPage() {
 
   function onSubmit(e:React.FormEvent) { e.preventDefault(); loadData(tagQuery); }
 
+  function onClear(){
+    // cancel pending debounce
+    if(clearTimer.current){ window.clearTimeout(clearTimer.current); clearTimer.current = null; }
+    setTagQuery('');
+    setActiveTags([]);
+    setCurrentFilter('All');
+    // remove URL query if present
+    navigate('/tags');
+    // load remaining items now
+    loadData('');
+  }
+
+  // If navigated with ?tags=foo, auto-populate and load; reacts to changes while staying on /tags
+  useEffect(()=>{
+    const t = searchParams.get('tags') || '';
+    setTagQuery(t);
+    if(t){
+      loadData(t);
+    } else {
+      // when cleared, show remaining keys
+      loadData('');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   async function onInvalidateAll(){
     if(activeTags.length===0) return; // avoid nuking all
     setInvLoading(true); setError(null);
@@ -95,8 +123,8 @@ export default function TagsPage() {
           <label className="block text-xs font-semibold mb-1">Tag</label>
           <input value={tagQuery} onChange={e=>setTagQuery(e.target.value)} placeholder="tag or tag1,tag2" className="w-full border rounded px-2 py-1 bg-transparent" />
         </div>
-        <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50" disabled={loading}>{loading ? 'Loading…':'Load'}</button>
-        <button type="button" onClick={()=>loadData('')} className="px-3 py-1 bg-gray-200 text-gray-800 rounded">Load All</button>
+  <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50" disabled={loading}>{loading ? 'Loading…':'Load'}</button>
+  <button type="button" onClick={onClear} className="px-3 py-1 bg-gray-200 text-gray-800 rounded">Clear</button>
       </form>
       {error && <div className="text-red-600 text-xs">Error: {error}</div>}
       {(
@@ -108,8 +136,8 @@ export default function TagsPage() {
               onClick={onInvalidateAll}
               disabled={activeTags.length===0 || invLoading}
               className={`px-3 py-1 rounded text-white text-xs ${activeTags.length===0 ? 'bg-red-400/50 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'} disabled:opacity-60`}
-              title={activeTags.length===0 ? 'Enter tag(s) to enable' : 'Invalidate all matching keys'}
-            >{invLoading ? 'Invalidating…' : 'Invalidate all'}</button>
+              title={activeTags.length===0 ? 'Enter tag(s) to enable' : 'Invalidate keys by tag'}
+            >{invLoading ? 'Invalidating…' : 'Invalidate by tag'}</button>
           </div>
           <table className="w-full text-sm border-collapse">
             <thead>
@@ -124,7 +152,14 @@ export default function TagsPage() {
                 <tr key={it.key} className="border-b last:border-none hover:bg-gray-50 cursor-pointer" onClick={()=>selectKey(it.key, (k)=>{ setItems(prev=>prev.filter(x=>x.key!==k)); })}>
                   <td className="py-1 pr-2 font-mono text-xs">{it.key}</td>
                   <td className="py-1 pr-2 text-xs">{it.ttl_ms ?? ''}</td>
-                  <td className="py-1 pr-2">{it.tags?.map(t => <span key={t} className="inline-block bg-gray-200 dark:bg-gray-700 rounded px-1 mr-1 mb-1 text-[10px]">{t}</span>)}</td>
+                  <td className="py-1 pr-2">{it.tags?.map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={(e)=>{ e.stopPropagation(); navigate(`/tags?tags=${encodeURIComponent(t)}`); }}
+                      className="inline-flex items-center rounded-full border border-brand-teal/30 bg-white text-brand-teal px-1.5 py-0.5 mr-1 mb-1 text-[10px] shadow-sm hover:bg-brand-teal/10"
+                    >{t}</button>
+                  ))}</td>
                 </tr>
               ))}
               {!loading && items.length === 0 && <tr><td colSpan={3} className="py-4 text-center text-xs text-gray-500">No results</td></tr>}
