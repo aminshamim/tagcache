@@ -3,6 +3,7 @@
 namespace TagCache;
 
 use TagCache\Contracts\ClientInterface;
+use TagCache\Exceptions\NotFoundException;
 use TagCache\Models\Item;
 use TagCache\Transport\HttpTransport;
 use TagCache\Transport\TcpTransport;
@@ -27,12 +28,15 @@ final class Client implements ClientInterface
         }
     }
 
+    /**
+     * @param string[] $tags
+     */
     public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool
     {
         try {
-            $this->transport->put($key, $value, $ttlMs, $tags);
-            return true;
-        } catch (\Exception $e) {
+            error_log("Client.put: key='$key', ttlMs=$ttlMs, tags=" . json_encode($tags));
+            return $this->transport->put($key, $value, $ttlMs, $tags);
+        } catch (\Throwable $e) {
             // Log error in debug mode
             if (($this->config->http['debug'] ?? false) || ($this->config->tcp['debug'] ?? false)) {
                 error_log("TagCache put error: " . $e->getMessage());
@@ -43,13 +47,16 @@ final class Client implements ClientInterface
 
     public function get(string $key): mixed
     {
-        $res = $this->transport->get($key);
-        if ($res === null) return null;
-        // Tests generally expect raw value when get() used directly for backward compatibility
-        if (isset($res['value'])) return $res['value'];
-        if (isset($res['value_raw'])) return $res['value_raw'];
-        if (isset($res['key']) && isset($res['value'])) return $res['value'];
-        return $res; // fallback: return array/metadata
+        try {
+            $res = $this->transport->get($key);
+            // Tests generally expect raw value when get() used directly for backward compatibility
+            if (isset($res['value'])) return $res['value'];
+            if (isset($res['value_raw'])) return $res['value_raw'];
+            if (isset($res['key']) && isset($res['value'])) return $res['value'];
+            return $res; // fallback: return array/metadata
+        } catch (NotFoundException $e) {
+            return null;
+        }
     }
 
     public function delete(string $key): bool
@@ -57,46 +64,83 @@ final class Client implements ClientInterface
         return $this->transport->delete($key);
     }
 
+    /**
+     * @param string[] $keys
+     */
     public function invalidateKeys(array $keys): int
     {
         return $this->transport->invalidateKeys($keys);
     }
 
+    /**
+     * @param string[] $tags
+     */
     public function invalidateTags(array $tags, string $mode = 'any'): int
     {
         return $this->transport->invalidateTags($tags, $mode);
     }
 
+    /**
+     * @param string[] $keys
+     * @return array<string, mixed>
+     */
     public function bulkGet(array $keys): array
     {
         $raw = $this->transport->bulkGet($keys);
         $out = [];
         foreach ($raw as $k => $res) {
-            $out[$k] = $res ? (isset($res['key']) ? new Item($res['key'], $res['value'] ?? null, $res['ttl_ms'] ?? null, $res['tags'] ?? [], $res['created_ms'] ?? null) : new Item($k, $res['value'] ?? null)) : null;
+            // Return raw values for backward compatibility, like get() method
+            if ($res) {
+                if (isset($res['value'])) $out[$k] = $res['value'];
+                elseif (isset($res['value_raw'])) $out[$k] = $res['value_raw'];
+                else $out[$k] = $res;
+            }
+            // Skip missing keys (don't add them to result)
         }
         return $out;
     }
 
+    /**
+     * @param string[] $keys
+     */
     public function bulkDelete(array $keys): int
     {
         return $this->transport->bulkDelete($keys);
     }
 
-    public function search(array $params): array
+    /**
+     * @param array<string, mixed>|string $params Search parameters or pattern string
+     * @return array<string, mixed>
+     */
+    public function search(array|string $params): array
     {
-        return $this->transport->search($params);
+        // Handle backward compatibility: if string is passed, convert to pattern search
+        if (is_string($params)) {
+            $params = ['pattern' => $params];
+        }
+        $response = $this->transport->search($params);
+        return $response['keys'] ?? [];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function stats(): array
     {
         return $this->transport->stats();
     }
     
+    /**
+     * @return array<string, mixed>
+     */
     public function getStats(): array
     {
         return $this->stats();
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function list(int $limit = 100): array
     {
         return $this->transport->list($limit);
@@ -111,34 +155,43 @@ final class Client implements ClientInterface
         return new Item($key, $value, $ttlMs, $tags);
     }
 
+    /**
+     * @return array<string>
+     */
     public function keysByTag(string $tag, ?int $limit = null): array
     {
         $res = $this->search(['tag_any' => [$tag], 'limit' => $limit]);
-        $items = [];
+        $keys = [];
         foreach (($res['keys'] ?? []) as $it) {
-            $items[] = new Item($it['key'], $it['value'] ?? null, $it['ttl_ms'] ?? null, $it['tags'] ?? [], $it['created_ms'] ?? null);
+            $keys[] = $it['key'];
         }
-        return $items;
+        return $keys;
     }
 
+    /**
+     * @return array<string>
+     */
     public function keysByTagsAny(array $tags, ?int $limit = null): array
     {
         $res = $this->search(['tag_any' => array_values($tags), 'limit' => $limit]);
-        $items = [];
+        $keys = [];
         foreach (($res['keys'] ?? []) as $it) {
-            $items[] = new Item($it['key'], $it['value'] ?? null, $it['ttl_ms'] ?? null, $it['tags'] ?? [], $it['created_ms'] ?? null);
+            $keys[] = $it['key'];
         }
-        return $items;
+        return $keys;
     }
 
+    /**
+     * @return array<string>
+     */
     public function keysByTagsAll(array $tags, ?int $limit = null): array
     {
         $res = $this->search(['tag_all' => array_values($tags), 'limit' => $limit]);
-        $items = [];
+        $keys = [];
         foreach (($res['keys'] ?? []) as $it) {
-            $items[] = new Item($it['key'], $it['value'] ?? null, $it['ttl_ms'] ?? null, $it['tags'] ?? [], $it['created_ms'] ?? null);
+            $keys[] = $it['key'];
         }
-        return $items;
+        return $keys;
     }
 
     public function flush(): int
@@ -151,7 +204,7 @@ final class Client implements ClientInterface
         return $this->transport->health();
     }
 
-    public function login(string $username, string $password): string
+    public function login(string $username, string $password): bool
     {
         return $this->transport->login($username, $password);
     }
@@ -169,6 +222,8 @@ final class Client implements ClientInterface
     // Helper methods for convenience and test compatibility
     public function putWithTag(string $key, mixed $value, string $tag, ?int $ttlMs = null): bool
     {
+        // Debug logging
+        error_log("putWithTag: key='$key', tag='$tag', ttlMs=$ttlMs");
         return $this->put($key, $value, $ttlMs, [$tag]);
     }
     
@@ -177,6 +232,9 @@ final class Client implements ClientInterface
         return $this->invalidateTags([$tag]);
     }
     
+    /**
+     * @return array<string>
+     */
     public function getKeysByTag(string $tag): array
     {
         return $this->keysByTag($tag);

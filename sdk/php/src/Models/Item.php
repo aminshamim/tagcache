@@ -4,6 +4,9 @@ namespace TagCache\Models;
 
 final class Item implements \JsonSerializable
 {
+    /**
+     * @param array<string> $tags
+     */
     public function __construct(
         public readonly string $key,
         public readonly mixed $value,
@@ -12,6 +15,9 @@ final class Item implements \JsonSerializable
         public readonly ?int $createdMs = null,
     ) {}
     
+    /**
+     * @param array<string, mixed> $data
+     */
     public static function fromArray(array $data): self
     {
         return new self(
@@ -23,6 +29,9 @@ final class Item implements \JsonSerializable
         );
     }
     
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         return [
@@ -33,6 +42,9 @@ final class Item implements \JsonSerializable
         ];
     }
     
+    /**
+     * @return array<string, mixed>
+     */
     public function jsonSerialize(): array
     {
         return $this->toArray();

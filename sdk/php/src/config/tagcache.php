@@ -1,5 +1,17 @@
 <?php
 
+if (!function_exists('env')) {
+    /**
+     * Simple env() function fallback for non-Laravel contexts
+     * @param mixed $default
+     * @return mixed
+     */
+    function env(string $key, mixed $default = null): mixed {
+        $value = $_ENV[$key] ?? getenv($key);
+        return $value !== false ? $value : $default;
+    }
+}
+
 return [
     'mode' => env('TAGCACHE_MODE', 'http'),
     'http' => [

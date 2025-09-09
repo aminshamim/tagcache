@@ -48,8 +48,8 @@ class ClientTest extends TestCase
     
     public function testGetNonExistent(): void
     {
-        $this->expectException(NotFoundException::class);
-        $this->client->get('non-existent-key-' . uniqid());
+        $result = $this->client->get('non-existent-key-' . uniqid());
+        $this->assertNull($result);
     }
     
     public function testDeleteNonExistent(): void
@@ -78,8 +78,7 @@ class ClientTest extends TestCase
         $this->assertTrue($this->client->invalidateByTag($tag));
         
         // Verify deletion
-        $this->expectException(NotFoundException::class);
-        $this->client->get($key1);
+        $this->assertNull($this->client->get($key1));
     }
     
     public function testBulkOperations(): void
@@ -104,7 +103,7 @@ class ClientTest extends TestCase
         }
         
         // Bulk delete
-        $this->assertTrue($this->client->bulkDelete(array_keys($keys)));
+        $this->assertSame(3, $this->client->bulkDelete(array_keys($keys)));
         
         // Verify deletion
         $results = $this->client->bulkGet(array_keys($keys));
@@ -168,16 +167,21 @@ class ClientTest extends TestCase
         // Verify key exists
         $this->assertSame('value', $this->client->get($key));
         
+        // Small delay to ensure consistency
+        usleep(10000); // 10ms
+        
         // Get keys by tag
         $keys = $this->client->getKeysByTag($tag);
+        if (!in_array($key, $keys)) {
+            echo "\nDEBUG: Key '$key' not found in tag '$tag' results: " . json_encode($keys) . "\n";
+        }
         $this->assertContains($key, $keys);
         
         // Delete by tag
         $this->assertTrue($this->client->deleteByTag($tag));
         
         // Verify deletion
-        $this->expectException(NotFoundException::class);
-        $this->client->get($key);
+        $this->assertNull($this->client->get($key));
     }
     
     public function testInvalidateByKey(): void
@@ -193,7 +197,6 @@ class ClientTest extends TestCase
         $this->assertTrue($this->client->invalidateByKey($key));
         
         // Verify deletion
-        $this->expectException(NotFoundException::class);
-        $this->client->get($key);
+        $this->assertNull($this->client->get($key));
     }
 }

@@ -32,6 +32,10 @@ final class HttpTransport implements TransportInterface
     $this->basicPass = $config->auth['password'] ?? null;
     }
 
+    /**
+     * @param array<string, mixed>|null $json
+     * @return array<string, mixed>
+     */
     private function request(string $method, string $path, ?array $json = null): array
     {
         $lastError = null;
@@ -55,6 +59,10 @@ final class HttpTransport implements TransportInterface
         throw $lastError ?? new ConnectionException('Request failed after retries');
     }
     
+    /**
+     * @param array<string, mixed>|null $json
+     * @return array<string, mixed>
+     */
     private function doRequest(string $method, string $path, ?array $json = null): array
     {
         $url = $this->baseUrl . $path;
@@ -66,7 +74,9 @@ final class HttpTransport implements TransportInterface
         }
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        if ($method !== '') {
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        }
         curl_setopt($ch, CURLOPT_TIMEOUT_MS, $this->timeoutMs);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, min($this->timeoutMs, 2000));
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
@@ -95,6 +105,10 @@ final class HttpTransport implements TransportInterface
                 throw new TimeoutException('Request timeout: '.$error);
             }
             throw new ConnectionException('Connection error: '.$error);
+        }
+        
+        if (!is_string($resp)) {
+            throw new ServerException('Invalid response from server');
         }
         
         $data = json_decode($resp, true);
@@ -143,7 +157,10 @@ final class HttpTransport implements TransportInterface
         return true;
     }
 
-    public function get(string $key): ?array
+    /**
+     * @return array<string, mixed>
+     */
+    public function get(string $key): array
     {
         $res = $this->request('GET', '/keys/'.rawurlencode($key));
     if (isset($res['error']) && in_array($res['error'], ['not_found', 'not found', 'not_found'])) throw new NotFoundException($res['error']);
@@ -168,12 +185,19 @@ final class HttpTransport implements TransportInterface
         return $this->request('POST', '/invalidate/tags', ['tags' => $tags, 'mode' => $mode])['count'] ?? 0;
     }
     
+    /**
+     * @return array<string>
+     */
     public function getKeysByTag(string $tag): array
     {
-        $response = $this->request('GET', '/keys', ['tag' => $tag]);
+        $response = $this->request('GET', '/keys-by-tag', ['tag' => $tag]);
         return $response['keys'] ?? [];
     }
 
+    /**
+     * @param array<string> $keys
+     * @return array<string, mixed>
+     */
     public function bulkGet(array $keys): array
     {
     $res = $this->request('POST', '/keys/bulk/get', ['keys' => array_values($keys)]);
@@ -192,11 +216,18 @@ final class HttpTransport implements TransportInterface
     return (int)($res['count'] ?? 0);
     }
 
+    /**
+     * @param array<string, mixed> $params
+     * @return array<string, mixed>
+     */
     public function search(array $params): array
     {
         return $this->request('POST', '/search', $params);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function stats(): array
     {
     $res = $this->request('GET', '/stats');
@@ -206,11 +237,17 @@ final class HttpTransport implements TransportInterface
     return $res;
     }
     
+    /**
+     * @return array<string, mixed>
+     */
     public function getStats(): array
     {
         return $this->stats();
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function list(int $limit = 100): array
     {
         $res = $this->request('GET', '/keys');
@@ -227,20 +264,27 @@ final class HttpTransport implements TransportInterface
         return (int)($res['count'] ?? 0);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function health(): array
     {
         return $this->request('GET', '/health');
     }
 
-    public function login(string $username, string $password): string
+    public function login(string $username, string $password): bool
     {
         $res = $this->request('POST', '/auth/login', ['username' => $username, 'password' => $password]);
         if (!isset($res['token'])) {
-            throw new ApiException('Login failed: no token returned');
+            return false;
         }
-        return $res['token'];
+        $this->token = $res['token'];
+        return true;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function rotateCredentials(): array
     {
         return $this->request('POST', '/auth/rotate');
@@ -250,5 +294,10 @@ final class HttpTransport implements TransportInterface
     {
         $res = $this->request('GET', '/auth/setup_required');
         return (bool)($res['setup_required'] ?? false);
+    }
+
+    public function close(): void
+    {
+        // HTTP transport doesn't need to close connections
     }
 }

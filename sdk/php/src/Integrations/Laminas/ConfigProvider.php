@@ -7,6 +7,9 @@ use TagCache\Config;
 
 class ConfigProvider
 {
+    /**
+     * @return array<string, mixed>
+     */
     public function __invoke(): array
     {
         return [

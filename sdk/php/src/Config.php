@@ -5,18 +5,44 @@ namespace TagCache;
 use RuntimeException;
 
 /**
- * High-performance configuration for TagCache SDK
- * Optimized for production use with credential auto-loading and connection pooling
+ * High-performance configuration for TagCache SD        $getEnvValue = function(string $key, mixed $default = null): mixed {
+            return $_ENV[$key] ?? (getenv($key) !== false ? getenv($key) : $default);
+        };
+        
+        $options = [
+            'mode' => $getEnvValue('TAGCACHE_MODE', 'http'),
+            'http' => [
+                'base_url' => $getEnvValue('TAGCACHE_HTTP_URL', 'http://localhost:8080'),
+                'timeout_ms' => (int)$getEnvValue('TAGCACHE_HTTP_TIMEOUT', 5000),
+            ],
+            'tcp' => [
+                'host' => $getEnvValue('TAGCACHE_TCP_HOST', 'localhost'), 
+                'port' => (int)$getEnvValue('TAGCACHE_TCP_PORT', 1984),
+                'timeout_ms' => (int)$getEnvValue('TAGCACHE_TCP_TIMEOUT', 5000),
+                'pool_size' => (int)$getEnvValue('TAGCACHE_TCP_POOL_SIZE', 5),
+            ],
+            'auth' => [
+                'username' => $getEnvValue('TAGCACHE_USERNAME', ''),
+                'password' => $getEnvValue('TAGCACHE_PASSWORD', ''),
+                'token' => $getEnvValue('TAGCACHE_TOKEN', null),
+            ],r production use with credential auto-loading and connection pooling
  */
 final class Config
 {
     public readonly string $mode;
+    /** @var array<string, mixed> */
     public readonly array $http;
+    /** @var array<string, mixed> */
     public readonly array $tcp;
+    /** @var array<string, mixed> */
     public readonly array $auth;
     
+    /** @var array<string, mixed>|null */
     private static ?array $credentialCache = null;
 
+    /**
+     * @param array<string, mixed> $options
+     */
     public function __construct(array $options = [])
     {
         // Load credentials from credential.txt if available
@@ -61,39 +87,41 @@ final class Config
     /**
      * Load credentials from credential.txt in project root
      */
+    /**
+     * @return array<string, mixed>
+     */
     private function loadCredentials(): array
     {
         if (self::$credentialCache !== null) {
             return self::$credentialCache;
         }
-
-        $credentialPath = $this->findCredentialFile();
-        if (!$credentialPath || !is_readable($credentialPath)) {
-            return self::$credentialCache = ['username' => '', 'password' => ''];
+        
+        $credFile = $this->findCredentialFile();
+        if ($credFile === null) {
+            return self::$credentialCache = [];
         }
-
-        try {
-            $content = file_get_contents($credentialPath);
-            $credentials = [];
+        
+        $content = file_get_contents($credFile);
+        if ($content === false) {
+            return self::$credentialCache = [];
+        }
+        
+        $credentials = [];
+        foreach (explode("
+", $content) as $line) {
+            $line = trim($line);
+            if (empty($line) || str_starts_with($line, '#')) {
+                continue;
+            }
             
-            foreach (explode("\n", $content) as $line) {
-                $line = trim($line);
-                if (empty($line) || !str_contains($line, '=')) continue;
-                
+            if (str_contains($line, '=')) {
                 [$key, $value] = explode('=', $line, 2);
                 $credentials[trim($key)] = trim($value);
             }
-            
-            return self::$credentialCache = [
-                'username' => $credentials['username'] ?? '',
-                'password' => $credentials['password'] ?? '',
-            ];
-        } catch (\Throwable $e) {
-            return self::$credentialCache = ['username' => '', 'password' => ''];
         }
-    }
-
-    /**
+        
+        return self::$credentialCache = $credentials;
+    }    /**
      * Find credential.txt in project root or parent directories
      */
     private function findCredentialFile(): ?string
@@ -113,23 +141,36 @@ final class Config
         return null;
     }
 
+    /**
+     * @param array<string, mixed> $overrides
+     */
     public static function fromEnv(array $overrides = []): self
     {
-        $opt = $overrides;
+        $getEnvValue = function(string $key, mixed $default = null): mixed {
+            return $_ENV[$key] ?? (getenv($key) !== false ? getenv($key) : $default);
+        };
         
-        // HTTP configuration from environment
-        $opt['http']['base_url'] = $opt['http']['base_url'] ?? getenv('TAGCACHE_HTTP_URL') ?: 'http://localhost:8080';
-        $opt['http']['timeout_ms'] = (int)($opt['http']['timeout_ms'] ?? getenv('TAGCACHE_HTTP_TIMEOUT_MS') ?: 5000);
+        $options = [
+            'mode' => $getEnvValue('TAGCACHE_MODE', 'http'),
+            'http' => [
+                'base_url' => $getEnvValue('TAGCACHE_HTTP_URL', 'http://localhost:8080'),
+                'timeout_ms' => (int)$getEnvValue('TAGCACHE_HTTP_TIMEOUT', 5000),
+            ],
+            'tcp' => [
+                'host' => $getEnvValue('TAGCACHE_TCP_HOST', 'localhost'), 
+                'port' => (int)$getEnvValue('TAGCACHE_TCP_PORT', 1984),
+                'timeout_ms' => (int)$getEnvValue('TAGCACHE_TCP_TIMEOUT', 5000),
+                'pool_size' => (int)$getEnvValue('TAGCACHE_TCP_POOL_SIZE', 5),
+            ],
+            'auth' => [
+                'username' => $getEnvValue('TAGCACHE_USERNAME', ''),
+                'password' => $getEnvValue('TAGCACHE_PASSWORD', ''),
+                'token' => $getEnvValue('TAGCACHE_TOKEN', null),
+            ],
+            'retry_attempts' => (int)$getEnvValue('TAGCACHE_RETRY_ATTEMPTS', 3),
+            'retry_delay_ms' => (int)$getEnvValue('TAGCACHE_RETRY_DELAY', 100),
+        ];
         
-        // TCP configuration from environment  
-        $opt['tcp']['host'] = $opt['tcp']['host'] ?? getenv('TAGCACHE_TCP_HOST') ?: '127.0.0.1';
-        $opt['tcp']['port'] = (int)($opt['tcp']['port'] ?? getenv('TAGCACHE_TCP_PORT') ?: 1984);
-        
-        // Auth configuration from environment
-        $opt['auth']['token'] = $opt['auth']['token'] ?? getenv('TAGCACHE_TOKEN') ?: '';
-        $opt['auth']['username'] = $opt['auth']['username'] ?? getenv('TAGCACHE_USERNAME') ?: '';
-        $opt['auth']['password'] = $opt['auth']['password'] ?? getenv('TAGCACHE_PASSWORD') ?: '';
-        
-        return new self($opt);
+        return new self(array_merge($options, $overrides));
     }
 }

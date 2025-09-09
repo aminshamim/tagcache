@@ -10,7 +10,10 @@ use TagCache\Config;
 
 class TagCacheExtension extends Extension
 {
-    public function load(array $configs, ContainerBuilder $container)
+    /**
+     * @param array<mixed> $configs
+     */
+    public function load(array $configs, ContainerBuilder $container): void
     {
         $config = [];
         foreach ($configs as $c) { $config = array_replace_recursive($config, $c); }

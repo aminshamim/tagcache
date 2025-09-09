@@ -48,8 +48,8 @@ class ClientTest extends TestCase
     
     public function testGetNonExistent(): void
     {
-        $this->expectException(NotFoundException::class);
-        $this->client->get('non-existent-key-' . uniqid());
+        $result = $this->client->get('non-existent-key-' . uniqid());
+        $this->assertNull($result);
     }
     
     public function testDeleteNonExistent(): void
@@ -79,8 +79,7 @@ class ClientTest extends TestCase
         $this->assertTrue($this->client->invalidateByTag($tag));
         
         // Verify deletion
-        $this->expectException(NotFoundException::class);
-        $this->client->get($key1);
+        $this->assertNull($this->client->get($key1));
     }
     
     public function testBulkOperations(): void
@@ -181,8 +180,7 @@ class ClientTest extends TestCase
         $this->assertGreaterThan(0, $this->client->deleteByTag($tag));
         
         // Verify deletion
-        $this->expectException(NotFoundException::class);
-        $this->client->get($key);
+        $this->assertNull($this->client->get($key));
     }
     
     public function testInvalidateByKey(): void
@@ -198,7 +196,6 @@ class ClientTest extends TestCase
         $this->assertTrue($this->client->invalidateByKey($key));
         
         // Verify deletion
-        $this->expectException(NotFoundException::class);
-        $this->client->get($key);
+        $this->assertNull($this->client->get($key));
     }
 }

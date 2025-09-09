@@ -7,7 +7,7 @@ use TagCache\Client;
 
 class Facade extends BaseFacade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return Client::class;
     }

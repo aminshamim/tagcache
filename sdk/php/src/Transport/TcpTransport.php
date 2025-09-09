@@ -4,6 +4,7 @@ namespace TagCache\Transport;
 
 use TagCache\Config;
 use TagCache\Exceptions\ApiException;
+use TagCache\Exceptions\NotFoundException;
 
 final class TcpTransport implements TransportInterface
 {
@@ -11,7 +12,6 @@ final class TcpTransport implements TransportInterface
     private int $port;
     private int $timeoutMs;
     private int $poolSize;
-    private ?string $token;
     /** @var resource[] */
     private array $pool = [];
     private int $rr = 0;
@@ -23,9 +23,11 @@ final class TcpTransport implements TransportInterface
         $this->port = (int)$tcp['port'];
         $this->timeoutMs = (int)$tcp['timeout_ms'];
         $this->poolSize = max(1, (int)$tcp['pool_size']);
-        $this->token = ($config->auth['token'] ?? '') ?: null;
     }
 
+    /**
+     * @return resource
+     */
     private function conn()
     {
         // Round-robin from pool
@@ -36,6 +38,9 @@ final class TcpTransport implements TransportInterface
         return $this->pool[$this->rr];
     }
 
+    /**
+     * @return resource
+     */
     private function dial()
     {
         $addr = sprintf('%s:%d', $this->host, $this->port);
@@ -58,6 +63,9 @@ final class TcpTransport implements TransportInterface
         return rtrim($resp, "\r\n");
     }
 
+    /**
+     * @param string[] $tags
+     */
     public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool
     {
         $val = is_string($value) ? $value : json_encode($value);
@@ -68,10 +76,13 @@ final class TcpTransport implements TransportInterface
         return true;
     }
 
-    public function get(string $key): ?array
+    /**
+     * @return array<string, mixed>
+     */
+    public function get(string $key): array
     {
         $resp = $this->cmd("GET\t{$key}");
-    if ($resp === 'NF') return null;
+    if ($resp === 'NF') throw new NotFoundException('Key not found: ' . $key);
     if (!preg_match('/^VALUE\t\s*(.*)$/s', $resp, $m)) throw new ApiException('GET bad resp: '.$resp);
     $raw = $m[1];
         $decoded = json_decode($raw, true);
@@ -84,6 +95,9 @@ final class TcpTransport implements TransportInterface
         return str_contains($resp, 'ok');
     }
 
+    /**
+     * @param string[] $keys
+     */
     public function invalidateKeys(array $keys): int
     {
         // No batch in TCP yet; loop
@@ -99,42 +113,69 @@ final class TcpTransport implements TransportInterface
         $this->pool = [];
     }
 
+    /**
+     * @param string[] $tags
+     */
     public function invalidateTags(array $tags, string $mode = 'any'): int
     {
         // any-mode: loop INV_TAG; all-mode not supported over TCP yet
-        $n = 0; foreach ($tags as $t) { $resp = $this->cmd("INV_TAG\t{$t}"); $parts = explode("\t", $resp); if (($parts[0] ?? '') === 'INV_TAG') { $n += (int)($parts[1] ?? 0); } }
+        $n = 0; foreach ($tags as $t) { $resp = $this->cmd("INV_TAG\t{$t}"); $parts = explode("\t", $resp); if ($parts[0] === 'INV_TAG') { $n += (int)($parts[1] ?? 0); } }
         return $n;
     }
     
+    /**
+     * @return string[]
+     */
     public function getKeysByTag(string $tag): array
     {
-        $resp = $this->cmd("KEYS_BY_TAG\t$tag");
-        $parts = explode("\t", $resp);
-        if (($parts[0] ?? '') !== 'KEYS') throw new ApiException('KEYS_BY_TAG bad resp: '.$resp);
-        return array_slice($parts, 1);
+        $resp = $this->cmd("GET_TAG	{$tag}"); $parts = explode("	", $resp);
+        if ($parts[0] !== 'GET_TAG') return [];
+        return explode(",", $parts[1] ?? '');
     }
 
+    /**
+     * @param string[] $keys
+     * @return array<string, array<string, mixed>>
+     */
     public function bulkGet(array $keys): array
     {
-        $out = []; foreach ($keys as $k) { $out[$k] = $this->get($k); } return $out;
+        $out = []; 
+        foreach ($keys as $k) { 
+            try {
+                $out[$k] = $this->get($k); 
+            } catch (NotFoundException $e) {
+                // Skip keys that don't exist - this matches HTTP transport behavior
+            }
+        } 
+        return $out;
     }
 
+    /**
+     * @param string[] $keys
+     */
     public function bulkDelete(array $keys): int
     {
         return $this->invalidateKeys($keys);
     }
 
+    /**
+     * @param array<string, mixed> $params
+     * @return array<string, mixed>
+     */
     public function search(array $params): array
     {
         // Not supported over TCP in this simple protocol; ask user to use HTTP transport for search
         throw new ApiException('search not supported over TCP transport; use HTTP');
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function stats(): array
     {
         $resp = $this->cmd('STATS');
         $parts = explode("\t", $resp);
-        if (($parts[0] ?? '') !== 'STATS') throw new ApiException('STATS bad resp: '.$resp);
+        if ($parts[0] !== 'STATS') throw new ApiException('STATS bad resp: '.$resp);
         return [
             'hits' => (int)($parts[1] ?? 0),
             'misses' => (int)($parts[2] ?? 0),
@@ -144,11 +185,17 @@ final class TcpTransport implements TransportInterface
         ];
     }
     
+    /**
+     * @return array<string, mixed>
+     */
     public function getStats(): array
     {
         return $this->stats();
     }
 
+    /**
+     * @return string[]
+     */
     public function list(int $limit = 100): array
     {
         // Not supported over TCP; use HTTP list
@@ -159,20 +206,27 @@ final class TcpTransport implements TransportInterface
     {
         $resp = $this->cmd('FLUSH');
         $parts = explode("\t", $resp);
-        if (($parts[0] ?? '') !== 'FLUSH') throw new ApiException('FLUSH bad resp: '.$resp);
+        if ($parts[0] !== 'FLUSH') throw new ApiException('FLUSH bad resp: '.$resp);
         return (int)($parts[1] ?? 0);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function health(): array
     {
+        // Not supported over TCP protocol; use HTTP for health endpoints
         throw new ApiException('health not supported over TCP transport; use HTTP');
     }
 
-    public function login(string $username, string $password): string
+    public function login(string $username, string $password): bool
     {
         throw new ApiException('login not supported over TCP transport; use HTTP');
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function rotateCredentials(): array
     {
         throw new ApiException('rotateCredentials not supported over TCP transport; use HTTP');
