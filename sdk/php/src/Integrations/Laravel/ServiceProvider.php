@@ -1,10 +1,10 @@
 <?php
 
-namespace TagCache\SDK\Integrations\Laravel;
+namespace TagCache\Integrations\Laravel;
 
 use Illuminate\Support\ServiceProvider as Base;
-use TagCache\SDK\Client;
-use TagCache\SDK\Config;
+use TagCache\Client;
+use TagCache\Config;
 
 class ServiceProvider extends Base
 {

@@ -1,6 +1,6 @@
 <?php
 
-namespace TagCache\SDK\Models;
+namespace TagCache\Models;
 
 final class Item
 {

@@ -1,9 +1,9 @@
 <?php
 
-namespace TagCache\SDK\Transport;
+namespace TagCache\Transport;
 
-use TagCache\SDK\Config;
-use TagCache\SDK\Exceptions\ApiException;
+use TagCache\Config;
+use TagCache\Exceptions\ApiException;
 
 final class TcpTransport implements TransportInterface
 {
@@ -96,6 +96,14 @@ final class TcpTransport implements TransportInterface
         $n = 0; foreach ($tags as $t) { $resp = $this->cmd("INV_TAG\t{$t}"); $parts = explode("\t", $resp); if (($parts[0] ?? '') === 'INV_TAG') { $n += (int)($parts[1] ?? 0); } }
         return $n;
     }
+    
+    public function getKeysByTag(string $tag): array
+    {
+        $resp = $this->cmd("KEYS_BY_TAG\t$tag");
+        $parts = explode("\t", $resp);
+        if (($parts[0] ?? '') !== 'KEYS') throw new ApiException('KEYS_BY_TAG bad resp: '.$resp);
+        return array_slice($parts, 1);
+    }
 
     public function bulkGet(array $keys): array
     {
@@ -125,6 +133,11 @@ final class TcpTransport implements TransportInterface
             'invalidations' => (int)($parts[4] ?? 0),
             'hit_ratio' => (float)($parts[5] ?? 0),
         ];
+    }
+    
+    public function getStats(): array
+    {
+        return $this->stats();
     }
 
     public function list(int $limit = 100): array

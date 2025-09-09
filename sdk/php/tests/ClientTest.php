@@ -20,9 +20,11 @@ class ClientTest extends TestCase
     protected function setUp(): void
     {
         $this->config = new Config([
-            'transport' => HttpTransport::class,
-            'base_url' => 'http://localhost:3030',
-            'timeout_ms' => 5000,
+            'mode' => 'http',
+            'http' => [
+                'base_url' => 'http://localhost:3030',
+                'timeout_ms' => 5000,
+            ],
         ]);
         $this->client = new Client($this->config);
     }
@@ -63,8 +65,8 @@ class ClientTest extends TestCase
         $tag = 'tag-' . uniqid();
         
         // Put with tags
-        $this->assertTrue($this->client->put($key1, $value, [$tag], 300));
-        $this->assertTrue($this->client->put($key2, $value, [$tag], 300));
+        $this->assertTrue($this->client->put($key1, $value, 300, [$tag]));
+        $this->assertTrue($this->client->put($key2, $value, 300, [$tag]));
         
         // Get keys by tag
         $keys = $this->client->getKeysByTag($tag);
@@ -90,7 +92,7 @@ class ClientTest extends TestCase
         
         // Put all keys
         foreach ($keys as $key => $value) {
-            $this->assertTrue($this->client->put($key, $value, ['bulk'], 300));
+            $this->assertTrue($this->client->put($key, $value, 300, ['bulk']));
         }
         
         // Bulk get
@@ -136,7 +138,7 @@ class ClientTest extends TestCase
         
         // Put test data
         foreach ($keys as $key => $value) {
-            $this->assertTrue($this->client->put($key, $value, ['search'], 300));
+            $this->assertTrue($this->client->put($key, $value, 300, ['search']));
         }
         
         // Search by prefix
@@ -184,7 +186,7 @@ class ClientTest extends TestCase
         $value = 'test-value';
         
         // Put key
-        $this->assertTrue($this->client->put($key, $value, ['invalidate'], 300));
+        $this->assertTrue($this->client->put($key, $value, 300, ['invalidate']));
         $this->assertSame($value, $this->client->get($key));
         
         // Invalidate by key

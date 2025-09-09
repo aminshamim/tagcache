@@ -1,8 +1,8 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
-use TagCache\SDK\Config;
-use TagCache\SDK\Transport\HttpTransport;
+use TagCache\Config;
+use TagCache\Transport\HttpTransport;
 
 final class HttpTransportTest extends TestCase
 {

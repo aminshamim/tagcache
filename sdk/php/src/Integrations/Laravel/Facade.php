@@ -1,9 +1,9 @@
 <?php
 
-namespace TagCache\SDK\Integrations\Laravel;
+namespace TagCache\Integrations\Laravel;
 
 use Illuminate\Support\Facades\Facade as BaseFacade;
-use TagCache\SDK\Client;
+use TagCache\Client;
 
 class Facade extends BaseFacade
 {

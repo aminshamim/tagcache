@@ -1,12 +1,12 @@
-<?php
+<?php declare(strict_types=1);
 
-namespace TagCache\SDK;
+namespace TagCache;
 
-use TagCache\SDK\Contracts\ClientInterface;
-use TagCache\SDK\Models\Item;
-use TagCache\SDK\Transport\HttpTransport;
-use TagCache\SDK\Transport\TcpTransport;
-use TagCache\SDK\Transport\TransportInterface;
+use TagCache\Contracts\ClientInterface;
+use TagCache\Models\Item;
+use TagCache\Transport\HttpTransport;
+use TagCache\Transport\TcpTransport;
+use TagCache\Transport\TransportInterface;
 
 final class Client implements ClientInterface
 {
@@ -27,9 +27,14 @@ final class Client implements ClientInterface
         }
     }
 
-    public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): void
+    public function put(string $key, mixed $value, array $tags = [], ?int $ttlMs = null): bool
     {
-        $this->transport->put($key, $value, $ttlMs, $tags);
+        try {
+            $this->transport->put($key, $value, $ttlMs, $tags);
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     public function get(string $key): ?Item
@@ -84,6 +89,11 @@ final class Client implements ClientInterface
     {
         return $this->transport->stats();
     }
+    
+    public function getStats(): array
+    {
+        return $this->stats();
+    }
 
     public function list(int $limit = 100): array
     {
@@ -95,7 +105,7 @@ final class Client implements ClientInterface
         $found = $this->get($key);
         if ($found) return $found;
         $value = $producer($key);
-        $this->put($key, $value, $ttlMs, $tags);
+        $this->put($key, $value, $tags, $ttlMs);
         return new Item($key, $value, $ttlMs, $tags);
     }
 
@@ -152,5 +162,31 @@ final class Client implements ClientInterface
     public function setupRequired(): bool
     {
         return $this->transport->setupRequired();
+    }
+    
+    // Helper methods for convenience
+    public function putWithTag(string $key, mixed $value, string $tag, ?int $ttlMs = null): bool
+    {
+        return $this->put($key, $value, [$tag], $ttlMs);
+    }
+    
+    public function deleteByTag(string $tag): int
+    {
+        return $this->invalidateTags([$tag]);
+    }
+    
+    public function getKeysByTag(string $tag): array
+    {
+        return $this->keysByTag($tag);
+    }
+    
+    public function invalidateByTag(string $tag): bool
+    {
+        return $this->invalidateTags([$tag]) > 0;
+    }
+    
+    public function invalidateByKey(string $key): bool
+    {
+        return $this->delete($key);
     }
 }

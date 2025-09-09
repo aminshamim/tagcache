@@ -1,6 +1,6 @@
 <?php
 
-namespace TagCache\SDK\Transport;
+namespace TagCache\Transport;
 
 interface TransportInterface
 {

@@ -5,7 +5,12 @@
   "license": "MIT",
   "autoload": {
     "psr-4": {
-      "TagCache\\SDK\\": "src/"
+      "TagCache\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "TagCache\\Tests\\": "tests/"
     }
   },
   "require": {

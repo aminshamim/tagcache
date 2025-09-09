@@ -1,12 +1,12 @@
 <?php
 
-namespace TagCache\SDK\Integrations\Symfony\DependencyInjection;
+namespace TagCache\Integrations\Symfony\DependencyInjection;
 
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Definition;
-use TagCache\SDK\Client;
-use TagCache\SDK\Config;
+use TagCache\Client;
+use TagCache\Config;
 
 class TagCacheExtension extends Extension
 {

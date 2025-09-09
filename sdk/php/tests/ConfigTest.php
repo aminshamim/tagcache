@@ -1,7 +1,7 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
-use TagCache\SDK\Config;
+use TagCache\Config;
 
 final class ConfigTest extends TestCase
 {

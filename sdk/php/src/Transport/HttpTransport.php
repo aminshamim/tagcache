@@ -1,14 +1,14 @@
 <?php
 
-namespace TagCache\SDK\Transport;
+namespace TagCache\Transport;
 
-use TagCache\SDK\Config;
-use TagCache\SDK\Exceptions\ApiException;
-use TagCache\SDK\Exceptions\NotFoundException;
-use TagCache\SDK\Exceptions\ConnectionException;
-use TagCache\SDK\Exceptions\TimeoutException;
-use TagCache\SDK\Exceptions\UnauthorizedException;
-use TagCache\SDK\Exceptions\ServerException;
+use TagCache\Config;
+use TagCache\Exceptions\ApiException;
+use TagCache\Exceptions\NotFoundException;
+use TagCache\Exceptions\ConnectionException;
+use TagCache\Exceptions\TimeoutException;
+use TagCache\Exceptions\UnauthorizedException;
+use TagCache\Exceptions\ServerException;
 
 final class HttpTransport implements TransportInterface
 {
@@ -132,8 +132,13 @@ final class HttpTransport implements TransportInterface
 
     public function invalidateTags(array $tags, string $mode = 'any'): int
     {
-        $res = $this->request('POST', '/invalidate/tags', [ 'tags' => array_values($tags), 'mode' => $mode ]);
-        return (int)($res['count'] ?? 0);
+        return $this->request('POST', '/invalidate/tags', ['tags' => $tags, 'mode' => $mode])['count'] ?? 0;
+    }
+    
+    public function getKeysByTag(string $tag): array
+    {
+        $response = $this->request('GET', '/keys', ['tag' => $tag]);
+        return $response['keys'] ?? [];
     }
 
     public function bulkGet(array $keys): array
@@ -162,6 +167,11 @@ final class HttpTransport implements TransportInterface
     public function stats(): array
     {
         return $this->request('GET', '/stats');
+    }
+    
+    public function getStats(): array
+    {
+        return $this->stats();
     }
 
     public function list(int $limit = 100): array

@@ -1,5 +1,5 @@
 <?php
 
-namespace TagCache\SDK\Exceptions;
+namespace TagCache\Exceptions;
 
 class NotFoundException extends \RuntimeException {}

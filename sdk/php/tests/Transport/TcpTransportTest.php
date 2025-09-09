@@ -19,10 +19,13 @@ class TcpTransportTest extends TestCase
     protected function setUp(): void
     {
         $this->config = new Config([
-            'host' => '127.0.0.1',
-            'port' => 3031,
-            'timeout_ms' => 5000,
-            'pool_size' => 5,
+            'mode' => 'tcp',
+            'tcp' => [
+                'host' => '127.0.0.1',
+                'port' => 3031,
+                'timeout_ms' => 5000,
+                'pool_size' => 5,
+            ],
         ]);
         $this->transport = new TcpTransport($this->config);
     }
@@ -66,7 +69,7 @@ class TcpTransportTest extends TestCase
         for ($i = 0; $i < 10; $i++) {
             $key = "pool:test:$i:" . uniqid();
             $keys[] = $key;
-            $this->assertTrue($transport->put($key, "value$i", ['pool'], 300));
+            $this->assertTrue($transport->put($key, "value$i", 300, ['pool']));
         }
         
         // Verify all operations succeeded
@@ -90,7 +93,7 @@ class TcpTransportTest extends TestCase
         
         // Put test data
         foreach ($keys as $i => $key) {
-            $this->assertTrue($this->transport->put($key, "value$i", ['bulk'], 300));
+            $this->assertTrue($this->transport->put($key, "value$i", 300, ['bulk']));
         }
         
         // Bulk get
@@ -118,7 +121,7 @@ class TcpTransportTest extends TestCase
         
         // Put tagged keys
         foreach ($keys as $key) {
-            $this->assertTrue($this->transport->put($key, 'value', [$tag], 300));
+            $this->assertTrue($this->transport->put($key, 'value', 300, [$tag]));
         }
         
         // Get keys by tag
@@ -171,7 +174,7 @@ class TcpTransportTest extends TestCase
         $longValue = str_repeat('A', 10000); // Test large payload
         
         // Put large value
-        $this->assertTrue($this->transport->put($key, $longValue, ['protocol'], 300));
+        $this->assertTrue($this->transport->put($key, $longValue, 300, ['protocol']));
         
         // Get large value
         $result = $this->transport->get($key);
@@ -191,7 +194,7 @@ class TcpTransportTest extends TestCase
         
         // Put test data
         foreach ($keys as $key => $value) {
-            $this->assertTrue($this->transport->put($key, $value, ['search'], 300));
+            $this->assertTrue($this->transport->put($key, $value, 300, ['search']));
         }
         
         // Search

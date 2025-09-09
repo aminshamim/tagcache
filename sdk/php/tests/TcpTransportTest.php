@@ -1,8 +1,8 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
-use TagCache\SDK\Config;
-use TagCache\SDK\Transport\TcpTransport;
+use TagCache\Config;
+use TagCache\Transport\TcpTransport;
 
 final class TcpTransportTest extends TestCase
 {

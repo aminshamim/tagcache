@@ -1,6 +1,6 @@
 <?php
 
-namespace TagCache\SDK\Integrations\Symfony;
+namespace TagCache\Integrations\Symfony;
 
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 

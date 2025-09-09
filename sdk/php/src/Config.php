@@ -1,6 +1,6 @@
-<?php
+<?php declare(strict_types=1);
 
-namespace TagCache\SDK;
+namespace TagCache;
 
 final class Config
 {

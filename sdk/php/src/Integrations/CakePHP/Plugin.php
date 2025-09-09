@@ -1,6 +1,6 @@
 <?php
 
-namespace TagCache\SDK\Integrations\CakePHP;
+namespace TagCache\Integrations\CakePHP;
 
 use Cake\Core\BasePlugin;
 

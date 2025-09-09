@@ -1,9 +1,9 @@
 <?php
 
-namespace TagCache\SDK\Integrations\Laminas;
+namespace TagCache\Integrations\Laminas;
 
-use TagCache\SDK\Client;
-use TagCache\SDK\Config;
+use TagCache\Client;
+use TagCache\Config;
 
 class ConfigProvider
 {

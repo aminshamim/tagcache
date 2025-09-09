@@ -1,6 +1,6 @@
 <?php
 
-namespace TagCache\SDK\Integrations\Symfony\DependencyInjection;
+namespace TagCache\Integrations\Symfony\DependencyInjection;
 
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;

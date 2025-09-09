@@ -1,12 +1,12 @@
 <?php
 
-namespace TagCache\SDK\Contracts;
+namespace TagCache\Contracts;
 
-use TagCache\SDK\Models\Item;
+use TagCache\Models\Item;
 
 interface ClientInterface
 {
-    public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): void;
+    public function put(string $key, mixed $value, array $tags = [], ?int $ttlMs = null): bool;
     public function get(string $key): ?Item;
     public function delete(string $key): bool;
     public function invalidateKeys(array $keys): int;

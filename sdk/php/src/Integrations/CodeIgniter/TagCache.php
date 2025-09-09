@@ -1,9 +1,9 @@
 <?php
 
-namespace TagCache\SDK\Integrations\CodeIgniter;
+namespace TagCache\Integrations\CodeIgniter;
 
-use TagCache\SDK\Client;
-use TagCache\SDK\Config;
+use TagCache\Client;
+use TagCache\Config;
 
 class TagCache
 {

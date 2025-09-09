@@ -22,9 +22,12 @@ class HttpTransportTest extends TestCase
     protected function setUp(): void
     {
         $this->config = new Config([
-            'base_url' => 'http://localhost:3030',
-            'timeout_ms' => 5000,
-            'max_retries' => 3,
+            'mode' => 'http',
+            'http' => [
+                'base_url' => 'http://localhost:3030',
+                'timeout_ms' => 5000,
+                'retries' => 3,
+            ],
         ]);
         $this->transport = new HttpTransport($this->config);
     }
@@ -64,7 +67,7 @@ class HttpTransportTest extends TestCase
         
         // Put test data
         foreach ($keys as $i => $key) {
-            $this->assertTrue($this->transport->put($key, "value$i", ['bulk'], 300));
+            $this->assertTrue($this->transport->put($key, "value$i", 300, ['bulk']));
         }
         
         // Bulk get
@@ -92,7 +95,7 @@ class HttpTransportTest extends TestCase
         
         // Put tagged keys
         foreach ($keys as $key) {
-            $this->assertTrue($this->transport->put($key, 'value', [$tag], 300));
+            $this->assertTrue($this->transport->put($key, 'value', 300, [$tag]));
         }
         
         // Get keys by tag
@@ -111,7 +114,7 @@ class HttpTransportTest extends TestCase
         $key = 'invalidate:test:' . uniqid();
         
         // Put tagged key
-        $this->assertTrue($this->transport->put($key, 'value', [$tag], 300));
+        $this->assertTrue($this->transport->put($key, 'value', 300, [$tag]));
         $this->assertSame('value', $this->transport->get($key));
         
         // Invalidate by tag
@@ -127,7 +130,7 @@ class HttpTransportTest extends TestCase
         $key = 'invalidate:key:' . uniqid();
         
         // Put key
-        $this->assertTrue($this->transport->put($key, 'value', ['test'], 300));
+        $this->assertTrue($this->transport->put($key, 'value', 300, ['test']));
         $this->assertSame('value', $this->transport->get($key));
         
         // Invalidate by key
@@ -164,7 +167,7 @@ class HttpTransportTest extends TestCase
         
         // Put test data
         foreach ($keys as $key => $value) {
-            $this->assertTrue($this->transport->put($key, $value, ['search'], 300));
+            $this->assertTrue($this->transport->put($key, $value, 300, ['search']));
         }
         
         // Search
@@ -183,7 +186,7 @@ class HttpTransportTest extends TestCase
         $key = 'flush:test:' . uniqid();
         
         // Put test data
-        $this->assertTrue($this->transport->put($key, 'value', ['flush'], 300));
+        $this->assertTrue($this->transport->put($key, 'value', 300, ['flush']));
         $this->assertSame('value', $this->transport->get($key));
         
         // Flush cache
