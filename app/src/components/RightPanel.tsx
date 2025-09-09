@@ -14,7 +14,7 @@ export function RightPanel() {
   const hasSelection = !!selectedKey;
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  const detailsRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey:['latest-keys', !!token],
@@ -43,27 +43,28 @@ export function RightPanel() {
   });
 
   const now = Date.now();
-  // Click-away to close: ignore clicks inside panel or on the selected row
+  // Close key details when clicking outside the details card AND outside the selected row
   useEffect(() => {
-    if (!hasSelection) return;
-    const onDocClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement | null;
-      const panel = panelRef.current;
-      if (!target) return;
-      if (panel && panel.contains(target)) return; // click inside details panel
-      // Ignore clicks on the selected row element (marked with data-selected-row="true")
-      if (target.closest('[data-selected-row="true"]')) return;
+    function onDocClick(e: MouseEvent){
+      if(!hasSelection) return;
+      const t = e.target as HTMLElement;
+      // If clicking inside the details card, ignore
+      if(detailsRef.current && detailsRef.current.contains(t)) return;
+      // If clicking on the selected row, ignore
+      const row = t.closest?.('[data-key-row]') as HTMLElement | null;
+      if(row && selectedKey && row.getAttribute('data-key-row') === selectedKey) return;
       // Otherwise, close
       clear();
-    };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [hasSelection, clear]);
+    }
+    document.addEventListener('mousedown', onDocClick, { capture: true } as any);
+    return () => document.removeEventListener('mousedown', onDocClick, { capture: true } as any);
+  }, [hasSelection, selectedKey, clear]);
+
   return (
     <div className="space-y-8">
       {hasSelection && (
         <div className="transition-all duration-300">
-          <div ref={panelRef} className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div ref={detailsRef} className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div className="px-3 py-2 bg-gradient-to-r from-brand-primary/10 to-brand-teal/10 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-800">Key Details</h3>
@@ -174,17 +175,16 @@ export function RightPanel() {
                         try { const parsed = JSON.parse(raw); pretty = JSON.stringify(parsed, null, 2); min = JSON.stringify(parsed); isJson = true; } catch { pretty = raw; min = raw; }
                       } else { pretty = JSON.stringify(raw, null, 2); min = JSON.stringify(raw); isJson = true; }
                       const text = collapsed ? min : pretty;
+                      const exts = [...(isJson ? [jsonLang()] : [])];
                       return (
-                        <div className="rounded-lg overflow-hidden border border-gray-200">
+                        <div className="rounded-lg overflow-hidden border border-gray-200" style={{ maxHeight: 400, overflow: 'auto' }}>
                           <CodeMirror
                             value={text}
                             height="auto"
-                            minHeight="40px"
-                            maxHeight="400px"
                             editable={false}
                             basicSetup={{ lineNumbers: true, highlightActiveLine: false }}
                             className="text-[10px]"
-                            extensions={isJson ? [jsonLang()] : []}
+                            extensions={exts}
                           />
                         </div>
                       );

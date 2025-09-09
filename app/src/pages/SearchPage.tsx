@@ -8,7 +8,6 @@ interface SearchResultRow { key: string; ttl_ms?: number; tags?: string[] }
 export default function SearchPage() {
   const navigate = useNavigate();
   const selectKey = useSelectionStore(s=>s.selectKey);
-  const selectedKey = useSelectionStore(s=>s.selectedKey);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SearchResultRow[]>([]);
@@ -45,12 +44,7 @@ export default function SearchPage() {
         </thead>
         <tbody>
           {results.map(r => (
-            <tr
-              key={r.key}
-              className="border-b last:border-none hover:bg-gray-50 cursor-pointer"
-              data-selected-row={selectedKey === r.key ? 'true' : undefined}
-              onClick={()=>selectKey(r.key, (k)=>{ setResults(prev=>prev.filter(x=>x.key!==k)); })}
-            >
+            <tr key={r.key} data-key-row={r.key} className="border-b last:border-none hover:bg-gray-50 cursor-pointer" onClick={()=>selectKey(r.key, (k)=>{ setResults(prev=>prev.filter(x=>x.key!==k)); })}>
               <td className="py-1 pr-2 font-mono text-xs">{r.key}</td>
               <td className="py-1 pr-2 text-xs">{r.ttl_ms ?? ''}</td>
               <td className="py-1 pr-2">{r.tags?.map(t => (
