@@ -128,4 +128,29 @@ final class Client implements ClientInterface
         }
         return $items;
     }
+
+    public function flush(): int
+    {
+        return $this->transport->flush();
+    }
+
+    public function health(): array
+    {
+        return $this->transport->health();
+    }
+
+    public function login(string $username, string $password): string
+    {
+        return $this->transport->login($username, $password);
+    }
+
+    public function rotateCredentials(): array
+    {
+        return $this->transport->rotateCredentials();
+    }
+
+    public function setupRequired(): bool
+    {
+        return $this->transport->setupRequired();
+    }
 }

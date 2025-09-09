@@ -5,47 +5,98 @@ namespace TagCache\SDK\Transport;
 use TagCache\SDK\Config;
 use TagCache\SDK\Exceptions\ApiException;
 use TagCache\SDK\Exceptions\NotFoundException;
+use TagCache\SDK\Exceptions\ConnectionException;
+use TagCache\SDK\Exceptions\TimeoutException;
+use TagCache\SDK\Exceptions\UnauthorizedException;
+use TagCache\SDK\Exceptions\ServerException;
 
 final class HttpTransport implements TransportInterface
 {
     private string $baseUrl;
     private int $timeoutMs;
+    private int $maxRetries;
     private ?string $token;
 
     public function __construct(Config $config)
     {
         $this->baseUrl = rtrim($config->http['base_url'] ?? 'http://127.0.0.1:8080', '/');
         $this->timeoutMs = (int)($config->http['timeout_ms'] ?? 5000);
+        $this->maxRetries = (int)($config->http['retries'] ?? 3);
         $this->token = ($config->auth['token'] ?? '') ?: null;
     }
 
     private function request(string $method, string $path, ?array $json = null): array
+    {
+        $lastError = null;
+        
+        for ($attempt = 0; $attempt <= $this->maxRetries; $attempt++) {
+            if ($attempt > 0) {
+                usleep(min(1000000, 100000 * (2 ** ($attempt - 1)))); // exponential backoff
+            }
+            
+            try {
+                return $this->doRequest($method, $path, $json);
+            } catch (ConnectionException | TimeoutException $e) {
+                $lastError = $e;
+                if ($attempt === $this->maxRetries) break;
+                continue; // retry
+            } catch (\Throwable $e) {
+                throw $e; // don't retry non-connection errors
+            }
+        }
+        
+        throw $lastError ?? new ConnectionException('Request failed after retries');
+    }
+    
+    private function doRequest(string $method, string $path, ?array $json = null): array
     {
         $url = $this->baseUrl . $path;
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($ch, CURLOPT_TIMEOUT_MS, $this->timeoutMs);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, min($this->timeoutMs, 2000));
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
         curl_setopt($ch, CURLOPT_HTTPHEADER, array_values(array_filter([
             'Content-Type: application/json',
+            'Connection: keep-alive',
             $this->token ? 'Authorization: Bearer '.$this->token : null,
         ])));
         if ($json !== null) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($json));
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($json, JSON_THROW_ON_ERROR));
         }
+        
         $resp = curl_exec($ch);
-        if ($resp === false) {
-            $err = curl_error($ch);
-            curl_close($ch);
-            throw new ApiException('HTTP error: '.$err);
-        }
+        $errno = curl_errno($ch);
+        $error = curl_error($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
+        
+        if ($resp === false) {
+            if ($errno === CURLE_OPERATION_TIMEOUTED) {
+                throw new TimeoutException('Request timeout: '.$error);
+            }
+            throw new ConnectionException('Connection error: '.$error);
+        }
+        
         $data = json_decode($resp, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new ServerException('Invalid JSON response: '.json_last_error_msg());
+        }
+        
+        if ($code >= 500) {
+            throw new ServerException('Server error '.$code.': '.($data['error'] ?? $resp));
+        }
+        if ($code === 401) {
+            throw new UnauthorizedException($data['error'] ?? 'Unauthorized');
+        }
+        if ($code === 404) {
+            throw new NotFoundException($data['error'] ?? 'Not found');
+        }
         if ($code >= 400) {
-            if ($code === 404) throw new NotFoundException($data['error'] ?? 'not found');
             throw new ApiException('HTTP '.$code.': '.($data['error'] ?? $resp));
         }
+        
         return is_array($data) ? $data : [];
     }
 
@@ -121,5 +172,36 @@ final class HttpTransport implements TransportInterface
             $keys = array_slice($keys, 0, $limit);
         }
         return $keys;
+    }
+
+    public function flush(): int
+    {
+        $res = $this->request('POST', '/flush');
+        return (int)($res['count'] ?? 0);
+    }
+
+    public function health(): array
+    {
+        return $this->request('GET', '/health');
+    }
+
+    public function login(string $username, string $password): string
+    {
+        $res = $this->request('POST', '/auth/login', ['username' => $username, 'password' => $password]);
+        if (!isset($res['token'])) {
+            throw new ApiException('Login failed: no token returned');
+        }
+        return $res['token'];
+    }
+
+    public function rotateCredentials(): array
+    {
+        return $this->request('POST', '/auth/rotate');
+    }
+
+    public function setupRequired(): bool
+    {
+        $res = $this->request('GET', '/auth/setup_required');
+        return (bool)($res['setup_required'] ?? false);
     }
 }

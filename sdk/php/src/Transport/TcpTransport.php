@@ -132,4 +132,32 @@ final class TcpTransport implements TransportInterface
         // Not supported over TCP; use HTTP list
         throw new ApiException('list not supported over TCP transport; use HTTP');
     }
+
+    public function flush(): int
+    {
+        $resp = $this->cmd('FLUSH');
+        $parts = explode("\t", $resp);
+        if (($parts[0] ?? '') !== 'FLUSH') throw new ApiException('FLUSH bad resp: '.$resp);
+        return (int)($parts[1] ?? 0);
+    }
+
+    public function health(): array
+    {
+        throw new ApiException('health not supported over TCP transport; use HTTP');
+    }
+
+    public function login(string $username, string $password): string
+    {
+        throw new ApiException('login not supported over TCP transport; use HTTP');
+    }
+
+    public function rotateCredentials(): array
+    {
+        throw new ApiException('rotateCredentials not supported over TCP transport; use HTTP');
+    }
+
+    public function setupRequired(): bool
+    {
+        throw new ApiException('setupRequired not supported over TCP transport; use HTTP');
+    }
 }

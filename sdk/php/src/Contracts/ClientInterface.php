@@ -17,6 +17,11 @@ interface ClientInterface
     public function stats(): array;
     public function list(int $limit = 100): array; // of Item
     public function getOrSet(string $key, callable $producer, ?int $ttlMs = null, array $tags = []): Item;
+    public function flush(): int; // clear all cache
+    public function health(): array;
+    public function login(string $username, string $password): string; // returns token
+    public function rotateCredentials(): array; // new username/password
+    public function setupRequired(): bool;
     /**
      * Convenience wrappers around /search for common tag queries, returning an array of Item
      */

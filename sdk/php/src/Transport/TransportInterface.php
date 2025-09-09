@@ -14,4 +14,9 @@ interface TransportInterface
     public function search(array $params): array;
     public function stats(): array;
     public function list(int $limit = 100): array;
+    public function flush(): int;
+    public function health(): array;
+    public function login(string $username, string $password): string;
+    public function rotateCredentials(): array;
+    public function setupRequired(): bool;
 }
