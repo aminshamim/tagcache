@@ -9,6 +9,7 @@ export default function TagsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const selectKey = useSelectionStore(s=>s.selectKey);
+  const selectedKey = useSelectionStore(s=>s.selectedKey);
   const [tagQuery, setTagQuery] = useState('');
   const [currentFilter, setCurrentFilter] = useState<string>('All');
   const [activeTags, setActiveTags] = useState<string[]>([]);
@@ -149,7 +150,12 @@ export default function TagsPage() {
             </thead>
             <tbody>
               {items.map(it => (
-                <tr key={it.key} className="border-b last:border-none hover:bg-gray-50 cursor-pointer" onClick={()=>selectKey(it.key, (k)=>{ setItems(prev=>prev.filter(x=>x.key!==k)); })}>
+                <tr
+                  key={it.key}
+                  className="border-b last:border-none hover:bg-gray-50 cursor-pointer"
+                  data-selected-row={selectedKey === it.key ? 'true' : undefined}
+                  onClick={()=>selectKey(it.key, (k)=>{ setItems(prev=>prev.filter(x=>x.key!==k)); })}
+                >
                   <td className="py-1 pr-2 font-mono text-xs">{it.key}</td>
                   <td className="py-1 pr-2 text-xs">{it.ttl_ms ?? ''}</td>
                   <td className="py-1 pr-2">{it.tags?.map(t => (

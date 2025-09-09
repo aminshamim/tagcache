@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { json as jsonLang } from '@codemirror/lang-json';
 import { Minimize2, Maximize2 } from 'lucide-react';
@@ -14,6 +14,7 @@ export function RightPanel() {
   const hasSelection = !!selectedKey;
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey:['latest-keys', !!token],
@@ -42,11 +43,27 @@ export function RightPanel() {
   });
 
   const now = Date.now();
+  // Click-away to close: ignore clicks inside panel or on the selected row
+  useEffect(() => {
+    if (!hasSelection) return;
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const panel = panelRef.current;
+      if (!target) return;
+      if (panel && panel.contains(target)) return; // click inside details panel
+      // Ignore clicks on the selected row element (marked with data-selected-row="true")
+      if (target.closest('[data-selected-row="true"]')) return;
+      // Otherwise, close
+      clear();
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [hasSelection, clear]);
   return (
     <div className="space-y-8">
       {hasSelection && (
         <div className="transition-all duration-300">
-          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div ref={panelRef} className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div className="px-3 py-2 bg-gradient-to-r from-brand-primary/10 to-brand-teal/10 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-800">Key Details</h3>
@@ -161,7 +178,9 @@ export function RightPanel() {
                         <div className="rounded-lg overflow-hidden border border-gray-200">
                           <CodeMirror
                             value={text}
-                            height="292px"
+                            height="auto"
+                            minHeight="40px"
+                            maxHeight="400px"
                             editable={false}
                             basicSetup={{ lineNumbers: true, highlightActiveLine: false }}
                             className="text-[10px]"
