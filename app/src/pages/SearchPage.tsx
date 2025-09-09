@@ -25,7 +25,7 @@ export default function SearchPage() {
       <div className="flex gap-2 items-end">
         <div className="flex-1">
           <label className="block text-xs uppercase font-semibold mb-1">Query</label>
-          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="key prefix or tag:foo" className="w-full border rounded px-2 py-1 bg-transparent" />
+          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search by key" className="w-full border rounded px-2 py-1 bg-transparent" />
         </div>
         <button disabled={loading} onClick={runSearch} className="px-3 py-1 rounded bg-blue-600 text-white disabled:opacity-50">{loading? 'Searching…':'Search'}</button>
       </div>

@@ -1,11 +1,10 @@
-import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
+import { Routes, Route, NavLink, useNavigate, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { api, setAuthToken } from '../api/client';
 import { useAuthStore } from '../store/auth';
 import SearchPage from './SearchPage';
 import PutPage from './PutPage';
 import TagsPage from './TagsPage';
-import StatsPage from './StatsPage';
 import EventsPage from './EventsPage';
 import DashboardPage from './DashboardPage';
 import SettingsPage from './SettingsPage';
@@ -38,7 +37,7 @@ export default function App() {
     function onKey(e:KeyboardEvent){
       if(e.key==='/' && !e.metaKey){ e.preventDefault(); const el=document.getElementById('global-search'); el?.focus(); }
       if(e.key==='g'){ (window as any)._gKeyTime=Date.now(); }
-      if(e.key==='s'){ if((window as any)._gKeyTime && Date.now() - (window as any)._gKeyTime < 600){ navigate('/stats'); } }
+  // removed 'g'+'s' shortcut to /stats (page no longer exists)
       if(e.key==='i'){ navigate('/put'); }
     }
     window.addEventListener('keydown', onKey); return ()=>window.removeEventListener('keydown', onKey);
@@ -76,19 +75,17 @@ export default function App() {
   return (
     <div className="flex h-full">
       <aside className="w-20 flex flex-col items-center py-6 gap-6 bg-brand-primary text-white">
-        <button onClick={()=>navigate('/dashboard')} className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center overflow-hidden group" aria-label="Tag Cache Home">
+  <button onClick={()=>navigate('/')} className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center overflow-hidden group" aria-label="Tag Cache Home">
           <img src="/logo.png" alt="Tag Cache" className="w-10 h-10 object-contain transition-transform group-hover:scale-110" />
         </button>
         <nav className="flex flex-col gap-4">
-          <NavLink to="/dashboard" className={({isActive}) => `w-12 h-12 flex items-center justify-center rounded-xl ${isActive ? 'bg-white/20': 'hover:bg-white/10'} transition-colors`}>
+          <NavLink to="/" end className={({isActive}) => `w-12 h-12 flex items-center justify-center rounded-xl ${isActive ? 'bg-white/20': 'hover:bg-white/10'} transition-colors`}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="currentColor"/></svg>
           </NavLink>
-          <NavLink to="/" className={({isActive}) => `w-12 h-12 flex items-center justify-center rounded-xl ${isActive ? 'bg-white/20': 'hover:bg-white/10'} transition-colors`}>
+          <NavLink to="/search" className={({isActive}) => `w-12 h-12 flex items-center justify-center rounded-xl ${isActive ? 'bg-white/20': 'hover:bg-white/10'} transition-colors`}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg>
           </NavLink>
-          <NavLink to="/stats" className={({isActive}) => `w-12 h-12 flex items-center justify-center rounded-xl ${isActive ? 'bg-white/20': 'hover:bg-white/10'} transition-colors`}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" fill="currentColor"/></svg>
-          </NavLink>
+          {/* stats nav removed */}
           <NavLink to="/tags" className={({isActive}) => `w-12 h-12 flex items-center justify-center rounded-xl ${isActive ? 'bg-white/20': 'hover:bg-white/10'} transition-colors`}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z" fill="currentColor"/></svg>
           </NavLink>
@@ -134,11 +131,12 @@ export default function App() {
         <main className="flex-1 bg-gray-50 overflow-hidden flex">
           <div className="flex-1 p-6 overflow-auto">
             <Routes>
-              <Route path="/" element={<SearchPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/dashboard" element={<Navigate to="/" replace />} />
               <Route path="/put" element={<PutPage />} />
               <Route path="/tags" element={<TagsPage />} />
-              <Route path="/stats" element={<StatsPage />} />
+              {/* /stats route removed */}
               <Route path="/events" element={<EventsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Routes>
