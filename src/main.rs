@@ -406,6 +406,12 @@ pub struct InvalidateTagsBody { pub tags: Vec<String>, pub mode: Option<String> 
 #[derive(Deserialize)]
 pub struct InvalidateKeysBody { pub keys: Vec<String> }
 
+#[derive(Deserialize)]
+pub struct BulkKeysBody { pub keys: Vec<String> }
+
+#[derive(Serialize)]
+pub struct BulkGetItem { pub key: String, pub value: serde_json::Value, pub ttl_ms: Option<u64>, pub tags: Vec<String>, pub created_ms: Option<u64> }
+
 // =============================
 // HTTP HANDLERS
 // Each handler is async and receives shared state via Axum's State extractor.
@@ -523,6 +529,35 @@ async fn rest_put_key(State(state): State<Arc<AppState>>, _auth: Authenticated, 
 async fn rest_delete_key(State(state): State<Arc<AppState>>, _auth: Authenticated, Path(key): Path<String>) -> ResponseJson<serde_json::Value> {
     let removed = state.cache.invalidate_key(&Key(key));
     ResponseJson(serde_json::json!({"ok": removed, "deleted": if removed {1} else {0}}))
+}
+
+// POST /keys/bulk/get { keys: [] }
+async fn bulk_get_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Json(body): Json<BulkKeysBody>) -> ResponseJson<serde_json::Value> {
+    let mut items: Vec<BulkGetItem> = Vec::with_capacity(body.keys.len());
+    for k in body.keys {
+        let key_wrap = Key(k.clone());
+        let shard_idx = state.cache.hash_key(&key_wrap);
+        let shard = &state.cache.shards[shard_idx];
+        if let Some(entry) = shard.entries.get(&key_wrap) {
+            if entry.is_expired() { shard.entries.remove(&key_wrap); continue; }
+            let remaining = entry.ttl.map(|ttl| {
+                let elapsed = entry.created_at.elapsed();
+                if elapsed >= ttl { 0 } else { (ttl - elapsed).as_millis() as u64 }
+            });
+            let parsed = serde_json::from_str::<serde_json::Value>(&entry.value).unwrap_or(serde_json::Value::String(entry.value.clone()));
+            let tags: Vec<String> = entry.tags.iter().map(|t| t.0.clone()).collect();
+            let created_ms = entry.created_system.duration_since(UNIX_EPOCH).ok().map(|d| d.as_millis() as u64);
+            items.push(BulkGetItem { key: key_wrap.0.clone(), value: parsed, ttl_ms: remaining, tags, created_ms });
+        }
+    }
+    ResponseJson(serde_json::json!({"items": items}))
+}
+
+// POST /keys/bulk/delete { keys: [] }
+async fn bulk_delete_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Json(body): Json<BulkKeysBody>) -> ResponseJson<serde_json::Value> {
+    let mut count = 0usize;
+    for k in body.keys { if state.cache.invalidate_key(&Key(k)) { count += 1; } }
+    ResponseJson(serde_json::json!({"success": true, "count": count}))
 }
 
 // POST /search
@@ -653,6 +688,8 @@ pub fn build_app(app_state: Arc<AppState>, allowed_origin: Option<String>) -> Ro
     .route("/keys", get(list_keys_handler))
     .route("/invalidate/tags", post(invalidate_tags_handler))
     .route("/invalidate/keys", post(invalidate_keys_handler))
+    .route("/keys/bulk/get", post(bulk_get_handler))
+    .route("/keys/bulk/delete", post(bulk_delete_handler))
         // auth endpoints
         .route("/auth/login", post(login_handler))
         .route("/auth/rotate", post(rotate_handler))
