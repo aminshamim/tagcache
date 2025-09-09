@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
-  <testsuite name="TagCache\Tests\ClientTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" tests="1" assertions="3" errors="0" failures="1" skipped="0" time="0.017565">
-    <testcase name="testTagHelpers" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" line="159" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.017565">
+  <testsuite name="TagCache\Tests\ClientTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" tests="1" assertions="3" errors="0" failures="1" skipped="0" time="0.017449">
+    <testcase name="testTagHelpers" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" line="159" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.017449">
       <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\ClientTest::testTagHelpers
-Failed asserting that an array contains 'helper:test:68c092ef8185a'.
+Failed asserting that an array contains 'helper:test:68c0965611136'.
 
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php:178</failure>
+/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php:176</failure>
       <system-out>
-DEBUG: Key 'helper:test:68c092ef8185a' not found in tag 'helper-tag-68c092ef8185b' results: []
+DEBUG TEST: key='helper:test:68c0965611136', tag='helper-tag-68c0965611137', found keys: []
 </system-out>
     </testcase>
   </testsuite>

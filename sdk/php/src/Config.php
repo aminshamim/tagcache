@@ -78,8 +78,12 @@ final class Config
         $authBase = $options['auth'] ?? [];
         $this->auth = [
             'token' => $authBase['token'] ?? $options['token'] ?? '',
-            'username' => $authBase['username'] ?? $options['username'] ?? $credentials['username'] ?? '',
-            'password' => $authBase['password'] ?? $options['password'] ?? $credentials['password'] ?? '',
+            'username' => (!empty($authBase['username'])) ? $authBase['username'] 
+                        : ((!empty($options['username'])) ? $options['username'] 
+                        : ($credentials['username'] ?? '')),
+            'password' => (!empty($authBase['password'])) ? $authBase['password'] 
+                        : ((!empty($options['password'])) ? $options['password'] 
+                        : ($credentials['password'] ?? '')),
             'auto_login' => $authBase['auto_login'] ?? true,
         ];
     }
@@ -107,8 +111,7 @@ final class Config
         }
         
         $credentials = [];
-        foreach (explode("
-", $content) as $line) {
+        foreach (explode("\n", $content) as $line) {
             $line = trim($line);
             if (empty($line) || str_starts_with($line, '#')) {
                 continue;
@@ -119,7 +122,6 @@ final class Config
                 $credentials[trim($key)] = trim($value);
             }
         }
-        
         return self::$credentialCache = $credentials;
     }    /**
      * Find credential.txt in project root or parent directories
@@ -137,7 +139,6 @@ final class Config
                 return $path;
             }
         }
-        
         return null;
     }
 

@@ -190,7 +190,9 @@ final class HttpTransport implements TransportInterface
      */
     public function getKeysByTag(string $tag): array
     {
+        error_log("HttpTransport.getKeysByTag: tag='$tag'");
         $response = $this->request('GET', '/keys-by-tag', ['tag' => $tag]);
+        error_log("HttpTransport.getKeysByTag response: " . json_encode($response));
         return $response['keys'] ?? [];
     }
 

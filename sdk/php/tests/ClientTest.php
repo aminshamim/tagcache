@@ -172,9 +172,7 @@ class ClientTest extends TestCase
         
         // Get keys by tag
         $keys = $this->client->getKeysByTag($tag);
-        if (!in_array($key, $keys)) {
-            echo "\nDEBUG: Key '$key' not found in tag '$tag' results: " . json_encode($keys) . "\n";
-        }
+        echo "\nDEBUG TEST: key='$key', tag='$tag', found keys: " . json_encode($keys) . "\n";
         $this->assertContains($key, $keys);
         
         // Delete by tag

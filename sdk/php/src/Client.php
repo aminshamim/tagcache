@@ -34,7 +34,6 @@ final class Client implements ClientInterface
     public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool
     {
         try {
-            error_log("Client.put: key='$key', ttlMs=$ttlMs, tags=" . json_encode($tags));
             return $this->transport->put($key, $value, $ttlMs, $tags);
         } catch (\Throwable $e) {
             // Log error in debug mode
@@ -222,8 +221,6 @@ final class Client implements ClientInterface
     // Helper methods for convenience and test compatibility
     public function putWithTag(string $key, mixed $value, string $tag, ?int $ttlMs = null): bool
     {
-        // Debug logging
-        error_log("putWithTag: key='$key', tag='$tag', ttlMs=$ttlMs");
         return $this->put($key, $value, $ttlMs, [$tag]);
     }
     
