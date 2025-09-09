@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { api } from '../api/client';
+import { useSelectionStore } from '../store/selection';
 
 interface SearchResultRow { key: string; ttl_ms?: number; tags?: string[] }
 
 export default function SearchPage() {
+  const selectKey = useSelectionStore(s=>s.selectKey);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SearchResultRow[]>([]);
@@ -40,7 +42,7 @@ export default function SearchPage() {
         </thead>
         <tbody>
           {results.map(r => (
-            <tr key={r.key} className="border-b last:border-none">
+            <tr key={r.key} className="border-b last:border-none hover:bg-gray-50 cursor-pointer" onClick={()=>selectKey(r.key, (k)=>{ setResults(prev=>prev.filter(x=>x.key!==k)); })}>
               <td className="py-1 pr-2 font-mono text-xs">{r.key}</td>
               <td className="py-1 pr-2 text-xs">{r.ttl_ms ?? ''}</td>
               <td className="py-1 pr-2">{r.tags?.map(t => <span key={t} className="inline-block bg-gray-200 dark:bg-gray-700 rounded px-1 mr-1 mb-1 text-[10px]">{t}</span>)}</td>

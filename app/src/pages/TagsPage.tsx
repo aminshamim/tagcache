@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { api } from '../api/client';
+import { useSelectionStore } from '../store/selection';
 
 interface Item { key: string; created_ms?: number; ttl_ms?: number; tags?: string[] }
 
 export default function TagsPage() {
+  const selectKey = useSelectionStore(s=>s.selectKey);
   const [tagQuery, setTagQuery] = useState('');
   const [currentFilter, setCurrentFilter] = useState<string>('All');
   const [items, setItems] = useState<Item[]>([]);
@@ -65,7 +67,7 @@ export default function TagsPage() {
             </thead>
             <tbody>
               {items.map(it => (
-                <tr key={it.key} className="border-b last:border-none">
+                <tr key={it.key} className="border-b last:border-none hover:bg-gray-50 cursor-pointer" onClick={()=>selectKey(it.key, (k)=>{ setItems(prev=>prev.filter(x=>x.key!==k)); })}>
                   <td className="py-1 pr-2 font-mono text-xs">{it.key}</td>
                   <td className="py-1 pr-2 text-xs">{it.ttl_ms ?? ''}</td>
                   <td className="py-1 pr-2">{it.tags?.map(t => <span key={t} className="inline-block bg-gray-200 dark:bg-gray-700 rounded px-1 mr-1 mb-1 text-[10px]">{t}</span>)}</td>

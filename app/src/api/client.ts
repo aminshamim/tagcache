@@ -20,6 +20,7 @@ export const api = axios.create({
 
 // Types
 export interface KeyEntry { key: string; size: number; ttl: number | null; tags: string[]; created_ms?: number }
+export interface KeyDetail { key: string; value: any; ttl_ms: number | null; tags: string[]; created_ms?: number }
 
 // Convenience helpers (expand as needed)
 export async function listKeys(): Promise<KeyEntry[]> {
@@ -27,6 +28,16 @@ export async function listKeys(): Promise<KeyEntry[]> {
   if(Array.isArray(r.data)) { return r.data as KeyEntry[]; }
   if(r.data && Array.isArray(r.data.keys)) return r.data.keys as KeyEntry[];
   return [];
+}
+
+export async function getKey(key: string): Promise<KeyDetail> {
+  const r = await api.get(`/keys/${encodeURIComponent(key)}`);
+  return r.data as KeyDetail;
+}
+
+export async function deleteKey(key: string): Promise<{ ok: boolean; deleted?: number }> {
+  const r = await api.delete(`/keys/${encodeURIComponent(key)}`);
+  return r.data as { ok: boolean; deleted?: number };
 }
 
 // Simple auth token in-memory (non-persistent)

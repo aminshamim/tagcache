@@ -1,9 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { listKeys } from '../api/client';
+import { deleteKey, getKey, listKeys } from '../api/client';
 import { useAuthStore } from '../store/auth';
+import { useSelectionStore } from '../store/selection';
 
 export function RightPanel() {
   const token = useAuthStore(s=>s.token);
+  const { selectedKey, clear, triggerInvalidated } = useSelectionStore();
+  const hasSelection = !!selectedKey;
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey:['latest-keys', !!token],
     queryFn: async()=> {
@@ -18,9 +21,65 @@ export function RightPanel() {
     }
   });
 
+  // Selected key details
+  const sel = useQuery({
+    queryKey: ['key-detail', selectedKey, !!token],
+    queryFn: async ()=>{
+      if(!selectedKey) throw new Error('no selection');
+      return await getKey(selectedKey);
+    },
+    enabled: !!token && !!selectedKey,
+    staleTime: 0,
+    retry: 1
+  });
+
   const now = Date.now();
   return (
     <div className="space-y-8">
+      {hasSelection && (
+        <div className="transition-all duration-300">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-gray-800">Key Details</h3>
+            <button className="text-xs text-gray-500 hover:text-gray-700" onClick={()=>clear()}>Close</button>
+          </div>
+          {sel.isLoading && <div className="text-xs text-gray-500">Loading…</div>}
+          {sel.error && <div className="text-xs text-red-600">Error loading key</div>}
+          {sel.data && (
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 space-y-2">
+              <div>
+                <div className="text-[10px] uppercase text-gray-500">Key</div>
+                <div className="font-mono text-xs break-all">{sel.data.key}</div>
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-600">
+                <div>TTL: <span className="font-mono">{sel.data.ttl_ms === null ? '∞' : `${Math.floor((sel.data.ttl_ms||0)/1000)}s`}</span></div>
+                {sel.data.created_ms && <div>Created: <span className="font-mono">{new Date(sel.data.created_ms).toLocaleString()}</span></div>}
+              </div>
+              {sel.data.tags?.length>0 && (
+                <div className="flex flex-wrap gap-1">
+                  {sel.data.tags.map(t=> <span key={t} className="px-1 py-0.5 rounded bg-brand-teal/10 text-brand-teal text-[10px] font-medium">{t}</span>)}
+                </div>
+              )}
+              <div>
+                <div className="text-[10px] uppercase text-gray-500 mb-1">Value</div>
+                <pre className="text-xs bg-white border rounded p-2 overflow-auto max-h-40 whitespace-pre-wrap break-words">{typeof sel.data.value === 'string' ? sel.data.value : JSON.stringify(sel.data.value, null, 2)}</pre>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={async()=>{
+                    if(!selectedKey) return;
+                    try {
+                      const res = await deleteKey(selectedKey);
+                      if(res.ok){ triggerInvalidated(selectedKey); }
+                    } catch {}
+                  }}
+                  className="px-2 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700"
+                >Invalidate</button>
+                <button onClick={()=>sel.refetch()} className="px-2 py-1 text-xs rounded bg-gray-200">Refresh</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-gray-800">Latest Keys</h3>
