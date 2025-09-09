@@ -13,8 +13,8 @@
         <env name="TAGCACHE_HTTP_URL" value="http://localhost:8080"/>
         <env name="TAGCACHE_TCP_HOST" value="localhost"/>
         <env name="TAGCACHE_TCP_PORT" value="1984"/>
-        <env name="TAGCACHE_USERNAME" value="umF6zQOspeAWvyZF"/>
-        <env name="TAGCACHE_PASSWORD" value="hmH4KJP1PT9oQIGBpkpLdrgu"/>
+        <env name="TAGCACHE_USERNAME" value="admin"/>
+        <env name="TAGCACHE_PASSWORD" value="password"/>
     </php>
     
     <testsuites>
