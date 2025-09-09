@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import CodeMirror from '@uiw/react-codemirror';
 import { json as jsonLang } from '@codemirror/lang-json';
@@ -13,6 +13,18 @@ export default function PutPage() {
   const [ttl, setTtl] = useState('60000');
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [fakeLoading, setFakeLoading] = useState(false);
+
+  // Reset value when type changes
+  useEffect(() => {
+    const next = mode === 'json' ? '{}'
+      : mode === 'text' ? ''
+      : mode === 'number' ? '0'
+      : 'false';
+    setValue(next);
+    setMsg(null);
+    setErr(null);
+  }, [mode]);
 
   async function submit() {
     setMsg(null); setErr(null);
@@ -65,15 +77,114 @@ export default function PutPage() {
       <div>
         <div className="flex items-center justify-between mb-1">
           <label className="block text-xs font-semibold">Value</label>
-          <div className="inline-flex items-center rounded-lg border border-gray-300 overflow-hidden">
-            {(['json','text','number','boolean'] as ValueMode[]).map(m => (
-              <button
-                key={m}
-                type="button"
-                onClick={()=>setMode(m)}
-                className={`px-2 py-1 text-xs ${mode===m ? 'bg-brand-teal/10 text-brand-teal' : 'bg-white text-gray-700 hover:bg-gray-50'} ${m!=='boolean' ? 'border-r border-gray-300' : ''}`}
-              >{m}</button>
-            ))}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="px-2 py-1 text-xs rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50"
+              title="Fetch sample data from online"
+              disabled={fakeLoading}
+              onClick={async () => {
+                setErr(null); setMsg(null); setFakeLoading(true);
+                // Reset fields before filling with fake data
+                setKey('');
+                setTags('');
+                setValue('');
+                const ctrl = new AbortController();
+                const timeoutMs = 15000;
+                const timeout = setTimeout(() => ctrl.abort(), timeoutMs);
+                try {
+                  if (mode === 'json') {
+                    const id = Math.floor(Math.random() * 100) + 1;
+                    try {
+                      const r = await fetch(`https://jsonplaceholder.typicode.com/posts/${id}?_=${Date.now()}` as string, { signal: ctrl.signal });
+                      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                      const data = await r.json();
+                      setValue(JSON.stringify(data, null, 2));
+                      setKey(`post-${id}`);
+                      setTags('post, sample');
+                    } catch (e:any) {
+                      try {
+                        const r2 = await fetch(`https://dummyjson.com/posts/${(id % 150) + 1}?_=${Date.now()}`, { signal: ctrl.signal });
+                        if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
+                        const data2 = await r2.json();
+                        setValue(JSON.stringify(data2, null, 2));
+                        setKey(`post-${id}`);
+                        setTags('post, sample');
+                      } catch (e2:any) {
+                        // Final local fallback
+                        const local = { id, title: `Sample post ${id}`, body: 'Lorem ipsum dolor sit amet.', userId: 1, tags: ['sample','post'] };
+                        setValue(JSON.stringify(local, null, 2));
+                        setKey(`post-${id}`);
+                        setTags('post, sample');
+                        // If initial error was an abort, surface a friendly message
+                        if (e?.name === 'AbortError' || /aborted/i.test(String(e?.message))) {
+                          setMsg('Request timed out; used a local sample.');
+                        }
+                      }
+                    }
+                  } else if (mode === 'text') {
+                    try {
+                      const r = await fetch('https://baconipsum.com/api/?type=meat-and-filler&paras=1&format=text', { signal: ctrl.signal });
+                      const txt = await r.text();
+                      setValue(txt.trim());
+                    } catch {
+                      const r2 = await fetch('https://loripsum.net/api/1/short/plaintext', { signal: ctrl.signal });
+                      const txt2 = await r2.text();
+                      setValue(txt2.trim());
+                    }
+                    setKey(`lorem-${Date.now()}`);
+                    setTags('lorem, sample');
+                  } else if (mode === 'number') {
+                    try {
+                      const r = await fetch('https://www.randomnumberapi.com/api/v1.0/random?min=1&max=1000000&count=1', { signal: ctrl.signal });
+                      const arr = await r.json();
+                      const n = Array.isArray(arr) ? arr[0] : Math.floor(Math.random() * 1000000) + 1;
+                      setValue(String(n));
+                      setKey(`num-${n}`);
+                      setTags('number, sample');
+                    } catch {
+                      const n = Math.floor(Math.random() * 1000000) + 1;
+                      setValue(String(n));
+                      setKey(`num-${n}`);
+                      setTags('number, sample');
+                    }
+                  } else { // boolean
+                    try {
+                      const r = await fetch('https://yesno.wtf/api', { signal: ctrl.signal });
+                      const data = await r.json();
+                      const b = (data?.answer === 'yes');
+                      setValue(b ? 'true' : 'false');
+                      setKey(`flag-${b ? 'yes' : 'no'}`);
+                      setTags('boolean, sample');
+                    } catch {
+                      const b = Math.random() > 0.5;
+                      setValue(b ? 'true' : 'false');
+                      setKey(`flag-${b ? 'yes' : 'no'}`);
+                      setTags('boolean, sample');
+                    }
+                  }
+                } catch (e:any) {
+                  if (e?.name === 'AbortError' || /aborted/i.test(String(e?.message))) {
+                    setErr('Timed out fetching fake data');
+                  } else {
+                    setErr(e?.message || 'Failed to fetch fake data');
+                  }
+                } finally {
+                  clearTimeout(timeout);
+                  setFakeLoading(false);
+                }
+              }}
+            >{fakeLoading ? 'Generating…' : 'Fake data'}</button>
+            <div className="inline-flex items-center rounded-lg border border-gray-300 overflow-hidden">
+              {(['json','text','number','boolean'] as ValueMode[]).map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={()=>setMode(m)}
+                  className={`px-2 py-1 text-xs ${mode===m ? 'bg-brand-teal/10 text-brand-teal' : 'bg-white text-gray-700 hover:bg-gray-50'} ${m!=='boolean' ? 'border-r border-gray-300' : ''}`}
+                >{m}</button>
+              ))}
+            </div>
           </div>
         </div>
         <div className="rounded-lg overflow-hidden border border-gray-200">
