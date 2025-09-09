@@ -53,26 +53,27 @@ final class TcpTransport implements TransportInterface
         $line .= "\n";
         $w = @fwrite($sock, $line);
         if ($w === false) { throw new ApiException('TCP write failed'); }
-        $resp = fgets($sock);
+    $resp = fgets($sock);
         if ($resp === false) { throw new ApiException('TCP read failed'); }
         return rtrim($resp, "\r\n");
     }
 
-    public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): void
+    public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool
     {
         $val = is_string($value) ? $value : json_encode($value);
         $ttl = $ttlMs !== null ? (string)$ttlMs : '-';
         $tagsStr = empty($tags) ? '-' : implode(',', array_map('strval', $tags));
         $resp = $this->cmd("PUT\t{$key}\t{$ttl}\t{$tagsStr}\t{$val}");
         if ($resp !== 'OK') throw new ApiException('PUT failed: '.$resp);
+        return true;
     }
 
     public function get(string $key): ?array
     {
         $resp = $this->cmd("GET\t{$key}");
-        if ($resp === 'NF') return null;
-        if (!str_starts_with($resp, 'VALUE\t')) throw new ApiException('GET bad resp: '.$resp);
-        $raw = substr($resp, 6);
+    if ($resp === 'NF') return null;
+    if (!preg_match('/^VALUE\t\s*(.*)$/s', $resp, $m)) throw new ApiException('GET bad resp: '.$resp);
+    $raw = $m[1];
         $decoded = json_decode($raw, true);
         return $decoded !== null ? ['value' => $decoded] : ['value' => $raw];
     }
@@ -88,6 +89,14 @@ final class TcpTransport implements TransportInterface
         // No batch in TCP yet; loop
         $n = 0; foreach ($keys as $k) { if ($this->delete($k)) $n++; }
         return $n;
+    }
+
+    public function close(): void
+    {
+        foreach ($this->pool as $sock) {
+            @fclose($sock);
+        }
+        $this->pool = [];
     }
 
     public function invalidateTags(array $tags, string $mode = 'any'): int

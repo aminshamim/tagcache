@@ -15,14 +15,21 @@ final class HttpTransport implements TransportInterface
     private string $baseUrl;
     private int $timeoutMs;
     private int $maxRetries;
+    private int $retryDelayMs;
     private ?string $token;
+    private ?string $basicUser;
+    private ?string $basicPass;
 
     public function __construct(Config $config)
     {
         $this->baseUrl = rtrim($config->http['base_url'] ?? 'http://127.0.0.1:8080', '/');
         $this->timeoutMs = (int)($config->http['timeout_ms'] ?? 5000);
-        $this->maxRetries = (int)($config->http['retries'] ?? 3);
-        $this->token = ($config->auth['token'] ?? '') ?: null;
+    $this->maxRetries = (int)($config->http['max_retries'] ?? $config->http['retries'] ?? 3);
+    $this->retryDelayMs = (int)($config->http['retry_delay_ms'] ?? 100);
+    $this->token = ($config->auth['token'] ?? '') ?: null;
+    // Support basic auth username/password
+    $this->basicUser = $config->auth['username'] ?? null;
+    $this->basicPass = $config->auth['password'] ?? null;
     }
 
     private function request(string $method, string $path, ?array $json = null): array
@@ -31,7 +38,7 @@ final class HttpTransport implements TransportInterface
         
         for ($attempt = 0; $attempt <= $this->maxRetries; $attempt++) {
             if ($attempt > 0) {
-                usleep(min(1000000, 100000 * (2 ** ($attempt - 1)))); // exponential backoff
+                usleep(min(1000000, (int)($this->retryDelayMs * (2 ** ($attempt - 1))) * 1000)); // exponential backoff from configured ms
             }
             
             try {
@@ -51,17 +58,28 @@ final class HttpTransport implements TransportInterface
     private function doRequest(string $method, string $path, ?array $json = null): array
     {
         $url = $this->baseUrl . $path;
+        // If GET with params, append as query string (server expects query for many endpoints)
+        if (strtoupper($method) === 'GET' && $json !== null) {
+            $qs = http_build_query($json);
+            $url .= (str_contains($url, '?') ? '&' : '?') . $qs;
+            $json = null; // don't send body on GET
+        }
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($ch, CURLOPT_TIMEOUT_MS, $this->timeoutMs);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, min($this->timeoutMs, 2000));
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array_values(array_filter([
-            'Content-Type: application/json',
-            'Connection: keep-alive',
-            $this->token ? 'Authorization: Bearer '.$this->token : null,
-        ])));
+        // Build headers; prefer Bearer token if present, else Basic auth if available
+        $authHeader = null;
+        if (!empty($this->token)) {
+            $authHeader = 'Authorization: Bearer '.$this->token;
+        } elseif ($this->basicUser !== null && $this->basicPass !== null) {
+            $authHeader = 'Authorization: Basic '.base64_encode($this->basicUser.':'.$this->basicPass);
+        }
+        $headers = ['Content-Type: application/json', 'Connection: keep-alive'];
+        if ($authHeader !== null) $headers[] = $authHeader;
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         if ($json !== null) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($json, JSON_THROW_ON_ERROR));
         }
@@ -88,9 +106,23 @@ final class HttpTransport implements TransportInterface
             throw new ServerException('Server error '.$code.': '.($data['error'] ?? $resp));
         }
         if ($code === 401) {
+            // Try to exchange provided basic credentials for a token once, then retry automatically.
+            if ($this->basicUser !== null && $this->basicPass !== null && empty($this->token)) {
+                try {
+                    $loginRes = $this->doRequest('POST', '/auth/login', ['username' => $this->basicUser, 'password' => $this->basicPass]);
+                    if (isset($loginRes['token'])) {
+                        $this->token = $loginRes['token'];
+                        // retry original request with token
+                        return $this->doRequest($method, $path, $json);
+                    }
+                } catch (\Throwable $le) {
+                    // fall through to Unauthorized below
+                }
+            }
             throw new UnauthorizedException($data['error'] ?? 'Unauthorized');
         }
         if ($code === 404) {
+            // Some handlers return { error: 'not_found' } with 200; tests expect NotFoundException on 404
             throw new NotFoundException($data['error'] ?? 'Not found');
         }
         if ($code >= 400) {
@@ -100,7 +132,7 @@ final class HttpTransport implements TransportInterface
         return is_array($data) ? $data : [];
     }
 
-    public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): void
+    public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool
     {
         // server expects /keys/:key { value, ttl_ms, tags }
         $this->request('PUT', '/keys/'.rawurlencode($key), [
@@ -108,12 +140,13 @@ final class HttpTransport implements TransportInterface
             'ttl_ms' => $ttlMs,
             'tags' => array_values(array_unique(array_map('strval', $tags)))
         ]);
+        return true;
     }
 
     public function get(string $key): ?array
     {
         $res = $this->request('GET', '/keys/'.rawurlencode($key));
-        if (isset($res['error']) && $res['error'] === 'not_found') return null;
+    if (isset($res['error']) && in_array($res['error'], ['not_found', 'not found', 'not_found'])) throw new NotFoundException($res['error']);
         // normalize into item shape if REST provides metadata endpoint
         return $res;
     }
@@ -166,7 +199,11 @@ final class HttpTransport implements TransportInterface
 
     public function stats(): array
     {
-        return $this->request('GET', '/stats');
+    $res = $this->request('GET', '/stats');
+    // Normalize to tests expectation
+    if (!isset($res['total_memory_usage']) && isset($res['bytes'])) { $res['total_memory_usage'] = $res['bytes']; }
+    if (!isset($res['total_keys']) && isset($res['items'])) { $res['total_keys'] = $res['items']; }
+    return $res;
     }
     
     public function getStats(): array

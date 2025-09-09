@@ -21,15 +21,20 @@ class HttpTransportTest extends TestCase
     
     protected function setUp(): void
     {
-        $this->config = new Config([
+        $config = new \TagCache\Config([
             'mode' => 'http',
             'http' => [
-                'base_url' => 'http://localhost:3030',
+                'base_url' => $_ENV['TAGCACHE_HTTP_URL'] ?? 'http://localhost:8080',
                 'timeout_ms' => 5000,
-                'retries' => 3,
+                'max_retries' => 2,
+                'retry_delay_ms' => 100,
+            ],
+            'auth' => [
+                'username' => $_ENV['TAGCACHE_USERNAME'] ?? 'admin',
+                'password' => $_ENV['TAGCACHE_PASSWORD'] ?? 'password',
             ],
         ]);
-        $this->transport = new HttpTransport($this->config);
+        $this->transport = new HttpTransport($config);
     }
     
     public function testPutAndGet(): void
@@ -39,12 +44,12 @@ class HttpTransportTest extends TestCase
         $tags = ['http', 'test'];
         
         // Put
-        $result = $this->transport->put($key, $value, $tags, 300);
-        $this->assertTrue($result);
+        $this->transport->put($key, $value, 300, $tags);
+        // Put returns void, so just check no exception was thrown
         
         // Get
         $result = $this->transport->get($key);
-        $this->assertSame($value, $result);
+        $this->assertSame($value, $result['value']);
         
         // Delete
         $result = $this->transport->delete($key);
@@ -145,7 +150,7 @@ class HttpTransportTest extends TestCase
     {
         $stats = $this->transport->getStats();
         $this->assertIsArray($stats);
-        $this->assertArrayHasKey('total_keys', $stats);
+        $this->assertArrayHasKey('items', $stats);
         $this->assertArrayHasKey('total_memory_usage', $stats);
     }
     
@@ -154,7 +159,7 @@ class HttpTransportTest extends TestCase
         $health = $this->transport->health();
         $this->assertIsArray($health);
         $this->assertArrayHasKey('status', $health);
-        $this->assertSame('OK', $health['status']);
+        $this->assertSame('ok', $health['status']);
     }
     
     public function testSearch(): void

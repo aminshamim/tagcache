@@ -18,16 +18,16 @@ class TcpTransportTest extends TestCase
     
     protected function setUp(): void
     {
-        $this->config = new Config([
+        $config = new \TagCache\Config([
             'mode' => 'tcp',
             'tcp' => [
-                'host' => '127.0.0.1',
-                'port' => 3031,
+                'host' => $_ENV['TAGCACHE_TCP_HOST'] ?? 'localhost',
+                'port' => (int)($_ENV['TAGCACHE_TCP_PORT'] ?? 1984),
                 'timeout_ms' => 5000,
-                'pool_size' => 5,
+                'pool_size' => 3,
             ],
         ]);
-        $this->transport = new TcpTransport($this->config);
+        $this->transport = new TcpTransport($config);
     }
     
     protected function tearDown(): void

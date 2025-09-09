@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace TagCache\Tests;
+namespace TagCache\Tests\Feature;
 
 use PHPUnit\Framework\TestCase;
 use TagCache\Client;
@@ -22,8 +22,12 @@ class ClientTest extends TestCase
         $this->config = new Config([
             'mode' => 'http',
             'http' => [
-                'base_url' => 'http://localhost:3030',
+                'base_url' => $_ENV['TAGCACHE_HTTP_URL'] ?? 'http://localhost:8080',
                 'timeout_ms' => 5000,
+            ],
+            'auth' => [
+                'username' => $_ENV['TAGCACHE_USERNAME'] ?? 'admin',
+                'password' => $_ENV['TAGCACHE_PASSWORD'] ?? 'password',
             ],
         ]);
         $this->client = new Client($this->config);

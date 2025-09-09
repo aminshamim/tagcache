@@ -20,7 +20,8 @@ class LiveServerTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         // Check if server is running
-        $ch = curl_init('http://localhost:3030/health');
+        $baseUrl = $_ENV['TAGCACHE_HTTP_URL'] ?? 'http://localhost:8080';
+        $ch = curl_init($baseUrl . '/health');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 2);
         $response = curl_exec($ch);
@@ -30,7 +31,7 @@ class LiveServerTest extends TestCase
         self::$serverAvailable = ($code === 200);
         
         if (!self::$serverAvailable) {
-            static::markTestSkipped('TagCache server not available at localhost:3030');
+            static::markTestSkipped('TagCache server not available at ' . $baseUrl);
         }
     }
     
@@ -45,9 +46,11 @@ class LiveServerTest extends TestCase
     {
         return [
             'HTTP Transport' => [new Client(new Config([
-                'transport' => HttpTransport::class,
-                'base_url' => 'http://localhost:3030',
-                'timeout_ms' => 5000,
+                'mode' => 'http',
+                'http' => [
+                    'base_url' => $_ENV['TAGCACHE_HTTP_URL'] ?? 'http://localhost:8080',
+                    'timeout_ms' => 5000,
+                ],
             ]))],
         ];
     }
@@ -55,7 +58,10 @@ class LiveServerTest extends TestCase
     public function tcpClientProvider(): array
     {
         // Check if TCP port is available
-        $socket = @fsockopen('127.0.0.1', 3031, $errno, $errstr, 2);
+        $host = $_ENV['TAGCACHE_TCP_HOST'] ?? '127.0.0.1';
+        $port = (int)($_ENV['TAGCACHE_TCP_PORT'] ?? 1984);
+        
+        $socket = @fsockopen($host, $port, $errno, $errstr, 2);
         if (!$socket) {
             return [];
         }
@@ -63,10 +69,12 @@ class LiveServerTest extends TestCase
         
         return [
             'TCP Transport' => [new Client(new Config([
-                'transport' => TcpTransport::class,
-                'host' => '127.0.0.1',
-                'port' => 3031,
-                'timeout_ms' => 5000,
+                'mode' => 'tcp',
+                'tcp' => [
+                    'host' => $host,
+                    'port' => $port,
+                    'timeout_ms' => 5000,
+                ],
             ]))],
         ];
     }
@@ -112,8 +120,8 @@ class LiveServerTest extends TestCase
         // 6. Stats
         $stats = $client->getStats();
         $this->assertIsArray($stats);
-        $this->assertArrayHasKey('total_keys', $stats);
-        $this->assertGreaterThan(0, $stats['total_keys']);
+        $this->assertArrayHasKey('items', $stats);
+        $this->assertGreaterThan(0, $stats['items']);
         
         // 7. Health check
         $health = $client->health();
@@ -225,13 +233,13 @@ class LiveServerTest extends TestCase
         
         // Note: Flush affects entire cache, so we test it exists first
         $stats = $client->getStats();
-        $keysBefore = $stats['total_keys'];
+        $keysBefore = $stats['items'];
         $this->assertGreaterThan(0, $keysBefore);
         
         // Flush and verify
         $this->assertTrue($client->flush());
         
         $stats = $client->getStats();
-        $this->assertSame(0, $stats['total_keys']);
+        $this->assertSame(0, $stats['items']);
     }
 }

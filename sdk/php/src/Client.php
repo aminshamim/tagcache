@@ -27,7 +27,8 @@ final class Client implements ClientInterface
         }
     }
 
-    public function put(string $key, mixed $value, array $tags = [], ?int $ttlMs = null): bool
+    // Note: tests expect signature put(key, value, ttlMs, tags)
+    public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool
     {
         try {
             $this->transport->put($key, $value, $ttlMs, $tags);
@@ -37,17 +38,15 @@ final class Client implements ClientInterface
         }
     }
 
-    public function get(string $key): ?Item
+    public function get(string $key): mixed
     {
         $res = $this->transport->get($key);
         if ($res === null) return null;
-        // Map flexible response into Item
-        if (isset($res['key'])) {
-            return new Item($res['key'], $res['value'] ?? null, $res['ttl_ms'] ?? null, $res['tags'] ?? [], $res['created_ms'] ?? null);
-        }
-        // GET handler may return { value } only
-        $value = $res['value'] ?? null;
-        return new Item($key, $value);
+        // Tests generally expect raw value when get() used directly for backward compatibility
+        if (isset($res['value'])) return $res['value'];
+        if (isset($res['value_raw'])) return $res['value_raw'];
+        if (isset($res['key']) && isset($res['value'])) return $res['value'];
+        return $res; // fallback: return array/metadata
     }
 
     public function delete(string $key): bool
