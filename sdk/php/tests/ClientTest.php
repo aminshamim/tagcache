@@ -22,7 +22,7 @@ class ClientTest extends TestCase
         $this->config = new Config([
             'mode' => 'http',
             'http' => [
-                'base_url' => 'http://localhost:3030',
+                'base_url' => 'http://localhost:8080',
                 'timeout_ms' => 5000,
             ],
         ]);
@@ -36,7 +36,7 @@ class ClientTest extends TestCase
         $tags = ['test', 'unit'];
         
         // Put
-        $this->assertTrue($this->client->put($key, $value, $tags, 300));
+        $this->assertTrue($this->client->put($key, $value, 300, $tags));
         
         // Get
         $result = $this->client->get($key);

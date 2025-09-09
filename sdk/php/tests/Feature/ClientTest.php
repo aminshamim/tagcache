@@ -25,10 +25,6 @@ class ClientTest extends TestCase
                 'base_url' => $_ENV['TAGCACHE_HTTP_URL'] ?? 'http://localhost:8080',
                 'timeout_ms' => 5000,
             ],
-            'auth' => [
-                'username' => $_ENV['TAGCACHE_USERNAME'] ?? 'admin',
-                'password' => $_ENV['TAGCACHE_PASSWORD'] ?? 'password',
-            ],
         ]);
         $this->client = new Client($this->config);
     }
@@ -40,7 +36,7 @@ class ClientTest extends TestCase
         $tags = ['test', 'unit'];
         
         // Put
-        $this->assertTrue($this->client->put($key, $value, $tags, 300));
+        $this->assertTrue($this->client->put($key, $value, 300, $tags));
         
         // Get
         $result = $this->client->get($key);
@@ -73,7 +69,8 @@ class ClientTest extends TestCase
         $this->assertTrue($this->client->put($key2, $value, 300, [$tag]));
         
         // Get keys by tag
-        $keys = $this->client->getKeysByTag($tag);
+        $items = $this->client->getKeysByTag($tag);
+        $keys = array_map(fn($item) => $item->key, $items);
         $this->assertContains($key1, $keys);
         $this->assertContains($key2, $keys);
         $this->assertCount(2, $keys);
@@ -104,15 +101,18 @@ class ClientTest extends TestCase
         $this->assertCount(3, $results);
         foreach ($keys as $key => $value) {
             $this->assertArrayHasKey($key, $results);
-            $this->assertSame($value, $results[$key]);
+            $this->assertInstanceOf(\TagCache\Models\Item::class, $results[$key]);
+            $this->assertSame($value, $results[$key]->value);
         }
         
         // Bulk delete
-        $this->assertTrue($this->client->bulkDelete(array_keys($keys)));
+        $this->assertGreaterThan(0, $this->client->bulkDelete(array_keys($keys)));
         
         // Verify deletion
         $results = $this->client->bulkGet(array_keys($keys));
-        $this->assertEmpty($results);
+        foreach ($results as $result) {
+            $this->assertNull($result);
+        }
     }
     
     public function testStats(): void
@@ -146,12 +146,12 @@ class ClientTest extends TestCase
         }
         
         // Search by prefix
-        $results = $this->client->search($prefix);
-        $this->assertGreaterThanOrEqual(3, count($results));
+        $results = $this->client->search(['prefix' => $prefix]);
+        $this->assertGreaterThanOrEqual(3, count($results['keys'] ?? []));
         
         // Search with pattern
-        $results = $this->client->search($prefix . 'app*');
-        $foundKeys = array_column($results, 'key');
+        $results = $this->client->search(['pattern' => $prefix . 'app*']);
+        $foundKeys = array_column($results['keys'] ?? [], 'key');
         $this->assertContains($prefix . 'apple', $foundKeys);
         $this->assertContains($prefix . 'application', $foundKeys);
         
@@ -173,11 +173,12 @@ class ClientTest extends TestCase
         $this->assertSame('value', $this->client->get($key));
         
         // Get keys by tag
-        $keys = $this->client->getKeysByTag($tag);
+        $items = $this->client->getKeysByTag($tag);
+        $keys = array_map(fn($item) => $item->key, $items);
         $this->assertContains($key, $keys);
         
         // Delete by tag
-        $this->assertTrue($this->client->deleteByTag($tag));
+        $this->assertGreaterThan(0, $this->client->deleteByTag($tag));
         
         // Verify deletion
         $this->expectException(NotFoundException::class);

@@ -42,7 +42,7 @@ class TcpTransportTest extends TestCase
         $tags = ['tcp', 'test'];
         
         // Put
-        $result = $this->transport->put($key, $value, $tags, 300);
+        $result = $this->transport->put($key, $value, 300, $tags);
         $this->assertTrue($result);
         
         // Get

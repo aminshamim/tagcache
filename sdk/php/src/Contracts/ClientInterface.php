@@ -6,8 +6,7 @@ use TagCache\Models\Item;
 
 interface ClientInterface
 {
-    // Flexible signature: put(key, value, ttlMs, tags) or put(key, value, tags, ttlMs)
-    public function put(string $key, mixed $value, mixed $arg3 = null, mixed $arg4 = null): bool;
+    public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool;
     public function get(string $key): mixed;
     public function delete(string $key): bool;
     public function invalidateKeys(array $keys): int;

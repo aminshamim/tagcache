@@ -1,454 +1,77 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
-  <testsuite name="/Users/arogga/Documents/GitHub/tagcache/sdk/php/phpunit.xml">
-    <testsuite name="unit" tests="29" assertions="77" errors="0" failures="0" skipped="0" time="0.006960">
-      <testsuite name="TagCache\Tests\Unit\ConfigTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/ConfigTest.php" tests="5" assertions="13" errors="0" failures="0" skipped="0" time="0.002628">
-        <testcase name="testFromEnvDefaults" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/ConfigTest.php" line="13" class="TagCache\Tests\Unit\ConfigTest" classname="TagCache.Tests.Unit.ConfigTest" assertions="2" time="0.002386"/>
-        <testcase name="testHttpMode" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/ConfigTest.php" line="20" class="TagCache\Tests\Unit\ConfigTest" classname="TagCache.Tests.Unit.ConfigTest" assertions="3" time="0.000072"/>
-        <testcase name="testTcpMode" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/ConfigTest.php" line="35" class="TagCache\Tests\Unit\ConfigTest" classname="TagCache.Tests.Unit.ConfigTest" assertions="4" time="0.000061"/>
-        <testcase name="testWithAuthentication" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/ConfigTest.php" line="52" class="TagCache\Tests\Unit\ConfigTest" classname="TagCache.Tests.Unit.ConfigTest" assertions="2" time="0.000051"/>
-        <testcase name="testEnvironmentVariables" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/ConfigTest.php" line="69" class="TagCache\Tests\Unit\ConfigTest" classname="TagCache.Tests.Unit.ConfigTest" assertions="2" time="0.000057"/>
-      </testsuite>
-      <testsuite name="TagCache\Tests\Unit\Exceptions\ExceptionTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" tests="14" assertions="35" errors="0" failures="0" skipped="0" time="0.003304">
-        <testcase name="testApiExceptionBasic" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="21" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="3" time="0.000358"/>
-        <testcase name="testApiExceptionWithPrevious" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="30" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="3" time="0.000091"/>
-        <testcase name="testNotFoundException" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="40" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="3" time="0.000179"/>
-        <testcase name="testNotFoundExceptionWithKey" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="49" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="2" time="0.000561"/>
-        <testcase name="testConnectionException" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="57" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="2" time="0.000173"/>
-        <testcase name="testConnectionExceptionForHost" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="65" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="2" time="0.000057"/>
-        <testcase name="testTimeoutException" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="73" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="3" time="0.000186"/>
-        <testcase name="testTimeoutExceptionWithDuration" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="82" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="2" time="0.000056"/>
-        <testcase name="testAuthenticationException" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="90" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="3" time="0.000170"/>
-        <testcase name="testAuthenticationExceptionForInvalidToken" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="99" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="2" time="0.000057"/>
-        <testcase name="testAuthenticationExceptionForInvalidCredentials" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="107" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="2" time="0.000058"/>
-        <testcase name="testExceptionChaining" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="115" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="3" time="0.000073"/>
-        <testcase name="testExceptionContext" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="136" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="3" time="0.001081"/>
-        <testcase name="testExceptionSerialization" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Exceptions/ExceptionTest.php" line="146" class="TagCache\Tests\Unit\Exceptions\ExceptionTest" classname="TagCache.Tests.Unit.Exceptions.ExceptionTest" assertions="2" time="0.000205"/>
-      </testsuite>
-      <testsuite name="TagCache\Tests\Unit\Models\ItemTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Models/ItemTest.php" tests="9" assertions="27" errors="0" failures="0" skipped="0" time="0.000966">
-        <testcase name="testConstructor" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Models/ItemTest.php" line="13" class="TagCache\Tests\Unit\Models\ItemTest" classname="TagCache.Tests.Unit.Models.ItemTest" assertions="4" time="0.000238"/>
-        <testcase name="testFromArray" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Models/ItemTest.php" line="23" class="TagCache\Tests\Unit\Models\ItemTest" classname="TagCache.Tests.Unit.Models.ItemTest" assertions="4" time="0.000067"/>
-        <testcase name="testToArray" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Models/ItemTest.php" line="40" class="TagCache\Tests\Unit\Models\ItemTest" classname="TagCache.Tests.Unit.Models.ItemTest" assertions="1" time="0.000060"/>
-        <testcase name="testWithDefaultValues" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Models/ItemTest.php" line="56" class="TagCache\Tests\Unit\Models\ItemTest" classname="TagCache.Tests.Unit.Models.ItemTest" assertions="4" time="0.000195"/>
-        <testcase name="testFromArrayWithMissingFields" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Models/ItemTest.php" line="66" class="TagCache\Tests\Unit\Models\ItemTest" classname="TagCache.Tests.Unit.Models.ItemTest" assertions="4" time="0.000060"/>
-        <testcase name="testJsonSerialization" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Models/ItemTest.php" line="82" class="TagCache\Tests\Unit\Models\ItemTest" classname="TagCache.Tests.Unit.Models.ItemTest" assertions="1" time="0.000076"/>
-        <testcase name="testEquality" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Models/ItemTest.php" line="99" class="TagCache\Tests\Unit\Models\ItemTest" classname="TagCache.Tests.Unit.Models.ItemTest" assertions="2" time="0.000159"/>
-        <testcase name="testHasTag" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Models/ItemTest.php" line="109" class="TagCache\Tests\Unit\Models\ItemTest" classname="TagCache.Tests.Unit.Models.ItemTest" assertions="4" time="0.000058"/>
-        <testcase name="testIsExpired" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Unit/Models/ItemTest.php" line="119" class="TagCache\Tests\Unit\Models\ItemTest" classname="TagCache.Tests.Unit.Models.ItemTest" assertions="3" time="0.000052"/>
-      </testsuite>
-      <testsuite name="ConfigTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ConfigTest.php" tests="1" assertions="2" errors="0" failures="0" skipped="0" time="0.000062">
-        <testcase name="testFromEnvDefaults" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ConfigTest.php" line="8" class="ConfigTest" classname="ConfigTest" assertions="2" time="0.000062"/>
-      </testsuite>
-    </testsuite>
-    <testsuite name="transport" tests="22" assertions="5" errors="17" failures="4" skipped="0" time="15.504067">
-      <testsuite name="TagCache\Tests\Transport\HttpTransportTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" tests="12" assertions="3" errors="9" failures="2" skipped="0" time="15.480511">
-        <testcase name="testPutAndGet" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" line="40" class="TagCache\Tests\Transport\HttpTransportTest" classname="TagCache.Tests.Transport.HttpTransportTest" assertions="0" time="12.297322">
-          <error type="TagCache\Exceptions\UnauthorizedException">TagCache\Tests\Transport\HttpTransportTest::testPutAndGet
-TagCache\Exceptions\UnauthorizedException: unauthorized
+  <testsuite name="TagCache\Tests\Transport\TcpTransportTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" tests="10" assertions="29" errors="2" failures="8" skipped="0" time="0.021245">
+    <testcase name="testPutAndGet" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="38" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="2" time="0.011057">
+      <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Transport\TcpTransportTest::testPutAndGet
+Failed asserting that Array &amp;0 [
+    'value' =&gt; 'test-value',
+] is identical to 'test-value'.
 
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:122
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:138
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php:47</error>
-        </testcase>
-        <testcase name="testGetNonExistent" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" line="59" class="TagCache\Tests\Transport\HttpTransportTest" classname="TagCache.Tests.Transport.HttpTransportTest" assertions="1" time="0.319054">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Transport\HttpTransportTest::testGetNonExistent
-Failed asserting that exception of type "TagCache\Exceptions\ConnectionException" matches expected exception "TagCache\Exceptions\NotFoundException". Message was: "Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server" at
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:148
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php:62
-.</failure>
-        </testcase>
-        <testcase name="testBulkOperations" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" line="65" class="TagCache\Tests\Transport\HttpTransportTest" classname="TagCache.Tests.Transport.HttpTransportTest" assertions="0" time="0.316234">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\Transport\HttpTransportTest::testBulkOperations
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
+/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:50</failure>
+    </testcase>
+    <testcase name="testGetNonExistent" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="57" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="1" time="0.000823">
+      <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Transport\TcpTransportTest::testGetNonExistent
+Failed asserting that exception of type "TagCache\Exceptions\NotFoundException" is thrown.</failure>
+    </testcase>
+    <testcase name="testConnectionPooling" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="63" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="11" time="0.001934">
+      <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Transport\TcpTransportTest::testConnectionPooling
+Failed asserting that Array &amp;0 [
+    'value' =&gt; 'value0',
+] is identical to 'value0'.
 
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:138
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php:75</error>
-        </testcase>
-        <testcase name="testGetKeysByTag" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" line="93" class="TagCache\Tests\Transport\HttpTransportTest" classname="TagCache.Tests.Transport.HttpTransportTest" assertions="0" time="0.318664">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\Transport\HttpTransportTest::testGetKeysByTag
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
+/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:77</failure>
+    </testcase>
+    <testcase name="testBulkOperations" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="86" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="5" time="0.001638">
+      <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Transport\TcpTransportTest::testBulkOperations
+Failed asserting that Array &amp;0 [
+    'value' =&gt; 'value0',
+] is identical to 'value0'.
 
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:138
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php:103</error>
-        </testcase>
-        <testcase name="testInvalidateByTag" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" line="116" class="TagCache\Tests\Transport\HttpTransportTest" classname="TagCache.Tests.Transport.HttpTransportTest" assertions="0" time="0.317325">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\Transport\HttpTransportTest::testInvalidateByTag
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
+/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:102</failure>
+    </testcase>
+    <testcase name="testTagOperations" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="114" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="3" time="0.001610">
+      <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Transport\TcpTransportTest::testTagOperations
+Failed asserting that an array contains 'tagged:tcp:1:68c07f983bf0e'.
 
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:138
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php:122</error>
-        </testcase>
-        <testcase name="testInvalidateByKey" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" line="133" class="TagCache\Tests\Transport\HttpTransportTest" classname="TagCache.Tests.Transport.HttpTransportTest" assertions="0" time="0.319764">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\Transport\HttpTransportTest::testInvalidateByKey
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
+/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:130</failure>
+    </testcase>
+    <testcase name="testStats" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="141" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="2" time="0.000837">
+      <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Transport\TcpTransportTest::testStats
+Failed asserting that an array has the key 'total_keys'.
 
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:138
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php:138</error>
-        </testcase>
-        <testcase name="testStats" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" line="149" class="TagCache\Tests\Transport\HttpTransportTest" classname="TagCache.Tests.Transport.HttpTransportTest" assertions="0" time="0.311240">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\Transport\HttpTransportTest::testStats
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:202
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:211
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php:151</error>
-        </testcase>
-        <testcase name="testHealth" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" line="157" class="TagCache\Tests\Transport\HttpTransportTest" classname="TagCache.Tests.Transport.HttpTransportTest" assertions="0" time="0.317551">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\Transport\HttpTransportTest::testHealth
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:232
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php:159</error>
-        </testcase>
-        <testcase name="testSearch" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" line="165" class="TagCache\Tests\Transport\HttpTransportTest" classname="TagCache.Tests.Transport.HttpTransportTest" assertions="0" time="0.315115">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\Transport\HttpTransportTest::testSearch
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:138
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php:175</error>
-        </testcase>
-        <testcase name="testFlush" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" line="189" class="TagCache\Tests\Transport\HttpTransportTest" classname="TagCache.Tests.Transport.HttpTransportTest" assertions="0" time="0.318057">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\Transport\HttpTransportTest::testFlush
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:138
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php:194</error>
-        </testcase>
-        <testcase name="testConnectionTimeout" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" line="205" class="TagCache\Tests\Transport\HttpTransportTest" classname="TagCache.Tests.Transport.HttpTransportTest" assertions="1" time="0.008063"/>
-        <testcase name="testRetryLogic" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php" line="219" class="TagCache\Tests\Transport\HttpTransportTest" classname="TagCache.Tests.Transport.HttpTransportTest" assertions="1" time="0.322121">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Transport\HttpTransportTest::testRetryLogic
-Failed asserting that 0.3206479549407959 is greater than 0.6.
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/HttpTransportTest.php:238</failure>
-        </testcase>
-      </testsuite>
-      <testsuite name="TagCache\Tests\Transport\TcpTransportTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" tests="10" assertions="2" errors="8" failures="2" skipped="0" time="0.023556">
-        <testcase name="testPutAndGet" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="38" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="0" time="0.000901">
-          <error type="TypeError">TagCache\Tests\Transport\TcpTransportTest::testPutAndGet
-TypeError: TagCache\Transport\TcpTransport::put(): Argument #3 ($ttlMs) must be of type ?int, array given, called in /Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php on line 45
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:61
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:45</error>
-        </testcase>
-        <testcase name="testGetNonExistent" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="57" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="1" time="0.004110">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Transport\TcpTransportTest::testGetNonExistent
-Failed asserting that exception of type "TagCache\Exceptions\ApiException" matches expected exception "TagCache\Exceptions\NotFoundException". Message was: "TCP connect error: Can't assign requested address (49)" at
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:44
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:33
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:52
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:73
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:60
-.</failure>
-        </testcase>
-        <testcase name="testConnectionPooling" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="63" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="0" time="0.004466">
-          <error type="TagCache\Exceptions\ApiException">TagCache\Tests\Transport\TcpTransportTest::testConnectionPooling
-TagCache\Exceptions\ApiException: TCP connect error: Can't assign requested address (49)
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:44
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:33
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:52
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:66
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:72</error>
-        </testcase>
-        <testcase name="testBulkOperations" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="86" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="0" time="0.004176">
-          <error type="TagCache\Exceptions\ApiException">TagCache\Tests\Transport\TcpTransportTest::testBulkOperations
-TagCache\Exceptions\ApiException: TCP connect error: Can't assign requested address (49)
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:44
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:33
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:52
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:66
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:96</error>
-        </testcase>
-        <testcase name="testTagOperations" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="114" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="0" time="0.002279">
-          <error type="TagCache\Exceptions\ApiException">TagCache\Tests\Transport\TcpTransportTest::testTagOperations
-TagCache\Exceptions\ApiException: TCP connect error: Can't assign requested address (49)
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:44
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:33
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:52
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:66
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:124</error>
-        </testcase>
-        <testcase name="testStats" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="141" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="0" time="0.001856">
-          <error type="TagCache\Exceptions\ApiException">TagCache\Tests\Transport\TcpTransportTest::testStats
-TagCache\Exceptions\ApiException: TCP connect error: Can't assign requested address (49)
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:44
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:33
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:52
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:135
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:149
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:143</error>
-        </testcase>
-        <testcase name="testHealth" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="149" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="0" time="0.000361">
-          <error type="TagCache\Exceptions\ApiException">TagCache\Tests\Transport\TcpTransportTest::testHealth
+/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:145</failure>
+    </testcase>
+    <testcase name="testHealth" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="149" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="0" time="0.000336">
+      <error type="TagCache\Exceptions\ApiException">TagCache\Tests\Transport\TcpTransportTest::testHealth
 TagCache\Exceptions\ApiException: health not supported over TCP transport; use HTTP
 
 /Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:168
 /Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:151</error>
-        </testcase>
-        <testcase name="testConnectionFailure" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="157" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="1" time="0.001718">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Transport\TcpTransportTest::testConnectionFailure
-Failed asserting that exception of type "TagCache\Exceptions\ApiException" matches expected exception "TagCache\Exceptions\ConnectionException". Message was: "TCP connect error: Can't assign requested address (49)" at
+    </testcase>
+    <testcase name="testConnectionFailure" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="157" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="1" time="0.000509">
+      <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Transport\TcpTransportTest::testConnectionFailure
+Failed asserting that exception of type "TagCache\Exceptions\ApiException" matches expected exception "TagCache\Exceptions\ConnectionException". Message was: "TCP connect error: Connection refused (61)" at
 /Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:44
 /Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:33
 /Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:52
 /Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:73
 /Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:168
 .</failure>
-        </testcase>
-        <testcase name="testProtocolFraming" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="171" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="0" time="0.001963">
-          <error type="TagCache\Exceptions\ApiException">TagCache\Tests\Transport\TcpTransportTest::testProtocolFraming
-TagCache\Exceptions\ApiException: TCP connect error: Can't assign requested address (49)
+    </testcase>
+    <testcase name="testProtocolFraming" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="171" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="2" time="0.001532">
+      <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Transport\TcpTransportTest::testProtocolFraming
+Failed asserting that Array &amp;0 [
+    'value' =&gt; 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+] is identical to 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'.
 
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:44
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:33
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:52
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:66
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:177</error>
-        </testcase>
-        <testcase name="testSearch" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="187" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="0" time="0.001726">
-          <error type="TagCache\Exceptions\ApiException">TagCache\Tests\Transport\TcpTransportTest::testSearch
-TagCache\Exceptions\ApiException: TCP connect error: Can't assign requested address (49)
+/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:181</failure>
+    </testcase>
+    <testcase name="testSearch" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php" line="187" class="TagCache\Tests\Transport\TcpTransportTest" classname="TagCache.Tests.Transport.TcpTransportTest" assertions="2" time="0.000968">
+      <error type="TypeError">TagCache\Tests\Transport\TcpTransportTest::testSearch
+TypeError: TagCache\Transport\TcpTransport::search(): Argument #1 ($params) must be of type array, string given, called in /Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php on line 201
 
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:44
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:33
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:52
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:66
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:197</error>
-        </testcase>
-      </testsuite>
-    </testsuite>
-    <testsuite name="feature" tests="20" assertions="10" errors="10" failures="10" skipped="0" time="11.591807">
-      <testsuite name="TagCache\Tests\Feature\ClientTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php" tests="10" assertions="5" errors="5" failures="5" skipped="0" time="5.800090">
-        <testcase name="testPutAndGet" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php" line="36" class="TagCache\Tests\Feature\ClientTest" classname="TagCache.Tests.Feature.ClientTest" assertions="0" time="0.000357">
-          <error type="TypeError">TagCache\Tests\Feature\ClientTest::testPutAndGet
-TypeError: TagCache\Client::put(): Argument #3 ($ttlMs) must be of type ?int, array given, called in /Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php on line 43
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:31
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php:43</error>
-        </testcase>
-        <testcase name="testGetNonExistent" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php" line="53" class="TagCache\Tests\Feature\ClientTest" classname="TagCache.Tests.Feature.ClientTest" assertions="1" time="0.724414">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Feature\ClientTest::testGetNonExistent
-Failed asserting that exception of type "TagCache\Exceptions\ConnectionException" matches expected exception "TagCache\Exceptions\NotFoundException". Message was: "Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server" at
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:148
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:43
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php:56
-.</failure>
-        </testcase>
-        <testcase name="testDeleteNonExistent" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php" line="59" class="TagCache\Tests\Feature\ClientTest" classname="TagCache.Tests.Feature.ClientTest" assertions="0" time="0.726955">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\Feature\ClientTest::testDeleteNonExistent
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:156
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:54
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php:61</error>
-        </testcase>
-        <testcase name="testPutWithTags" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php" line="64" class="TagCache\Tests\Feature\ClientTest" classname="TagCache.Tests.Feature.ClientTest" assertions="1" time="0.724821">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Feature\ClientTest::testPutWithTags
-Failed asserting that false is true.
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php:72</failure>
-        </testcase>
-        <testcase name="testBulkOperations" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php" line="89" class="TagCache\Tests\Feature\ClientTest" classname="TagCache.Tests.Feature.ClientTest" assertions="1" time="0.720952">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Feature\ClientTest::testBulkOperations
-Failed asserting that false is true.
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php:99</failure>
-        </testcase>
-        <testcase name="testStats" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php" line="118" class="TagCache\Tests\Feature\ClientTest" classname="TagCache.Tests.Feature.ClientTest" assertions="0" time="0.726513">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\Feature\ClientTest::testStats
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:202
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:89
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:94
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php:120</error>
-        </testcase>
-        <testcase name="testHealth" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php" line="126" class="TagCache\Tests\Feature\ClientTest" classname="TagCache.Tests.Feature.ClientTest" assertions="0" time="0.725857">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\Feature\ClientTest::testHealth
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:232
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:148
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php:128</error>
-        </testcase>
-        <testcase name="testSearch" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php" line="134" class="TagCache\Tests\Feature\ClientTest" classname="TagCache.Tests.Feature.ClientTest" assertions="1" time="0.726916">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Feature\ClientTest::testSearch
-Failed asserting that false is true.
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php:145</failure>
-        </testcase>
-        <testcase name="testTagHelpers" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php" line="164" class="TagCache\Tests\Feature\ClientTest" classname="TagCache.Tests.Feature.ClientTest" assertions="0" time="0.000701">
-          <error type="TypeError">TagCache\Tests\Feature\ClientTest::testTagHelpers
-TypeError: TagCache\Client::put(): Argument #3 ($ttlMs) must be of type ?int, array given, called in /Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php on line 169
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:31
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:169
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php:170</error>
-        </testcase>
-        <testcase name="testInvalidateByKey" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php" line="187" class="TagCache\Tests\Feature\ClientTest" classname="TagCache.Tests.Feature.ClientTest" assertions="1" time="0.722603">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\Feature\ClientTest::testInvalidateByKey
-Failed asserting that false is true.
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Feature/ClientTest.php:193</failure>
-        </testcase>
-      </testsuite>
-      <testsuite name="TagCache\Tests\ClientTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" tests="10" assertions="5" errors="5" failures="5" skipped="0" time="5.791717">
-        <testcase name="testPutAndGet" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" line="32" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="0" time="0.000584">
-          <error type="TypeError">TagCache\Tests\ClientTest::testPutAndGet
-TypeError: TagCache\Client::put(): Argument #3 ($ttlMs) must be of type ?int, array given, called in /Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php on line 39
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:31
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php:39</error>
-        </testcase>
-        <testcase name="testGetNonExistent" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" line="49" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.727939">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\ClientTest::testGetNonExistent
-Failed asserting that exception of type "TagCache\Exceptions\ConnectionException" matches expected exception "TagCache\Exceptions\NotFoundException". Message was: "Connection error: Failed to connect to localhost port 3030 after 0 ms: Could not connect to server" at
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:148
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:43
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php:52
-.</failure>
-        </testcase>
-        <testcase name="testDeleteNonExistent" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" line="55" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="0" time="0.724656">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\ClientTest::testDeleteNonExistent
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 3030 after 0 ms: Could not connect to server
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:156
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:54
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php:57</error>
-        </testcase>
-        <testcase name="testPutWithTags" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" line="60" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.722325">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\ClientTest::testPutWithTags
-Failed asserting that false is true.
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php:68</failure>
-        </testcase>
-        <testcase name="testBulkOperations" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" line="85" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.722747">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\ClientTest::testBulkOperations
-Failed asserting that false is true.
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php:95</failure>
-        </testcase>
-        <testcase name="testStats" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" line="114" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="0" time="0.724457">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\ClientTest::testStats
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 3030 after 0 ms: Could not connect to server
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:202
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:89
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:94
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php:116</error>
-        </testcase>
-        <testcase name="testHealth" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" line="122" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="0" time="0.724226">
-          <error type="TagCache\Exceptions\ConnectionException">TagCache\Tests\ClientTest::testHealth
-TagCache\Exceptions\ConnectionException: Connection error: Failed to connect to localhost port 3030 after 0 ms: Could not connect to server
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:97
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:45
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/HttpTransport.php:232
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:148
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php:124</error>
-        </testcase>
-        <testcase name="testSearch" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" line="130" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.722211">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\ClientTest::testSearch
-Failed asserting that false is true.
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php:141</failure>
-        </testcase>
-        <testcase name="testTagHelpers" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" line="160" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="0" time="0.000835">
-          <error type="TypeError">TagCache\Tests\ClientTest::testTagHelpers
-TypeError: TagCache\Client::put(): Argument #3 ($ttlMs) must be of type ?int, array given, called in /Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php on line 169
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:31
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Client.php:169
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php:166</error>
-        </testcase>
-        <testcase name="testInvalidateByKey" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php" line="183" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.721737">
-          <failure type="PHPUnit\Framework\ExpectationFailedException">TagCache\Tests\ClientTest::testInvalidateByKey
-Failed asserting that false is true.
-
-/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/ClientTest.php:189</failure>
-        </testcase>
-      </testsuite>
-    </testsuite>
-    <testsuite name="integration" tests="12" assertions="0" errors="0" failures="0" skipped="12" time="0.000000">
-      <testsuite name="TagCache\Tests\Integration\LiveServerTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Integration/LiveServerTest.php" tests="0" assertions="0" errors="0" failures="0" skipped="0" time="0.000000"/>
-      <testsuite name="performance" tests="12" assertions="0" errors="0" failures="0" skipped="12" time="0.000000">
-        <testsuite name="TagCache\Tests\Performance\PerformanceTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Performance/PerformanceTest.php" tests="6" assertions="0" errors="0" failures="0" skipped="6" time="0.000000">
-          <testcase name="testBulkOperationPerformance" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Performance/PerformanceTest.php" line="39" class="TagCache\Tests\Performance\PerformanceTest" classname="TagCache.Tests.Performance.PerformanceTest" assertions="0" time="0.000000">
-            <skipped/>
-          </testcase>
-          <testcase name="testTagOperationPerformance" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Performance/PerformanceTest.php" line="82" class="TagCache\Tests\Performance\PerformanceTest" classname="TagCache.Tests.Performance.PerformanceTest" assertions="0" time="0.000000">
-            <skipped/>
-          </testcase>
-          <testcase name="testSearchPerformance" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Performance/PerformanceTest.php" line="124" class="TagCache\Tests\Performance\PerformanceTest" classname="TagCache.Tests.Performance.PerformanceTest" assertions="0" time="0.000000">
-            <skipped/>
-          </testcase>
-          <testcase name="testLargePayloadPerformance" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Performance/PerformanceTest.php" line="156" class="TagCache\Tests\Performance\PerformanceTest" classname="TagCache.Tests.Performance.PerformanceTest" assertions="0" time="0.000000">
-            <skipped/>
-          </testcase>
-          <testcase name="testConnectionPoolingEfficiency" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Performance/PerformanceTest.php" line="202" class="TagCache\Tests\Performance\PerformanceTest" classname="TagCache.Tests.Performance.PerformanceTest" assertions="0" time="0.000000">
-            <skipped/>
-          </testcase>
-          <testcase name="testMemoryUsage" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Performance/PerformanceTest.php" line="228" class="TagCache\Tests\Performance\PerformanceTest" classname="TagCache.Tests.Performance.PerformanceTest" assertions="0" time="0.000000">
-            <skipped/>
-          </testcase>
-        </testsuite>
-        <testsuite name="TagCache\Tests\PerformanceTest" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/PerformanceTest.php" tests="6" assertions="0" errors="0" failures="0" skipped="6" time="0.000000">
-          <testcase name="testBulkOperationPerformance" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/PerformanceTest.php" line="37" class="TagCache\Tests\PerformanceTest" classname="TagCache.Tests.PerformanceTest" assertions="0" time="0.000000">
-            <skipped/>
-          </testcase>
-          <testcase name="testTagOperationPerformance" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/PerformanceTest.php" line="80" class="TagCache\Tests\PerformanceTest" classname="TagCache.Tests.PerformanceTest" assertions="0" time="0.000000">
-            <skipped/>
-          </testcase>
-          <testcase name="testSearchPerformance" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/PerformanceTest.php" line="122" class="TagCache\Tests\PerformanceTest" classname="TagCache.Tests.PerformanceTest" assertions="0" time="0.000000">
-            <skipped/>
-          </testcase>
-          <testcase name="testLargePayloadPerformance" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/PerformanceTest.php" line="154" class="TagCache\Tests\PerformanceTest" classname="TagCache.Tests.PerformanceTest" assertions="0" time="0.000000">
-            <skipped/>
-          </testcase>
-          <testcase name="testConnectionPoolingEfficiency" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/PerformanceTest.php" line="200" class="TagCache\Tests\PerformanceTest" classname="TagCache.Tests.PerformanceTest" assertions="0" time="0.000000">
-            <skipped/>
-          </testcase>
-          <testcase name="testMemoryUsage" file="/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/PerformanceTest.php" line="226" class="TagCache\Tests\PerformanceTest" classname="TagCache.Tests.PerformanceTest" assertions="0" time="0.000000">
-            <skipped/>
-          </testcase>
-        </testsuite>
-      </testsuite>
-    </testsuite>
+/Users/arogga/Documents/GitHub/tagcache/sdk/php/src/Transport/TcpTransport.php:127
+/Users/arogga/Documents/GitHub/tagcache/sdk/php/tests/Transport/TcpTransportTest.php:201</error>
+    </testcase>
   </testsuite>
 </testsuites>

@@ -21,7 +21,7 @@ class PerformanceTest extends TestCase
     {
         $this->client = new Client(new Config([
             'transport' => HttpTransport::class,
-            'base_url' => 'http://localhost:3030',
+            'base_url' => 'http://localhost:8080',
             'timeout_ms' => 10000,
             'max_retries' => 1,
         ]));

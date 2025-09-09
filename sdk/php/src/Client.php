@@ -27,13 +27,16 @@ final class Client implements ClientInterface
         }
     }
 
-    // Note: tests expect signature put(key, value, ttlMs, tags)
     public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool
     {
         try {
             $this->transport->put($key, $value, $ttlMs, $tags);
             return true;
         } catch (\Exception $e) {
+            // Log error in debug mode
+            if (($this->config->http['debug'] ?? false) || ($this->config->tcp['debug'] ?? false)) {
+                error_log("TagCache put error: " . $e->getMessage());
+            }
             return false;
         }
     }
@@ -104,7 +107,7 @@ final class Client implements ClientInterface
         $found = $this->get($key);
         if ($found) return $found;
         $value = $producer($key);
-        $this->put($key, $value, $tags, $ttlMs);
+        $this->put($key, $value, $ttlMs, $tags);
         return new Item($key, $value, $ttlMs, $tags);
     }
 
@@ -163,10 +166,10 @@ final class Client implements ClientInterface
         return $this->transport->setupRequired();
     }
     
-    // Helper methods for convenience
+    // Helper methods for convenience and test compatibility
     public function putWithTag(string $key, mixed $value, string $tag, ?int $ttlMs = null): bool
     {
-        return $this->put($key, $value, [$tag], $ttlMs);
+        return $this->put($key, $value, $ttlMs, [$tag]);
     }
     
     public function deleteByTag(string $tag): int
@@ -187,5 +190,21 @@ final class Client implements ClientInterface
     public function invalidateByKey(string $key): bool
     {
         return $this->delete($key);
+    }
+
+    /**
+     * Get transport instance for advanced usage
+     */
+    public function getTransport(): TransportInterface
+    {
+        return $this->transport;
+    }
+
+    /**
+     * Get configuration instance
+     */
+    public function getConfig(): Config
+    {
+        return $this->config;
     }
 }

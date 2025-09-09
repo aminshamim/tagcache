@@ -29,10 +29,6 @@ class HttpTransportTest extends TestCase
                 'max_retries' => 2,
                 'retry_delay_ms' => 100,
             ],
-            'auth' => [
-                'username' => $_ENV['TAGCACHE_USERNAME'] ?? 'admin',
-                'password' => $_ENV['TAGCACHE_PASSWORD'] ?? 'password',
-            ],
         ]);
         $this->transport = new HttpTransport($config);
     }
@@ -78,16 +74,18 @@ class HttpTransportTest extends TestCase
         // Bulk get
         $results = $this->transport->bulkGet($keys);
         $this->assertCount(3, $results);
-        $this->assertSame('value0', $results[$keys[0]]);
-        $this->assertSame('value1', $results[$keys[1]]);
-        $this->assertSame('value2', $results[$keys[2]]);
+        $this->assertSame('value0', $results[$keys[0]]['value']);
+        $this->assertSame('value1', $results[$keys[1]]['value']);
+        $this->assertSame('value2', $results[$keys[2]]['value']);
         
         // Bulk delete
-        $this->assertTrue($this->transport->bulkDelete($keys));
+        $this->assertGreaterThan(0, $this->transport->bulkDelete($keys));
         
         // Verify deletion
         $results = $this->transport->bulkGet($keys);
-        $this->assertEmpty($results);
+        foreach ($results as $result) {
+            $this->assertNull($result);
+        }
     }
     
     public function testGetKeysByTag(): void
@@ -105,12 +103,13 @@ class HttpTransportTest extends TestCase
         
         // Get keys by tag
         $result = $this->transport->getKeysByTag($tag);
+        $actualKeys = array_column($result, 'key');
         foreach ($keys as $key) {
-            $this->assertContains($key, $result);
+            $this->assertContains($key, $actualKeys);
         }
         
         // Cleanup
-        $this->assertTrue($this->transport->invalidateByTag($tag));
+        $this->assertGreaterThan(0, $this->transport->invalidateTags([$tag]));
     }
     
     public function testInvalidateByTag(): void
@@ -120,10 +119,10 @@ class HttpTransportTest extends TestCase
         
         // Put tagged key
         $this->assertTrue($this->transport->put($key, 'value', 300, [$tag]));
-        $this->assertSame('value', $this->transport->get($key));
+        $this->assertSame('value', $this->transport->get($key)['value']);
         
         // Invalidate by tag
-        $this->assertTrue($this->transport->invalidateByTag($tag));
+        $this->assertGreaterThan(0, $this->transport->invalidateTags([$tag]));
         
         // Verify deletion
         $this->expectException(NotFoundException::class);
@@ -136,10 +135,10 @@ class HttpTransportTest extends TestCase
         
         // Put key
         $this->assertTrue($this->transport->put($key, 'value', 300, ['test']));
-        $this->assertSame('value', $this->transport->get($key));
+        $this->assertSame('value', $this->transport->get($key)['value']);
         
         // Invalidate by key
-        $this->assertTrue($this->transport->invalidateByKey($key));
+        $this->assertGreaterThan(0, $this->transport->invalidateKeys([$key]));
         
         // Verify deletion
         $this->expectException(NotFoundException::class);
@@ -176,9 +175,9 @@ class HttpTransportTest extends TestCase
         }
         
         // Search
-        $results = $this->transport->search($prefix);
+        $results = $this->transport->search(['prefix' => $prefix]);
         $this->assertIsArray($results);
-        $this->assertGreaterThanOrEqual(2, count($results));
+        $this->assertGreaterThanOrEqual(2, count($results['keys'] ?? []));
         
         // Cleanup
         foreach (array_keys($keys) as $key) {
@@ -192,10 +191,10 @@ class HttpTransportTest extends TestCase
         
         // Put test data
         $this->assertTrue($this->transport->put($key, 'value', 300, ['flush']));
-        $this->assertSame('value', $this->transport->get($key));
+        $this->assertSame('value', $this->transport->get($key)['value']);
         
         // Flush cache
-        $this->assertTrue($this->transport->flush());
+        $this->assertGreaterThan(0, $this->transport->flush());
         
         // Verify deletion
         $this->expectException(NotFoundException::class);
