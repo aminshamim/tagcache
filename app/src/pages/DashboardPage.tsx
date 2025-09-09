@@ -183,7 +183,14 @@ export default function DashboardPage() {
             <div className="p-4 rounded-lg bg-gradient-to-br from-brand-teal/10 to-brand-teal/5">
               <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">Hit Ratio</div>
               <div className="text-3xl font-semibold text-gray-800">{stats? (stats.hit_ratio*100).toFixed(1)+'%':'—'}</div>
-              <div className="mt-2 text-xs text-gray-500">{stats? stats.hits+" hits / "+stats.misses+" misses":""}</div>
+              <div className="mt-2 text-xs text-gray-600">
+                {stats ? (
+                  <>
+                    <div>Reads <span className="font-medium text-gray-800">{(stats.hits + stats.misses).toLocaleString()}</span></div>
+                    <div className="text-gray-500">{stats.hits} hits / {stats.misses} misses</div>
+                  </>
+                ) : ''}
+              </div>
             </div>
             <div className="p-4 rounded-lg bg-gradient-to-br from-brand-purple/10 to-brand-purple/5">
               <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">Writes</div>
