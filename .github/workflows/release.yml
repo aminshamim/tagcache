@@ -149,14 +149,15 @@ jobs:
         run: |
           cd target/${{ matrix.target }}/release
           strip tagcache || true
-          tar czf ../../../${{ matrix.name }}.tar.gz tagcache
+          strip bench_tcp || true
+          tar czf ../../../${{ matrix.name }}.tar.gz tagcache bench_tcp
           cd ../../..
 
       - name: Package Windows
         if: matrix.os == 'windows-latest'
         run: |
           cd target/${{ matrix.target }}/release
-          7z a ../../../${{ matrix.name }}.zip tagcache.exe
+          7z a ../../../${{ matrix.name }}.zip tagcache.exe bench_tcp.exe
           cd ../../..
 
       - name: Upload Assets

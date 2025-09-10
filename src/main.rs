@@ -5,6 +5,8 @@
 use axum::{routing::{get, post, put, delete}, Json, Router, extract::{Path, Query, FromRequestParts, State}, response::Json as ResponseJson, http::{request::Parts, StatusCode}}; // Axum web framework imports for routing & JSON
 use serde::{Deserialize, Serialize}; // Serde for (de)serialization of JSON payloads
 use std::{sync::Arc, time::{Duration, Instant, SystemTime, UNIX_EPOCH}, env}; // Arc = thread-safe reference counting; time utilities; env vars
+use clap::{Parser, Subcommand}; // Command line argument parsing
+use reqwest; // HTTP client for CLI commands
 use dashmap::{DashMap, DashSet}; // Concurrent hash map + set (lock sharded) for high concurrency
 use smallvec::SmallVec; // Optimized small vector that stores small number of elements inline (avoids heap for few tags)
 use tokio::time; // Tokio timing utilities (interval)
@@ -22,6 +24,389 @@ use std::io::Write;
 use std::collections::HashMap;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
+
+// =============================
+// CLI COMMAND DEFINITIONS
+// =============================
+#[derive(Parser)]
+#[command(name = "tagcache")]
+#[command(about = "TagCache - Lightweight, sharded, tag-aware in-memory cache server")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+
+    /// Server host (default: localhost)
+    #[arg(long, default_value = "localhost")]
+    host: String,
+
+    /// Server port (default: 8080)
+    #[arg(long, short = 'p', default_value = "8080")]
+    port: u16,
+
+    /// Authentication username
+    #[arg(long, short = 'u')]
+    username: Option<String>,
+
+    /// Authentication password  
+    #[arg(long)]
+    password: Option<String>,
+
+    /// Authentication token
+    #[arg(long, short = 't')]
+    token: Option<String>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Start the TagCache server
+    Server,
+    
+    /// Store a key-value pair with optional tags
+    Put {
+        /// The cache key
+        key: String,
+        /// The value to store
+        value: String,
+        /// Comma-separated list of tags
+        #[arg(long, short)]
+        tags: Option<String>,
+        /// TTL in milliseconds
+        #[arg(long)]
+        ttl_ms: Option<u64>,
+    },
+    
+    /// Get operations
+    Get {
+        #[command(subcommand)]
+        get_command: GetCommands,
+    },
+    
+    /// Flush operations  
+    Flush {
+        #[command(subcommand)]
+        flush_command: FlushCommands,
+    },
+    
+    /// Show server statistics
+    Stats,
+    
+    /// Show server status/health
+    Status,
+    
+    /// Show server health check
+    Health,
+    
+    /// Restart server (if running as service)
+    Restart,
+}
+
+#[derive(Subcommand)]
+enum GetCommands {
+    /// Get value by key
+    Key { key: String },
+    /// Get keys by tags
+    Tag { tags: String },
+}
+
+#[derive(Subcommand)]
+enum FlushCommands {
+    /// Flush specific key
+    Key { key: String },
+    /// Flush by tags
+    Tag { tags: String },
+    /// Flush all entries
+    All,
+}
+
+// =============================
+// CLI CLIENT IMPLEMENTATION
+// =============================
+struct TagCacheClient {
+    base_url: String,
+    client: reqwest::Client,
+    auth_header: Option<String>,
+}
+
+impl TagCacheClient {
+    fn new(host: &str, port: u16) -> Self {
+        Self {
+            base_url: format!("http://{}:{}", host, port),
+            client: reqwest::Client::new(),
+            auth_header: None,
+        }
+    }
+
+    fn with_auth(mut self, username: Option<String>, password: Option<String>, token: Option<String>) -> Self {
+        if let Some(token) = token {
+            self.auth_header = Some(format!("Bearer {}", token));
+        } else if let (Some(username), Some(password)) = (username, password) {
+            let credentials = base64::engine::general_purpose::STANDARD
+                .encode(format!("{}:{}", username, password));
+            self.auth_header = Some(format!("Basic {}", credentials));
+        }
+        self
+    }
+
+    async fn put(&self, key: &str, value: &str, tags: Option<&str>, ttl_ms: Option<u64>) -> anyhow::Result<()> {
+        let tags_vec: Vec<String> = if let Some(tags) = tags {
+            tags.split(',').map(|s| s.trim().to_string()).collect()
+        } else {
+            Vec::new()
+        };
+
+        let payload = serde_json::json!({
+            "key": key,
+            "value": value,
+            "tags": tags_vec,
+            "ttl_ms": ttl_ms
+        });
+
+        let mut request = self.client.post(&format!("{}/put", self.base_url));
+        if let Some(auth) = &self.auth_header {
+            request = request.header("Authorization", auth);
+        }
+
+        let response = request.json(&payload).send().await?;
+        
+        if response.status().is_success() {
+            println!("✓ Successfully stored key '{}' with value '{}'", key, value);
+            if let Some(tags) = tags {
+                println!("  Tags: {}", tags);
+            }
+            if let Some(ttl) = ttl_ms {
+                println!("  TTL: {}ms", ttl);
+            }
+        } else {
+            let error_text = response.text().await?;
+            anyhow::bail!("Failed to store key: {}", error_text);
+        }
+
+        Ok(())
+    }
+
+    async fn get_key(&self, key: &str) -> anyhow::Result<()> {
+        let mut request = self.client.get(&format!("{}/get/{}", self.base_url, key));
+        if let Some(auth) = &self.auth_header {
+            request = request.header("Authorization", auth);
+        }
+
+        let response = request.send().await?;
+        
+        if response.status().is_success() {
+            let json: serde_json::Value = response.json().await?;
+            if let Some(value) = json.get("value") {
+                println!("Key: {}", key);
+                println!("Value: {}", value.as_str().unwrap_or(""));
+            } else if json.get("error").is_some() {
+                println!("Key '{}' not found", key);
+            }
+        } else {
+            println!("Key '{}' not found", key);
+        }
+
+        Ok(())
+    }
+
+    async fn get_keys_by_tag(&self, tags: &str) -> anyhow::Result<()> {
+        let tag_list: Vec<&str> = tags.split(',').map(|s| s.trim()).collect();
+        
+        for tag in &tag_list {
+            let mut request = self.client.get(&format!("{}/keys-by-tag?tag={}", self.base_url, tag));
+            if let Some(auth) = &self.auth_header {
+                request = request.header("Authorization", auth);
+            }
+
+            let response = request.send().await?;
+            
+            if response.status().is_success() {
+                let json: serde_json::Value = response.json().await?;
+                if let Some(keys) = json.get("keys").and_then(|k| k.as_array()) {
+                    println!("Tag '{}' contains {} keys:", tag, keys.len());
+                    for key in keys {
+                        if let Some(key_str) = key.as_str() {
+                            println!("  - {}", key_str);
+                        }
+                    }
+                } else {
+                    println!("Tag '{}' has no keys", tag);
+                }
+            } else {
+                println!("Failed to get keys for tag '{}'", tag);
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn flush_key(&self, key: &str) -> anyhow::Result<()> {
+        let payload = serde_json::json!({ "key": key });
+
+        let mut request = self.client.post(&format!("{}/invalidate-key", self.base_url));
+        if let Some(auth) = &self.auth_header {
+            request = request.header("Authorization", auth);
+        }
+
+        let response = request.json(&payload).send().await?;
+        
+        if response.status().is_success() {
+            let json: serde_json::Value = response.json().await?;
+            if json.get("success").and_then(|s| s.as_bool()).unwrap_or(false) {
+                println!("✓ Successfully flushed key '{}'", key);
+            } else {
+                println!("Key '{}' was not found", key);
+            }
+        } else {
+            let error_text = response.text().await?;
+            anyhow::bail!("Failed to flush key: {}", error_text);
+        }
+
+        Ok(())
+    }
+
+    async fn flush_tags(&self, tags: &str) -> anyhow::Result<()> {
+        let tag_list: Vec<String> = tags.split(',').map(|s| s.trim().to_string()).collect();
+        let payload = serde_json::json!({ "tags": tag_list, "mode": "any" });
+
+        let mut request = self.client.post(&format!("{}/invalidate/tags", self.base_url));
+        if let Some(auth) = &self.auth_header {
+            request = request.header("Authorization", auth);
+        }
+
+        let response = request.json(&payload).send().await?;
+        
+        if response.status().is_success() {
+            let json: serde_json::Value = response.json().await?;
+            if let Some(count) = json.get("count").and_then(|c| c.as_u64()) {
+                println!("✓ Successfully flushed {} entries with tags: {}", count, tags);
+            }
+        } else {
+            let error_text = response.text().await?;
+            anyhow::bail!("Failed to flush tags: {}", error_text);
+        }
+
+        Ok(())
+    }
+
+    async fn flush_all(&self) -> anyhow::Result<()> {
+        let mut request = self.client.post(&format!("{}/flush", self.base_url));
+        if let Some(auth) = &self.auth_header {
+            request = request.header("Authorization", auth);
+        }
+
+        let response = request.send().await?;
+        
+        if response.status().is_success() {
+            let json: serde_json::Value = response.json().await?;
+            if let Some(count) = json.get("count").and_then(|c| c.as_u64()) {
+                println!("✓ Successfully flushed all {} entries from cache", count);
+            }
+        } else {
+            let error_text = response.text().await?;
+            anyhow::bail!("Failed to flush cache: {}", error_text);
+        }
+
+        Ok(())
+    }
+
+    async fn stats(&self) -> anyhow::Result<()> {
+        let mut request = self.client.get(&format!("{}/stats", self.base_url));
+        if let Some(auth) = &self.auth_header {
+            request = request.header("Authorization", auth);
+        }
+
+        let response = request.send().await?;
+        
+        if response.status().is_success() {
+            let json: serde_json::Value = response.json().await?;
+            
+            println!("TagCache Statistics:");
+            println!("==================");
+            if let Some(hits) = json.get("hits") {
+                println!("Hits: {}", hits);
+            }
+            if let Some(misses) = json.get("misses") {
+                println!("Misses: {}", misses);
+            }
+            if let Some(puts) = json.get("puts") {
+                println!("Puts: {}", puts);
+            }
+            if let Some(invalidations) = json.get("invalidations") {
+                println!("Invalidations: {}", invalidations);
+            }
+            if let Some(hit_ratio) = json.get("hit_ratio") {
+                println!("Hit Ratio: {:.2}%", hit_ratio.as_f64().unwrap_or(0.0) * 100.0);
+            }
+            if let Some(items) = json.get("items") {
+                println!("Total Items: {}", items);
+            }
+            if let Some(bytes) = json.get("bytes") {
+                println!("Total Bytes: {}", bytes);
+            }
+            if let Some(tags) = json.get("tags") {
+                println!("Total Tags: {}", tags);
+            }
+            if let Some(shards) = json.get("shard_count") {
+                println!("Shards: {}", shards);
+            }
+        } else {
+            anyhow::bail!("Failed to get stats: {}", response.status());
+        }
+
+        Ok(())
+    }
+
+    async fn health(&self) -> anyhow::Result<()> {
+        let response = self.client.get(&format!("{}/health", self.base_url)).send().await?;
+        
+        if response.status().is_success() {
+            let json: serde_json::Value = response.json().await?;
+            println!("Health Check: ✓ OK");
+            if let Some(time) = json.get("time") {
+                println!("Server Time: {}", time);
+            }
+        } else {
+            anyhow::bail!("Health check failed: {}", response.status());
+        }
+
+        Ok(())
+    }
+
+    async fn status(&self) -> anyhow::Result<()> {
+        // Try to connect to both HTTP and TCP ports
+        println!("TagCache Server Status:");
+        println!("=====================");
+        
+        // Check HTTP endpoint
+        match self.client.get(&format!("{}/health", self.base_url)).send().await {
+            Ok(response) if response.status().is_success() => {
+                println!("HTTP Server: ✓ Running on {}", self.base_url);
+            }
+            _ => {
+                println!("HTTP Server: ✗ Not responding on {}", self.base_url);
+            }
+        }
+        
+        // Try to get stats for more detailed status
+        match self.stats().await {
+            Ok(_) => {},
+            Err(_) => {
+                println!("Note: Could not retrieve detailed statistics (authentication may be required)");
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn restart(&self) -> anyhow::Result<()> {
+        println!("Restart functionality depends on your deployment method:");
+        println!("  • Homebrew service: brew services restart tagcache");
+        println!("  • Systemd: sudo systemctl restart tagcache");
+        println!("  • Docker: docker restart <container_name>");
+        println!("  • Process manager: depends on your setup");
+        Ok(())
+    }
+}
 
 // =============================
 // DATA MODEL TYPES
@@ -860,6 +1245,49 @@ async fn run_tcp_server(cache: Arc<Cache>, port: u16) -> anyhow::Result<()> {
 // =============================
 #[tokio::main] // Macro sets up a multi-threaded async runtime and runs this async fn as root task.
 async fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+    
+    match cli.command {
+        Some(Commands::Server) | None => {
+            // Start server mode (default behavior)
+            start_server().await
+        }
+        Some(cmd) => {
+            // Handle CLI commands
+            let client = TagCacheClient::new(&cli.host, cli.port)
+                .with_auth(cli.username, cli.password, cli.token);
+            
+            match cmd {
+                Commands::Put { key, value, tags, ttl_ms } => {
+                    client.put(&key, &value, tags.as_deref(), ttl_ms).await
+                }
+                Commands::Get { get_command } => {
+                    match get_command {
+                        GetCommands::Key { key } => client.get_key(&key).await,
+                        GetCommands::Tag { tags } => client.get_keys_by_tag(&tags).await,
+                    }
+                }
+                Commands::Flush { flush_command } => {
+                    match flush_command {
+                        FlushCommands::Key { key } => client.flush_key(&key).await,
+                        FlushCommands::Tag { tags } => client.flush_tags(&tags).await,
+                        FlushCommands::All => client.flush_all().await,
+                    }
+                }
+                Commands::Stats => client.stats().await,
+                Commands::Status => client.status().await,
+                Commands::Health => client.health().await,
+                Commands::Restart => client.restart().await,
+                Commands::Server => unreachable!(), // Already handled above
+            }
+        }
+    }
+}
+
+// =============================
+// SERVER IMPLEMENTATION
+// =============================
+async fn start_server() -> anyhow::Result<()> {
     // Initialize tracing (logging). Reads RUST_LOG or default filter.
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())

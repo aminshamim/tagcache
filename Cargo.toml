@@ -1,6 +1,6 @@
 [package]
 name = "tagcache"
-version = "1.0.0"
+version = "1.0.2"
 edition = "2021"
 authors = ["Your Name <your.email@domain.com>"]
 description = "Lightweight, sharded, tag-aware in-memory cache server"
@@ -9,6 +9,15 @@ license = "MIT OR Apache-2.0"
 keywords = ["cache", "server", "memory", "tags", "performance"]
 categories = ["caching", "database", "web-programming"]
 readme = "README.md"
+
+# Define multiple binaries
+[[bin]]
+name = "tagcache"
+path = "src/main.rs"
+
+[[bin]]
+name = "bench_tcp"
+path = "src/bin/bench_tcp.rs"
 
 [dependencies]
 axum = { version = "0.7", features = ["macros", "json"] }
@@ -29,6 +38,8 @@ anyhow = "1.0"
 rand = "0.8"
 chrono = { version = "0.4", features=["clock", "serde"] }
 base64 = "0.22"
+reqwest = { version = "0.12", features = ["json"] }
+clap = { version = "4.0", features = ["derive"] }
 
 [dev-dependencies]
 sysinfo = "0.30"
@@ -58,6 +69,7 @@ section = "database"
 priority = "optional"
 assets = [
     ["target/release/tagcache", "usr/bin/", "755"],
+    ["target/release/bench_tcp", "usr/bin/", "755"],
     ["README.md", "usr/share/doc/tagcache/README", "644"],
     ["packaging/systemd/tagcache.service", "lib/systemd/system/", "644"],
 ]
@@ -70,6 +82,7 @@ license = "MIT OR Apache-2.0"
 summary = "Lightweight, sharded, tag-aware in-memory cache server"
 assets = [
     { source = "target/release/tagcache", dest = "/usr/bin/tagcache", mode = "755" },
+    { source = "target/release/bench_tcp", dest = "/usr/bin/bench_tcp", mode = "755" },
     { source = "README.md", dest = "/usr/share/doc/tagcache/README.md", mode = "644" },
     { source = "packaging/systemd/tagcache.service", dest = "/usr/lib/systemd/system/tagcache.service", mode = "644" },
 ]

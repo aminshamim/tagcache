@@ -26,9 +26,11 @@ class Tagcache < Formula
       # Build from source on Linux
       system "cargo", "build", "--release"
       bin.install "target/release/tagcache"
+      bin.install "target/release/bench_tcp"
     else
-      # Use pre-built binary on macOS
+      # Use pre-built binaries on macOS
       bin.install "tagcache"
+      bin.install "bench_tcp"
     end
     
     # Install example configuration
@@ -47,17 +49,24 @@ class Tagcache < Formula
   end
 
   test do
-    # Test that the binary exists and shows help
+    # Test that the main binary shows help and version
     system "#{bin}/tagcache", "--help"
+    system "#{bin}/tagcache", "--version"
     
-    # Test that we can start the server and it responds
+    # Test that bench_tcp exists
+    assert_predicate bin/"bench_tcp", :exist?
+    
+    # Test basic functionality by starting server briefly
     port = free_port
-    pid = spawn "#{bin}/tagcache", "PORT=#{port}", "TCP_PORT=#{port + 1}"
-    sleep 2
+    tcp_port = port + 1
+    
+    # Start server in background
+    pid = spawn({ "PORT" => port.to_s, "TCP_PORT" => tcp_port.to_s }, "#{bin}/tagcache")
+    sleep 3
     
     begin
-      # Try to connect to the HTTP endpoint
-      system "curl", "-f", "http://localhost:#{port}/stats"
+      # Try to connect to the HTTP health endpoint
+      system "curl", "-f", "http://localhost:#{port}/health"
     ensure
       Process.kill("TERM", pid)
       Process.wait(pid)
