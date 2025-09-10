@@ -9,12 +9,14 @@ A lightweight, sharded, tag-aware in‑memory cache server written in Rust. It e
 - Periodic background expiration sweeping
 
 ## Features
-- Fast concurrent access via multi-shard design (DashMap + hash sharding)
-- Associate multiple tags with each key
-- Invalidate a single key or all keys sharing a tag
-- TTL specified in milliseconds or seconds (first non-null of `ttl_ms`, `ttl_seconds`)
-- Stats endpoint (hits, misses, puts, invalidations, hit ratio)
-- Compact TCP protocol for reduced overhead vs HTTP/JSON
+- **Fast concurrent access** via multi-shard design (DashMap + hash sharding)
+- **Tag-based invalidation** - associate multiple tags with each key
+- **Flexible expiration** - TTL specified in milliseconds or seconds
+- **Dual protocols** - JSON HTTP API and compact TCP protocol
+- **Comprehensive CLI** - command-line interface for all operations
+- **Performance monitoring** - stats endpoint and benchmarking tools
+- **Production ready** - authentication, CORS, systemd integration
+- **Cross-platform** - macOS, Linux, Windows support
 
 ## Installation
 
@@ -196,6 +198,62 @@ login() { local host=${1:-http://127.0.0.1:8080}; \
 ## HTTP API
 Base URL: `http://host:PORT`
 
+## Usage
+
+TagCache provides multiple interfaces for maximum flexibility:
+
+1. **Command Line Interface (CLI)** - Easy-to-use commands for interactive use
+2. **HTTP JSON API** - RESTful API for web applications  
+3. **TCP Protocol** - High-performance binary protocol for low latency
+
+## Command Line Interface (CLI)
+
+TagCache includes a comprehensive CLI for all cache operations. Perfect for scripts, testing, and interactive use.
+
+### Quick Start
+```bash
+# Start server
+tagcache server
+
+# Basic operations (use your credentials from credential.txt)
+tagcache --username <user> --password <pass> put mykey "my value" --tags "tag1,tag2"
+tagcache --username <user> --password <pass> get key mykey
+tagcache --username <user> --password <pass> stats
+```
+
+### Available Commands
+- `tagcache put <key> <value>` - Store data with optional tags and TTL
+- `tagcache get key <key>` - Retrieve value by key  
+- `tagcache get tag <tags>` - Get keys by comma-separated tags
+- `tagcache flush key <key>` - Remove specific key
+- `tagcache flush tag <tags>` - Remove all keys with tags
+- `tagcache flush all` - Clear entire cache
+- `tagcache stats` - Show detailed statistics
+- `tagcache status` - Show server status  
+- `tagcache health` - Health check
+- `tagcache restart` - Restart instructions
+
+### CLI Examples
+```bash
+# Store session data with 1-hour TTL
+tagcache put "session:abc123" "user_data" --tags "session,user:1001" --ttl-ms 3600000
+
+# Get all active sessions
+tagcache get tag "session,active"
+
+# Remove expired sessions  
+tagcache flush tag "session,expired"
+
+# Check cache performance
+tagcache stats
+```
+
+📖 **[Complete CLI Documentation](docs/CLI_USAGE.md)**
+
+## HTTP JSON API
+
+The HTTP interface is JSON-based and ideal for web applications.
+
 For all examples below, first export a Basic Auth header (reads bootstrap credentials from `credential.txt`):
 ```bash
 USER=$(grep '^username=' credential.txt | cut -d= -f2)
@@ -334,42 +392,34 @@ php examples/php/test.php
 ```
 Set `TAGCACHE_URL` for a custom base URL.
 
-## Benchmarking
-### Included TCP Bench Tool
+## Performance Testing
 
-Basic usage:
+### Included TCP Benchmark Tool
+
+TagCache includes `bench_tcp`, a high-performance benchmarking tool for testing server throughput and latency.
+
 ```bash
-# Using cargo (recommended)
-cargo run --release --bin bench_tcp
+# Basic benchmark (if installed via Homebrew/package)
+bench_tcp
 
-# Using compiled binary directly
+# From source
+cargo run --release --bin bench_tcp
 ./target/release/bench_tcp
+
+# Custom benchmark parameters
+bench_tcp localhost 1984 64 15  # host port connections duration_seconds
 ```
 
-Advanced usage with parameters:
-```bash
-# Basic benchmark with defaults (GET mode, 32 connections, 10 seconds, 100 keys)
-cargo run --release --bin bench_tcp
-
-# PUT benchmark with custom settings
-cargo run --release --bin bench_tcp -- --mode put --conns 64 --duration 8 --keys 2000
-
-# GET benchmark with custom settings  
-cargo run --release --bin bench_tcp -- --mode get --conns 64 --duration 8 --keys 2000
-
-# High-load benchmark
-cargo run --release --bin bench_tcp -- --conns 100 --duration 30 --keys 1000 --mode put
-
-# Custom host and port
-cargo run --release --bin bench_tcp -- --host 127.0.0.1 --port 1984 --conns 50 --duration 15
+Example output:
+```
+Benchmark config: host=127.0.0.1 port=1984 conns=32 duration=10s keys=100 mode=get ttl_ms=60000
+Results:
+Total ops: 1877859
+Throughput: 187785.90 ops/sec  
+Latency (microseconds): min 19.4 p50 166.2 p90 224.4 p95 244.6 p99 289.9 max 914.4 avg 170.2
 ```
 
-Available parameters:
-- `--host` - Server host (default: 127.0.0.1)
-- `--port` - Server port (default: 1984) 
-- `--conns` - Number of concurrent connections (default: 32)
-- `--duration` - Test duration in seconds (default: 10)
-- `--keys` - Number of keys to use (default: 100)
+The benchmark tool tests the high-performance TCP protocol and can achieve very high throughput rates depending on your hardware.
 - `--mode` - Benchmark mode: `get` or `put` (default: get)
 - `--ttl` - TTL in milliseconds (default: 60000)
 
