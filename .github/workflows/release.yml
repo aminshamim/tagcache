@@ -127,6 +127,26 @@ jobs:
         run: |
           cargo install cross --git https://github.com/cross-rs/cross
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install frontend dependencies
+        run: |
+          cd app
+          pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: |
+          cd app  
+          pnpm build
+
       - name: Cache cargo registry
         uses: actions/cache@v3
         with:
@@ -138,11 +158,11 @@ jobs:
 
       - name: Build with cross
         if: matrix.cross
-        run: cross build --release --target ${{ matrix.target }}
+        run: cross build --release --target ${{ matrix.target }} --features embed-ui
 
       - name: Build native
-        if: "!matrix.cross"
-        run: cargo build --release --target ${{ matrix.target }}
+        if: ${{ !matrix.cross }}
+        run: cargo build --release --target ${{ matrix.target }} --features embed-ui
 
       - name: Package Unix
         if: matrix.os != 'windows-latest'
@@ -177,6 +197,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install frontend dependencies
+        run: |
+          cd app
+          pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: |
+          cd app  
+          pnpm build
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -193,7 +233,7 @@ jobs:
         run: cargo install cargo-deb
 
       - name: Build DEB package
-        run: cargo deb --target x86_64-unknown-linux-gnu
+        run: cargo deb --target x86_64-unknown-linux-gnu --features embed-ui
 
       - name: Find DEB file
         id: find_deb
@@ -217,6 +257,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install frontend dependencies
+        run: |
+          cd app
+          pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: |
+          cd app  
+          pnpm build
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -225,7 +285,7 @@ jobs:
 
       - name: Build RPM package
         run: |
-          cargo build --release
+          cargo build --release --features embed-ui
           cargo generate-rpm
 
       - name: Find RPM file

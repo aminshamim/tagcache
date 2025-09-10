@@ -15,13 +15,18 @@ use serde::{Deserialize, Serialize}; // Serde for (de)serialization of JSON payl
 use std::{sync::Arc, time::{Duration, Instant, SystemTime, UNIX_EPOCH}, env}; // Arc = thread-safe reference counting; time utilities; env vars
 use clap::{Parser, Subcommand}; // Command line argument parsing
 use reqwest; // HTTP client for CLI commands
-use rust_embed::RustEmbed;
 use axum::response::{Html, IntoResponse};
 use axum::http::{header, Uri};
 
-#[derive(RustEmbed)]
-#[folder = "app/dist/"]
-struct Assets;
+// Conditionally embed assets only if the dist folder exists
+#[cfg(feature = "embed-ui")]
+mod embedded_assets {
+    use rust_embed::RustEmbed;
+    
+    #[derive(RustEmbed)]
+    #[folder = "app/dist/"]
+    pub struct Assets;
+}
 
 // Static file handler for the web UI
 async fn static_handler(uri: Uri) -> impl IntoResponse {
@@ -31,24 +36,80 @@ async fn static_handler(uri: Uri) -> impl IntoResponse {
         return serve_index_html().into_response();
     }
     
-    match Assets::get(path) {
-        Some(content) => {
-            let mime = mime_guess::from_path(path).first_or_octet_stream();
-            let headers = [
-                (header::CONTENT_TYPE, mime.as_ref()),
-                (header::CACHE_CONTROL, "public, max-age=31536000"),
-            ];
-            (headers, content.data).into_response()
+    #[cfg(feature = "embed-ui")]
+    {
+        match embedded_assets::Assets::get(path) {
+            Some(content) => {
+                let mime = mime_guess::from_path(path).first_or_octet_stream();
+                let headers = [
+                    (header::CONTENT_TYPE, mime.as_ref()),
+                    (header::CACHE_CONTROL, "public, max-age=31536000"),
+                ];
+                return (headers, content.data).into_response();
+            }
+            None => return serve_index_html().into_response(),
         }
-        None => serve_index_html().into_response(), // SPA fallback
+    }
+    
+    #[cfg(not(feature = "embed-ui"))]
+    {
+        serve_index_html().into_response()
     }
 }
 
 fn serve_index_html() -> Html<std::borrow::Cow<'static, [u8]>> {
-    match Assets::get("index.html") {
-        Some(content) => Html(content.data),
-        None => Html("<!DOCTYPE html><html><head><title>Error</title></head><body><h1>UI not found</h1></body></html>".as_bytes().into()),
+    #[cfg(feature = "embed-ui")]
+    {
+        match embedded_assets::Assets::get("index.html") {
+            Some(content) => return Html(content.data),
+            None => {}
+        }
     }
+    
+    // Fallback UI when assets are not embedded
+    let fallback_html = r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TagCache Server</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #333; border-bottom: 2px solid #007acc; padding-bottom: 10px; }
+        .status { background: #e8f5e8; padding: 15px; border-radius: 4px; margin: 20px 0; }
+        .endpoint { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 4px; font-family: monospace; }
+        .method { color: #007acc; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 TagCache Server</h1>
+        <div class="status">
+            <strong>✓ Server is running!</strong><br>
+            The TagCache server is operational and ready to handle requests.
+        </div>
+        
+        <h2>API Endpoints</h2>
+        <div class="endpoint"><span class="method">GET</span> /health - Health check</div>
+        <div class="endpoint"><span class="method">GET</span> /stats - Server statistics (requires auth)</div>
+        <div class="endpoint"><span class="method">POST</span> /put - Store key-value data (requires auth)</div>
+        <div class="endpoint"><span class="method">GET</span> /get/:key - Retrieve data (requires auth)</div>
+        
+        <h2>Authentication</h2>
+        <p>Use HTTP Basic Auth with username: <code>admin</code> and password: <code>password</code></p>
+        <p>Default credentials should be changed in production!</p>
+        
+        <h2>TCP Protocol</h2>
+        <p>High-performance TCP protocol available on port 1984</p>
+        
+        <h2>Documentation</h2>
+        <p>Visit <a href="https://github.com/aminshamim/tagcache">github.com/aminshamim/tagcache</a> for complete documentation.</p>
+    </div>
+</body>
+</html>"#;
+    
+    Html(fallback_html.as_bytes().into())
 }
 
 use dashmap::{DashMap, DashSet}; // Concurrent hash map + set (lock sharded) for high concurrency

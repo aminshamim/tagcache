@@ -19,6 +19,10 @@ path = "src/main.rs"
 name = "bench_tcp"
 path = "src/bin/bench_tcp.rs"
 
+[features]
+default = []
+embed-ui = ["rust-embed"]
+
 [dependencies]
 axum = { version = "0.7", features = ["macros", "json"] }
 tokio = { version = "1.37", features = ["rt-multi-thread", "macros", "time", "signal", "io-util", "net"] }
@@ -41,7 +45,7 @@ base64 = "0.22"
 reqwest = { version = "0.12", features = ["json"] }
 clap = { version = "4.0", features = ["derive"] }
 tower = { version = "0.4", features = ["util"] }
-rust-embed = { version = "8.0", features = ["debug-embed"] }
+rust-embed = { version = "8.0", features = ["debug-embed"], optional = true }
 mime_guess = "2.0"
 
 [dev-dependencies]
