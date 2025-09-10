@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+# Create tagcache user if it doesn't exist
+if ! getent passwd tagcache >/dev/null; then
+    useradd --system --no-create-home --shell /bin/false tagcache
+fi
+
+# Create directories
+install -d -o tagcache -g tagcache -m 755 /var/lib/tagcache
+install -d -o tagcache -g tagcache -m 755 /var/log/tagcache
+
+# Set permissions on existing directories
+chown tagcache:tagcache /var/lib/tagcache /var/log/tagcache
+chmod 755 /var/lib/tagcache /var/log/tagcache
+
+# Reload systemd if it's running
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+
+exit 0

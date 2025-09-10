@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+# Stop and disable the service
+if [ -d /run/systemd/system ]; then
+    systemctl stop tagcache >/dev/null 2>&1 || true
+    systemctl disable tagcache >/dev/null 2>&1 || true
+    systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+
+exit 0

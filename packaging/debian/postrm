@@ -1,0 +1,14 @@
+#!/bin/bash
+set -e
+
+if [ "$1" = "purge" ]; then
+    # Remove user and directories only on purge
+    if getent passwd tagcache >/dev/null; then
+        userdel tagcache >/dev/null 2>&1 || true
+    fi
+    
+    # Remove data directories (ask user first in real scenarios)
+    rm -rf /var/lib/tagcache /var/log/tagcache >/dev/null 2>&1 || true
+fi
+
+exit 0

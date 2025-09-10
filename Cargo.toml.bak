@@ -1,6 +1,6 @@
 [package]
 name = "tagcache"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2021"
 authors = ["Your Name <your.email@domain.com>"]
 description = "Lightweight, sharded, tag-aware in-memory cache server"

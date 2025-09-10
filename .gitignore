@@ -1,6 +1,8 @@
 # ---- Rust / Cargo ----
 /target/
 **/target/
+/target/*
+
 # Optional: Uncomment if you use sccache or other local build caches
 # .cache/
 

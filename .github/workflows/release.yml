@@ -1,0 +1,243 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Get version from tag
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: TagCache ${{ steps.get_version.outputs.version }}
+          body: |
+            ## TagCache ${{ steps.get_version.outputs.version }}
+            
+            ### Installation
+            
+            #### Homebrew (macOS/Linux)
+            ```bash
+            brew install tagcache
+            ```
+            
+            #### Debian/Ubuntu
+            ```bash
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/tagcache_${{ steps.get_version.outputs.version }}_amd64.deb
+            sudo dpkg -i tagcache_${{ steps.get_version.outputs.version }}_amd64.deb
+            ```
+            
+            #### Windows
+            Download `tagcache-windows-x86_64.zip` and extract `tagcache.exe`
+            
+            #### Direct Download
+            - Linux x86_64: `tagcache-linux-x86_64.tar.gz`
+            - Linux ARM64: `tagcache-linux-arm64.tar.gz`
+            - macOS Intel: `tagcache-macos-x86_64.tar.gz`
+            - macOS Apple Silicon: `tagcache-macos-arm64.tar.gz`
+            - Windows: `tagcache-windows-x86_64.zip`
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-20.04
+            name: tagcache-linux-x86_64
+            cross: false
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-20.04
+            name: tagcache-linux-x86_64-musl
+            cross: true
+          # Linux ARM64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-20.04
+            name: tagcache-linux-arm64
+            cross: true
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-20.04
+            name: tagcache-linux-arm64-musl
+            cross: true
+          # macOS Intel
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            name: tagcache-macos-x86_64
+            cross: false
+          # macOS ARM (M1/M2)
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            name: tagcache-macos-arm64
+            cross: false
+          # Windows
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            name: tagcache-windows-x86_64.exe
+            cross: false
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.cross
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build with cross
+        if: matrix.cross
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build native
+        if: "!matrix.cross"
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package Unix
+        if: matrix.os != 'windows-latest'
+        run: |
+          cd target/${{ matrix.target }}/release
+          strip tagcache || true
+          tar czf ../../../${{ matrix.name }}.tar.gz tagcache
+          cd ../../..
+
+      - name: Package Windows
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd target/${{ matrix.target }}/release
+          7z a ../../../${{ matrix.name }}.zip tagcache.exe
+          cd ../../..
+
+      - name: Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: |
+            ${{ matrix.name }}.tar.gz
+            ${{ matrix.name }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-deb:
+    needs: create-release
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ubuntu-cargo-deb-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+
+      - name: Build DEB package
+        run: cargo deb --target x86_64-unknown-linux-gnu
+
+      - name: Find DEB file
+        id: find_deb
+        run: |
+          DEB_FILE=$(find target/debian -name "*.deb" | head -1)
+          echo "deb_file=$DEB_FILE" >> $GITHUB_OUTPUT
+          echo "deb_name=$(basename $DEB_FILE)" >> $GITHUB_OUTPUT
+
+      - name: Upload DEB Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: ${{ steps.find_deb.outputs.deb_file }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-rpm:
+    needs: create-release
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-generate-rpm
+        run: cargo install cargo-generate-rpm
+
+      - name: Build RPM package
+        run: |
+          cargo build --release
+          cargo generate-rpm
+
+      - name: Find RPM file
+        id: find_rpm
+        run: |
+          RPM_FILE=$(find target/generate-rpm -name "*.rpm" | head -1)
+          echo "rpm_file=$RPM_FILE" >> $GITHUB_OUTPUT
+          echo "rpm_name=$(basename $RPM_FILE)" >> $GITHUB_OUTPUT
+
+      - name: Upload RPM Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: ${{ steps.find_rpm.outputs.rpm_file }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,44 @@
+[Unit]
+Description=TagCache Server
+Documentation=https://github.com/aminshamim/tagcache
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=tagcache
+Group=tagcache
+WorkingDirectory=/var/lib/tagcache
+ExecStart=/usr/bin/tagcache
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=always
+RestartSec=5
+
+# Environment variables
+Environment=PORT=8080
+Environment=TCP_PORT=1984
+Environment=NUM_SHARDS=16
+Environment=CLEANUP_INTERVAL_MS=60000
+Environment=LOG_LEVEL=info
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/tagcache /var/log/tagcache
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
