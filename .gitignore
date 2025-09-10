@@ -2,8 +2,7 @@
 /target/
 **/target/
 /target/*
-/target/**
-/target/release/**
+
 # Optional: Uncomment if you use sccache or other local build caches
 # .cache/
 
