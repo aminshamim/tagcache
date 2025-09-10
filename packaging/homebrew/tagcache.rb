@@ -1,7 +1,7 @@
 class Tagcache < Formula
   desc "Lightweight, sharded, tag-aware in-memory cache server"
   homepage "https://github.com/aminshamim/tagcache"
-  version "0.1.0"
+  version "1.0.0"
   
   on_macos do
     if Hardware::CPU.intel?
