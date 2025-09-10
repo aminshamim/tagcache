@@ -1,4 +1,10 @@
 <?php
+/**
+ * TagCache PHP SDK - Basic usage example
+ * 
+ * @author Md. Aminul Islam Sarker <aminshamim@gmail.com>
+ * @link https://github.com/aminshamim/tagcache
+ */
 
 require __DIR__.'/../vendor/autoload.php';
 

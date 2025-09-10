@@ -1,9 +1,17 @@
+/*!
+ * TagCache TCP Protocol Benchmarking Tool
+ * 
+ * Author: Md. Aminul Islam Sarker <aminshamim@gmail.com>
+ * GitHub: https://github.com/aminshamim/tagcache
+ * LinkedIn: https://www.linkedin.com/in/aminshamim/
+ * 
+ * Simple TCP benchmark for TagCache custom protocol
+ * Usage: cargo run --release --bin bench_tcp -- [--host 127.0.0.1] [--port 1984] [--conns 32] [--duration 10] [--keys 100] [--mode get|put] [--ttl 60000]
+ * It pre-populates keys (for GET mode) then measures ops/sec and latency stats.
+ */
+
 use std::{env, time::{Duration, Instant}, sync::{Arc, atomic::{AtomicU64, Ordering}}};
 use tokio::{net::TcpStream, io::{AsyncWriteExt, AsyncBufReadExt, BufReader}};
-
-// Simple TCP benchmark for TagCache custom protocol
-// Usage: cargo run --release --bin bench_tcp -- [--host 127.0.0.1] [--port 1984] [--conns 32] [--duration 10] [--keys 100] [--mode get|put] [--ttl 60000]
-// It pre-populates keys (for GET mode) then measures ops/sec and latency stats.
 
 struct Args {
     host: String,
@@ -60,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
     if args.mode == "get" {
         let addr = format!("{}:{}", args.host, args.port);
         let stream = TcpStream::connect(&addr).await?;
-        let (mut rhalf, mut whalf) = stream.into_split();
+        let (rhalf, mut whalf) = stream.into_split();
         let mut reader = BufReader::new(rhalf);
         let mut resp = String::new();
         for i in 0..args.keys {

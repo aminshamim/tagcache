@@ -1,5 +1,13 @@
 <?php declare(strict_types=1);
 
+/**
+ * TagCache PHP SDK - Configuration management
+ * 
+ * @author Md. Aminul Islam Sarker <aminshamim@gmail.com>
+ * @link https://github.com/aminshamim/tagcache
+ * @link https://www.linkedin.com/in/aminshamim/
+ */
+
 namespace TagCache;
 
 use RuntimeException;

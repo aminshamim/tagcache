@@ -1,28 +1,79 @@
-# TagCache
+# 🚀 TagCache
 
-A lightweight, sharded, tag-aware in‑memory cache server written in Rust. It exposes:
+<div align="center">
 
-- A JSON HTTP API (default port 8080)
-- A low‑latency custom TCP text protocol (default port 1984)
-- Tag-based invalidation (by key or by tag)
-- Optional per-entry TTL
-- Periodic background expiration sweeping
+**A lightning-fast, tag-aware in-memory cache server written in Rust**
 
-## Features
-- **Fast concurrent access** via multi-shard design (DashMap + hash sharding)
-- **Tag-based invalidation** - associate multiple tags with each key
-- **Flexible expiration** - TTL specified in milliseconds or seconds
-- **Dual protocols** - JSON HTTP API and compact TCP protocol
-- **Comprehensive CLI** - command-line interface for all operations
-- **Performance monitoring** - stats endpoint and benchmarking tools
-- **Production ready** - authentication, CORS, systemd integration
-- **Cross-platform** - macOS, Linux, Windows support
+*Built for speed, designed for simplicity, ready for production*
 
-## Installation
+[![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
+[![Cross Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=for-the-badge)](https://github.com/aminshamim/tagcache/releases)
 
-### Pre-built Binaries (Recommended)
+</div>
 
-#### macOS (Both Intel and Apple Silicon supported)
+---
+
+## ⚡ What is TagCache?
+
+TagCache is a high-performance, sharded, tag-aware in-memory cache server that offers:
+
+🔹 **JSON HTTP API** (port 8080) - RESTful interface for web applications  
+🔹 **TCP Protocol** (port 1984) - Ultra-low latency binary protocol  
+🔹 **Tag-based Invalidation** - Organize and clear related data efficiently  
+🔹 **Built-in Web Dashboard** - Beautiful React UI for monitoring and management  
+🔹 **CLI Interface** - Complete command-line control  
+🔹 **Production Ready** - Authentication, monitoring, and deployment tools  
+
+## ✨ Key Features
+
+| Feature | Description |
+|---------|-------------|
+| 🏎️ **Blazing Fast** | Multi-shard design with DashMap + hash sharding for maximum concurrency |
+| 🏷️ **Tag-Aware** | Associate multiple tags with keys for advanced invalidation strategies |
+| ⏱️ **Flexible TTL** | Precise expiration control in milliseconds or seconds |
+| 🔄 **Dual Protocols** | Choose between JSON HTTP API or high-performance TCP protocol |
+| 📊 **Rich Monitoring** | Real-time statistics, performance metrics, and health checks |
+| 🔐 **Secure by Default** | Built-in authentication with password management |
+| 🌍 **Cross-Platform** | Native support for macOS, Linux, and Windows |
+| 📦 **Easy Deploy** | Homebrew, Debian packages, Docker, and binary releases |
+
+## 📚 Table of Contents
+
+- [🚀 Quick Start](#-quick-start)
+- [📥 Installation](#-installation)
+- [🔐 Authentication & Security](#-authentication--security)
+- [💻 Command Line Interface](#-command-line-interface-cli)
+- [🌐 HTTP JSON API](#-http-json-api)
+- [⚡ TCP Protocol](#-tcp-protocol)
+- [📊 Performance Testing](#-performance-testing)
+- [🐳 Docker](#-docker)
+- [⚙️ Configuration](#-configuration)
+- [🔧 Development](#-development)
+
+## 🚀 Quick Start
+
+```bash
+# Install (choose your method)
+brew install aminshamim/tap/tagcache
+
+# Start server
+tagcache server
+
+# Use CLI with default credentials (admin/password)
+tagcache --username admin --password password put "hello" "world"
+tagcache --username admin --password password get key "hello"
+tagcache --username admin --password password stats
+
+# Visit web dashboard
+open http://localhost:8080
+```
+
+## 📥 Installation
+
+### 📦 Pre-built Binaries (Recommended)
+
+#### 🍎 macOS (Intel & Apple Silicon)
 ```bash
 # For macOS Intel (x86_64)
 wget https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-macos-x86_64.tar.gz
@@ -38,14 +89,14 @@ sudo cp tagcache /usr/local/bin/
 tagcache
 ```
 
-#### Windows
+#### 🪟 Windows
 ```bash
 # Download and extract
 curl -L -o tagcache-windows.zip https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-windows-x86_64.exe.zip
 # Extract and run tagcache.exe
 ```
 
-### Homebrew (macOS/Linux)
+### 🍺 Homebrew (macOS/Linux)
 ```bash
 # Install from our tap
 brew tap aminshamim/tap
@@ -55,7 +106,7 @@ brew install tagcache
 brew install aminshamim/tap/tagcache
 ```
 
-### Debian/Ubuntu (Building)
+### 🐧 Debian/Ubuntu
 ```bash
 # Download from releases page (when available)
 wget https://github.com/aminshamim/tagcache/releases/download/v1.0.2/tagcache_1.0.2_amd64.deb
@@ -82,24 +133,26 @@ sudo systemctl start tagcache
 2. Extract `tagcache.exe` to your desired location
 3. Run `tagcache.exe` from command prompt
 
-### From Source (Rust)
+### 🦀 From Source (Rust)
 ```bash
 cargo install --git https://github.com/aminshamim/tagcache
 ```
 
-### Docker
+### 🐳 Docker
 ```bash
 docker run -p 8080:8080 -p 1984:1984 tagcache:latest
 ```
 
-## Build & Run (Development)
+## ⚙️ Configuration
+
+### 🔧 Build & Run (Development)
 ```bash
 cargo build --release
 ./target/release/tagcache
 ```
 Server starts HTTP on `:8080` and TCP on `:1984` by default.
 
-## Environment Variables
+### 🌍 Environment Variables
 Primary (preferred):
 - `PORT` – HTTP port (default 8080)
 - `TCP_PORT` – TCP protocol port (default 1984)
@@ -110,103 +163,114 @@ Primary (preferred):
 Legacy (still accepted, logged when used):
 - `TC_HTTP_PORT`, `TC_TCP_PORT`, `TC_NUM_SHARDS`, `TC_SWEEP_INTERVAL_MS`
 
-## Authentication
+## 🔐 Authentication & Security
 
-TagCache ships with a lightweight built‑in authentication layer used by both the dashboard UI and any API clients.
+TagCache includes built-in authentication with default credentials and flexible management options.
 
-### Credential File (bootstrap)
-On first startup (when `credential.txt` is absent) the server auto‑generates a file in the working directory:
-```
-credential.txt
-username=<random>
-password=<random>
-created_at=2025-09-09T00:00:00Z
-version=1
-```
-File permissions on Unix are restricted to `600` (owner read/write) for basic safety. Keep this file secret; anyone with it can obtain an auth token. You may commit a different credentials management flow in production (env injection / secret manager) by pre‑creating `credential.txt` before launch.
+### 🚀 Quick Start - Default Credentials
+TagCache starts with secure default credentials:
+- **Username:** `admin`
+- **Password:** `password`
 
-### Login Flow
-Login uses a POST to `/auth/login` with:
-1. A Basic Auth header (`Authorization: Basic base64(username:password)`) – used server side for quick validation.
-2. The same credentials in a JSON body (mirrors header for clarity & future flexibility).
+**⚠️ Security Notice:** Change the default password immediately in production!
 
-Example:
+### 🛠️ Password Management CLI Commands
+
+#### Change Password
 ```bash
-USER=$(grep '^username=' credential.txt | cut -d= -f2)
-PASS=$(grep '^password=' credential.txt | cut -d= -f2)
-B64=$(printf '%s:%s' "$USER" "$PASS" | base64)
-curl -s -X POST http://127.0.0.1:8080/auth/login \
-  -H "Authorization: Basic $B64" \
+# Change the password (requires current credentials)
+tagcache --username admin --password password change-password "your-new-secure-password"
+```
+
+#### Reset to Defaults
+```bash
+# Master reset to default credentials (requires current credentials)
+tagcache --username admin --password current-password reset-credentials
+# After reset: username=admin, password=password
+```
+
+#### Example Password Management Flow
+```bash
+# 1. Change from defaults
+tagcache --username admin --password password change-password "MySecure123!"
+
+# 2. Use new password for operations
+tagcache --username admin --password "MySecure123!" stats
+
+# 3. Reset if needed (emergency recovery)
+tagcache --username admin --password "MySecure123!" reset-credentials
+```
+
+### 🌐 Authentication for HTTP API
+
+All API endpoints (except `/health`) require authentication using Basic Auth:
+
+```bash
+# Using current credentials
+curl -u admin:password http://localhost:8080/stats
+
+# Or with explicit Basic Auth header
+echo -n "admin:password" | base64  # YWRtaW46cGFzc3dvcmQ=
+curl -H "Authorization: Basic YWRtaW46cGFzc3dvcmQ=" http://localhost:8080/stats
+```
+
+### 🔄 Advanced Authentication (Tokens & Rotation)
+
+#### Login for Token-Based Auth
+```bash
+# Get an auth token (alternative to Basic Auth)
+curl -s -X POST http://localhost:8080/auth/login \
+  -u admin:password \
   -H 'Content-Type: application/json' \
-  -d '{"username":"'"$USER"'","password":"'"$PASS"'"}'
+  -d '{"username":"admin","password":"password"}'
 ```
 Response:
 ```json
 {"token":"<48-char-random>","expires_in":3600}
 ```
 
-### Using the Token
-Pass the token with the Bearer scheme:
+#### Using Tokens
 ```bash
-TOKEN="<token-from-login>"
-curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/stats
+# Use token instead of username/password
+TOKEN="your-token-here"
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/stats
 ```
-The dashboard automatically stores the token (localStorage) so refreshes keep the session.
 
-### Rotation
-POST `/auth/rotate` with a **current valid token** rotates both username/password (new random values) and invalidates **all existing tokens**:
+#### Credential Rotation (Advanced)
 ```bash
-curl -X POST http://127.0.0.1:8080/auth/rotate \
+# Rotate to new random credentials (invalidates all tokens)
+curl -X POST http://localhost:8080/auth/rotate \
   -H "Authorization: Bearer $TOKEN"
 ```
 Response:
 ```json
-{"ok":true,"username":"<newUser>","password":"<newPass>"}
-```
-Update any external clients with the new credentials, then obtain a new token via `/auth/login`.
-
-### Setup Detection
-`GET /auth/setup_required` returns `{ "setup_required": true }` only before the first credential file is created, enabling UI onboarding flows.
-
-### Fallbacks & Validation Order
-For every protected endpoint the server checks:
-1. `Authorization: Bearer <token>` (valid token present in in‑memory token set)
-2. If not a bearer match, `Authorization: Basic <base64>` (compared to current credential pair)
-If neither matches: HTTP 401 `{ "error":"unauthorized" }`.
-
-### Hardening Tips
-- Mount the working directory with proper file ownership (`credential.txt` should not be writable by untrusted users).
-- Put the server behind TLS (reverse proxy like Caddy, Nginx, Traefik) – the server itself is plaintext HTTP.
-- Use a secret manager or inject credentials via volume mount and rebuild the file with the same format if you prefer deterministic credentials.
-- Set `ALLOWED_ORIGIN` (env var) for strict CORS if exposing dashboard remotely.
-
-### Quick Scripted Login Helper
-```bash
-login() { local host=${1:-http://127.0.0.1:8080}; \
-  local u=$(grep '^username=' credential.txt|cut -d= -f2); \
-  local p=$(grep '^password=' credential.txt|cut -d= -f2); \
-  local b=$(printf '%s:%s' "$u" "$p" | base64); \
-  curl -s -X POST "$host/auth/login" -H "Authorization: Basic $b" -H 'Content-Type: application/json' -d '{"username":"'"$u"'","password":"'"$p"'"}'; }
+{"ok":true,"username":"newRandomUser","password":"newRandomPass"}
 ```
 
-### Frontend Behavior
-- On successful login: token + username persisted; all API calls automatically attach `Authorization: Bearer <token>`.
-- On 401 responses (not yet implemented): a future enhancement can clear stored token and redirect to the login screen.
+### 🔒 Security Best Practices
+
+1. **Change Default Password:** Always change from `admin/password` in production
+2. **Use HTTPS:** Put TagCache behind a TLS proxy (nginx, Caddy, Traefik)
+3. **Network Security:** Bind to specific interfaces, use firewalls
+4. **Environment Variables:** Set `ALLOWED_ORIGIN` for CORS restrictions
+5. **Regular Rotation:** Use the CLI or API to rotate credentials periodically
+
+### 🎯 Authentication Summary
+- **Default:** `admin` / `password` (change immediately!)
+- **CLI Management:** `change-password` and `reset-credentials` commands  
+- **API Access:** Basic Auth for all endpoints (except health check)
+- **Web Dashboard:** Integrated login with token management
+- **Token-based:** Optional Bearer token authentication
+- **Emergency Recovery:** Master reset command available
 
 ---
 
 ## HTTP API
 Base URL: `http://host:PORT`
 
-## Usage
+---
 
-TagCache provides multiple interfaces for maximum flexibility:
-
-1. **Command Line Interface (CLI)** - Easy-to-use commands for interactive use
-2. **HTTP JSON API** - RESTful API for web applications  
-3. **TCP Protocol** - High-performance binary protocol for low latency
-
-## Command Line Interface (CLI)
+## 💻 Command Line Interface (CLI)
 
 TagCache includes a comprehensive CLI for all cache operations. Perfect for scripts, testing, and interactive use.
 
@@ -222,16 +286,27 @@ tagcache --username <user> --password <pass> stats
 ```
 
 ### Available Commands
+
+#### 📦 Cache Operations
 - `tagcache put <key> <value>` - Store data with optional tags and TTL
 - `tagcache get key <key>` - Retrieve value by key  
 - `tagcache get tag <tags>` - Get keys by comma-separated tags
 - `tagcache flush key <key>` - Remove specific key
 - `tagcache flush tag <tags>` - Remove all keys with tags
 - `tagcache flush all` - Clear entire cache
+
+#### 📊 Monitoring & Status
 - `tagcache stats` - Show detailed statistics
 - `tagcache status` - Show server status  
-- `tagcache health` - Health check
+- `tagcache health` - Health check (no auth required)
 - `tagcache restart` - Restart instructions
+
+#### 🔐 Security & Authentication
+- `tagcache change-password <new-password>` - Change the password
+- `tagcache reset-credentials` - Reset to default admin/password
+
+#### 🚀 Server Management
+- `tagcache server` - Start the TagCache server
 
 ### CLI Examples
 ```bash
@@ -250,7 +325,9 @@ tagcache stats
 
 📖 **[Complete CLI Documentation](docs/CLI_USAGE.md)**
 
-## HTTP JSON API
+---
+
+## 🌐 HTTP JSON API
 
 The HTTP interface is JSON-based and ideal for web applications.
 
@@ -334,7 +411,9 @@ Response (extended fields may appear in newer versions):
 }
 ```
 
-## TCP Protocol
+---
+
+## ⚡ TCP Protocol
 Line-based, tab-delimited. One command per line. Fields separated by `\t` (TAB). Newline terminates command.
 
 Commands:
@@ -371,7 +450,9 @@ Notes:
 - `-` means no TTL or no tags.
 - No escaping layer; for binary or large payloads consider a future binary protocol.
 
-## Docker
+---
+
+## 🐳 Docker
 Build image:
 ```bash
 docker build -t tagcache:latest .
@@ -392,7 +473,9 @@ php examples/php/test.php
 ```
 Set `TAGCACHE_URL` for a custom base URL.
 
-## Performance Testing
+---
+
+## 📊 Performance Testing
 
 ### Included TCP Benchmark Tool
 
@@ -471,7 +554,9 @@ wrk -t8 -c64 -d10s -s get.lua http://127.0.0.1:8080
 - No compression / binary protocol (planned binary frame optional layer)
 - Tag cardinality not bounded (monitor memory usage with many distinct tags)
 
-## Development
+---
+
+## 🔧 Development
 Run in debug:
 ```bash
 cargo run
@@ -483,7 +568,16 @@ cargo build --release
 ```
 
 ## License
-(Choose a license and place it here, e.g. MIT or Apache-2.0.)
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
-PRs and issues welcome.
+
+## 👨‍💻 Author
+
+**Md. Aminul Islam Sarker**
+- 📧 Email: [aminshamim@gmail.com](mailto:aminshamim@gmail.com)
+- 💼 LinkedIn: [https://www.linkedin.com/in/aminshamim/](https://www.linkedin.com/in/aminshamim/)
+- 🐙 GitHub: [@aminshamim](https://github.com/aminshamim)
+
+---
+PRs and issues welcome!

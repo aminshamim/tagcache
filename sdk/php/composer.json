@@ -3,6 +3,13 @@
   "description": "High-performance PHP SDK for TagCache (HTTP + pluggable transports)",
   "type": "library",
   "license": "MIT",
+  "authors": [
+    {
+      "name": "Md. Aminul Islam Sarker",
+      "email": "aminshamim@gmail.com",
+      "homepage": "https://www.linkedin.com/in/aminshamim/"
+    }
+  ],
   "autoload": {
     "psr-4": {
       "TagCache\\": "src/"

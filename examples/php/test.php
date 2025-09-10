@@ -1,4 +1,11 @@
 <?php
+/**
+ * TagCache PHP Example - Basic HTTP API usage
+ * 
+ * @author Md. Aminul Islam Sarker <aminshamim@gmail.com>
+ * @link https://github.com/aminshamim/tagcache
+ */
+
 // Base API URL
 $base = getenv('TAGCACHE_URL') ?: 'http://127.0.0.1:8080';
 

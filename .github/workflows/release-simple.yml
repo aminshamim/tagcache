@@ -1,0 +1,179 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Get version from tag
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: TagCache ${{ steps.get_version.outputs.version }}
+          body: |
+            ## TagCache ${{ steps.get_version.outputs.version }}
+            
+            ### Installation
+            
+            #### Direct Download
+            - Linux x86_64: `tagcache-linux-x86_64.tar.gz`
+            - macOS Intel: `tagcache-macos-x86_64.tar.gz`
+            - macOS Apple Silicon: `tagcache-macos-arm64.tar.gz`
+            - Windows: `tagcache-windows-x86_64.zip`
+            - Debian package: `tagcache_${{ steps.get_version.outputs.version }}_amd64.deb`
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Linux x86_64
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Package Linux
+        run: |
+          cd target/x86_64-unknown-linux-gnu/release
+          strip tagcache
+          tar czf ../../../tagcache-linux-x86_64.tar.gz tagcache
+          cd ../../..
+
+      - name: Upload Linux Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: tagcache-linux-x86_64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    needs: create-release
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build macOS
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package macOS
+        run: |
+          cd target/${{ matrix.target }}/release
+          if [[ "${{ matrix.target }}" == "x86_64-apple-darwin" ]]; then
+            tar czf ../../../tagcache-macos-x86_64.tar.gz tagcache
+          else
+            tar czf ../../../tagcache-macos-arm64.tar.gz tagcache
+          fi
+          cd ../../..
+
+      - name: Upload macOS Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: |
+            tagcache-macos-x86_64.tar.gz
+            tagcache-macos-arm64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Windows
+        run: cargo build --release
+
+      - name: Package Windows
+        run: |
+          cd target/release
+          7z a ../../tagcache-windows-x86_64.zip tagcache.exe
+          cd ../..
+
+      - name: Upload Windows Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: tagcache-windows-x86_64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-deb:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+
+      - name: Build DEB package
+        run: cargo deb
+
+      - name: Find and upload DEB
+        run: |
+          DEB_FILE=$(find target/debian -name "*.deb" | head -1)
+          echo "Found DEB file: $DEB_FILE"
+        
+      - name: Upload DEB Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: target/debian/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

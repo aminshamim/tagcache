@@ -1,12 +1,56 @@
-// TagCache main server implementation with heavy inline comments for Rust beginners.
-// The goal of these comments is to explain: types, ownership, concurrency primitives,
-// async runtime usage, data model, and protocol handling. Feel free to trim later.
+/*!
+ * TagCache - Lightweight, sharded, tag-aware in-memory cache server
+ * 
+ * Author: Md. Aminul Islam Sarker <aminshamim@gmail.com>
+ * GitHub: https://github.com/aminshamim/tagcache
+ * LinkedIn: https://www.linkedin.com/in/aminshamim/
+ * 
+ * This file contains the main server implementation with detailed comments for Rust beginners.
+ * The goal of these comments is to explain: types, ownership, concurrency primitives,
+ * async runtime usage, data model, and protocol handling.
+ */
 
-use axum::{routing::{get, post, put, delete}, Json, Router, extract::{Path, Query, FromRequestParts, State}, response::Json as ResponseJson, http::{request::Parts, StatusCode}}; // Axum web framework imports for routing & JSON
+use axum::{routing::{get, post}, Json, Router, extract::{Path, Query, FromRequestParts, State}, response::Json as ResponseJson, http::{request::Parts, StatusCode}}; // Axum web framework imports for routing & JSON
 use serde::{Deserialize, Serialize}; // Serde for (de)serialization of JSON payloads
 use std::{sync::Arc, time::{Duration, Instant, SystemTime, UNIX_EPOCH}, env}; // Arc = thread-safe reference counting; time utilities; env vars
 use clap::{Parser, Subcommand}; // Command line argument parsing
 use reqwest; // HTTP client for CLI commands
+use rust_embed::RustEmbed;
+use axum::response::{Html, IntoResponse};
+use axum::http::{header, Uri};
+
+#[derive(RustEmbed)]
+#[folder = "app/dist/"]
+struct Assets;
+
+// Static file handler for the web UI
+async fn static_handler(uri: Uri) -> impl IntoResponse {
+    let path = uri.path().trim_start_matches('/');
+    
+    if path.is_empty() || path == "index.html" {
+        return serve_index_html().into_response();
+    }
+    
+    match Assets::get(path) {
+        Some(content) => {
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+            let headers = [
+                (header::CONTENT_TYPE, mime.as_ref()),
+                (header::CACHE_CONTROL, "public, max-age=31536000"),
+            ];
+            (headers, content.data).into_response()
+        }
+        None => serve_index_html().into_response(), // SPA fallback
+    }
+}
+
+fn serve_index_html() -> Html<std::borrow::Cow<'static, [u8]>> {
+    match Assets::get("index.html") {
+        Some(content) => Html(content.data),
+        None => Html("<!DOCTYPE html><html><head><title>Error</title></head><body><h1>UI not found</h1></body></html>".as_bytes().into()),
+    }
+}
+
 use dashmap::{DashMap, DashSet}; // Concurrent hash map + set (lock sharded) for high concurrency
 use smallvec::SmallVec; // Optimized small vector that stores small number of elements inline (avoids heap for few tags)
 use tokio::time; // Tokio timing utilities (interval)
@@ -18,10 +62,7 @@ use parking_lot::Mutex; // Faster, simpler mutex vs std::sync::Mutex (not poison
 use tokio::net::{TcpListener, TcpStream}; // Async TCP server primitives
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader}; // Async buffered IO extensions
 use rand::{Rng, distributions::Alphanumeric};
-use std::fs;
-use std::path::Path as FsPath;
-use std::io::Write;
-use std::collections::HashMap;
+
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 
@@ -99,6 +140,15 @@ enum Commands {
     
     /// Restart server (if running as service)
     Restart,
+    
+    /// Change password
+    ChangePassword {
+        /// New password
+        new_password: String,
+    },
+    
+    /// Reset to default credentials (admin/password)
+    ResetCredentials,
 }
 
 #[derive(Subcommand)]
@@ -406,6 +456,57 @@ impl TagCacheClient {
         println!("  • Process manager: depends on your setup");
         Ok(())
     }
+
+    async fn change_password(&self, new_password: &str) -> anyhow::Result<()> {
+        let payload = serde_json::json!({ "new_password": new_password });
+
+        let mut request = self.client.post(&format!("{}/auth/change_password", self.base_url));
+        if let Some(auth) = &self.auth_header {
+            request = request.header("Authorization", auth);
+        }
+
+        let response = request.json(&payload).send().await?;
+        
+        if response.status().is_success() {
+            let json: serde_json::Value = response.json().await?;
+            if json.get("success").and_then(|s| s.as_bool()).unwrap_or(false) {
+                println!("✓ Password changed successfully");
+                println!("The new password is: {}", new_password);
+            } else {
+                anyhow::bail!("Failed to change password");
+            }
+        } else {
+            let error_text = response.text().await?;
+            anyhow::bail!("Failed to change password: {}", error_text);
+        }
+
+        Ok(())
+    }
+
+    async fn reset_credentials(&self) -> anyhow::Result<()> {
+        let mut request = self.client.post(&format!("{}/auth/reset", self.base_url));
+        if let Some(auth) = &self.auth_header {
+            request = request.header("Authorization", auth);
+        }
+
+        let response = request.send().await?;
+        
+        if response.status().is_success() {
+            let json: serde_json::Value = response.json().await?;
+            if json.get("success").and_then(|s| s.as_bool()).unwrap_or(false) {
+                println!("✓ Credentials reset to defaults");
+                println!("Username: admin");
+                println!("Password: password");
+            } else {
+                anyhow::bail!("Failed to reset credentials");
+            }
+        } else {
+            let error_text = response.text().await?;
+            anyhow::bail!("Failed to reset credentials: {}", error_text);
+        }
+
+        Ok(())
+    }
 }
 
 // =============================
@@ -499,6 +600,24 @@ impl AuthState {
     fn rotate(&self) -> Credentials { let new = Credentials { username: rand::thread_rng().sample_iter(&Alphanumeric).take(16).map(char::from).collect(), password: rand::thread_rng().sample_iter(&Alphanumeric).take(24).map(char::from).collect() }; *self.credentials.lock() = new.clone(); self.tokens.clear(); new }
     fn validate_basic(&self, u:&str, p:&str) -> bool { let c = self.credentials.lock(); c.username==u && c.password==p }
     fn validate_token(&self, t:&str) -> bool { self.tokens.contains(t) }
+    fn change_password(&self, new_password: String) -> bool {
+        let mut creds = self.credentials.lock();
+        creds.password = new_password;
+        // Clear all tokens to force re-authentication
+        self.tokens.clear();
+        true
+    }
+    fn reset_to_defaults(&self) -> bool {
+        let new = Credentials {
+            username: "admin".to_string(),
+            password: "password".to_string(),
+        };
+        *self.credentials.lock() = new;
+        // Clear all tokens to force re-authentication
+        self.tokens.clear();
+        true
+    }
+
 }
 
 #[derive(Clone)]
@@ -527,9 +646,7 @@ impl FromRequestParts<Arc<AppState>> for Authenticated {
 }
 
 #[derive(Deserialize)] struct LoginBody { username:String, password:String }
-#[derive(Serialize)] struct LoginResponse { token:String, expires_in:u64 }
 #[derive(Serialize)] struct RotateResponse { ok:bool, username:String, password:String }
-#[derive(Serialize)] struct SetupRequired { setup_required: bool }
 
 impl Cache {
     // Create a new cache with N shards.
@@ -852,7 +969,7 @@ async fn invalidate_tag_handler(State(state): State<Arc<AppState>>, _auth: Authe
 async fn flush_handler(State(state): State<Arc<AppState>>, _auth: Authenticated) -> ResponseJson<InvalidateResponse> { let count = state.cache.flush_all(); ResponseJson(InvalidateResponse { success: true, count: Some(count) }) }
 
 // Return stats snapshot.
-async fn stats_handler(State(state): State<Arc<AppState>>) -> ResponseJson<StatsResponse> {
+async fn stats_handler(State(state): State<Arc<AppState>>, _auth: Authenticated) -> ResponseJson<StatsResponse> {
     let stats = state.cache.get_stats();
     let hit_ratio = if stats.hits + stats.misses > 0 {            // Avoid divide by zero
         stats.hits as f64 / (stats.hits + stats.misses) as f64
@@ -1057,14 +1174,23 @@ async fn login_handler(State(state): State<Arc<AppState>>, Json(body): Json<Logi
 }
 
 async fn rotate_handler(State(state): State<Arc<AppState>>, _authd: Authenticated) -> ResponseJson<RotateResponse> { let new = state.auth.rotate();
-    // Write file
-    if let Err(e) = write_credentials_file(&new) { eprintln!("credential rotate write error: {e}"); }
     ResponseJson(RotateResponse { ok: true, username: new.username, password: new.password }) }
 
-async fn setup_required_handler() -> ResponseJson<SetupRequired> {
-    let need = !FsPath::new("credential.txt").exists();
-    ResponseJson(SetupRequired { setup_required: need })
+async fn change_password_handler(State(state): State<Arc<AppState>>, _authd: Authenticated, Json(body): Json<serde_json::Value>) -> ResponseJson<serde_json::Value> {
+    if let Some(new_password) = body.get("new_password").and_then(|p| p.as_str()) {
+        let success = state.auth.change_password(new_password.to_string());
+        ResponseJson(serde_json::json!({"success": success}))
+    } else {
+        ResponseJson(serde_json::json!({"success": false, "error": "new_password is required"}))
+    }
 }
+
+async fn reset_credentials_handler(State(state): State<Arc<AppState>>, _authd: Authenticated) -> ResponseJson<serde_json::Value> {
+    let success = state.auth.reset_to_defaults();
+    ResponseJson(serde_json::json!({"success": success}))
+}
+
+
 
 // Build the Axum HTTP router configuration.
 pub fn build_app(app_state: Arc<AppState>, allowed_origin: Option<String>) -> Router {
@@ -1088,8 +1214,11 @@ pub fn build_app(app_state: Arc<AppState>, allowed_origin: Option<String>) -> Ro
         // auth endpoints
         .route("/auth/login", post(login_handler))
         .route("/auth/rotate", post(rotate_handler))
-    .route("/auth/setup_required", get(setup_required_handler))
+        .route("/auth/change_password", post(change_password_handler))
+        .route("/auth/reset", post(reset_credentials_handler))
     .route("/health", get(health_handler))
+        // Serve the React UI for all other routes (SPA routing)
+        .fallback(static_handler)
     .with_state(app_state.clone());
 
     // CORS: allow specified origin or fallback * (dev). Allow auth headers.
@@ -1099,33 +1228,7 @@ pub fn build_app(app_state: Arc<AppState>, allowed_origin: Option<String>) -> Ro
 
 async fn health_handler() -> ResponseJson<serde_json::Value> { ResponseJson(serde_json::json!({"status":"ok","time": chrono::Utc::now().to_rfc3339()})) }
 
-fn load_or_create_credentials() -> anyhow::Result<Credentials> {
-    let path = FsPath::new("credential.txt");
-    if path.exists() {
-        let content = fs::read_to_string(path)?;
-        let mut map = HashMap::new();
-        for line in content.lines() { if let Some((k,v)) = line.split_once('=') { map.insert(k.trim().to_string(), v.trim().to_string()); } }
-        let username = map.get("username").cloned().ok_or_else(|| anyhow::anyhow!("username missing"))?;
-        let password = map.get("password").cloned().ok_or_else(|| anyhow::anyhow!("password missing"))?;
-        return Ok(Credentials { username, password });
-    }
-    let creds = Credentials {
-        username: rand::thread_rng().sample_iter(&Alphanumeric).take(16).map(char::from).collect(),
-        password: rand::thread_rng().sample_iter(&Alphanumeric).take(24).map(char::from).collect()
-    };
-    write_credentials_file(&creds)?;
-    Ok(creds)
-}
 
-fn write_credentials_file(creds: &Credentials) -> anyhow::Result<()> {
-    let mut file = fs::File::create("credential.txt")?;
-    #[cfg(unix)] {
-        use std::os::unix::fs::PermissionsExt; let mut perms = file.metadata()?.permissions(); perms.set_mode(0o600); fs::set_permissions("credential.txt", perms)?;
-    }
-    let now = chrono::Utc::now().to_rfc3339();
-    write!(file, "username={}\npassword={}\ncreated_at={}\nversion=1\n", creds.username, creds.password, now)?;
-    Ok(())
-}
 
 // Lightweight listing of all keys with metadata (newest first)
 async fn list_keys_handler(State(state): State<Arc<AppState>>, _auth: Authenticated) -> ResponseJson<serde_json::Value> {
@@ -1278,6 +1381,8 @@ async fn main() -> anyhow::Result<()> {
                 Commands::Status => client.status().await,
                 Commands::Health => client.health().await,
                 Commands::Restart => client.restart().await,
+                Commands::ChangePassword { new_password } => client.change_password(&new_password).await,
+                Commands::ResetCredentials => client.reset_credentials().await,
                 Commands::Server => unreachable!(), // Already handled above
             }
         }
@@ -1315,8 +1420,13 @@ async fn start_server() -> anyhow::Result<()> {
 
     // Build the cache (Arc so it can be shared across tasks / threads).
     let cache = Arc::new(Cache::new(num_shards));
-    let creds = load_or_create_credentials()?;
-    let auth_state = Arc::new(AuthState::new(creds));
+    
+    // Use default credentials (admin/password) - can be changed via CLI
+    let default_creds = Credentials {
+        username: "admin".to_string(),
+        password: "password".to_string(),
+    };
+    let auth_state = Arc::new(AuthState::new(default_creds));
     let app_state = Arc::new(AppState { cache: cache.clone(), auth: auth_state.clone() });
     let allowed_origin = env::var("ALLOWED_ORIGIN").ok();
 

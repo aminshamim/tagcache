@@ -2,7 +2,7 @@
 name = "tagcache"
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <your.email@domain.com>"]
+authors = ["Md. Aminul Islam Sarker <aminshamim@gmail.com>"]
 description = "Lightweight, sharded, tag-aware in-memory cache server"
 repository = "https://github.com/aminshamim/tagcache"
 license = "MIT OR Apache-2.0"
@@ -37,8 +37,8 @@ once_cell = "1.19"
 
 # Debian package metadata
 [package.metadata.deb]
-maintainer = "TagCache Team <tagcache@example.com>"
-copyright = "2024, TagCache Team <tagcache@example.com>"
+maintainer = "Md. Aminul Islam Sarker <aminshamim@gmail.com>"
+copyright = "2025, Md. Aminul Islam Sarker <aminshamim@gmail.com>"
 license-file = ["LICENSE", "4"]
 extended-description = """\
 TagCache is a lightweight, sharded, tag-aware in-memory cache server \

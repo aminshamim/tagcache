@@ -2,6 +2,10 @@
 
 # TagCache Server Startup Script
 # This script builds and runs all TagCache servers
+#
+# Author: Md. Aminul Islam Sarker <aminshamim@gmail.com>
+# GitHub: https://github.com/aminshamim/tagcache
+# LinkedIn: https://www.linkedin.com/in/aminshamim/
 
 set -e  # Exit on any error
 

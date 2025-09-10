@@ -1,5 +1,13 @@
 <?php declare(strict_types=1);
 
+/**
+ * TagCache PHP SDK - High-performance client for TagCache server
+ * 
+ * @author Md. Aminul Islam Sarker <aminshamim@gmail.com>
+ * @link https://github.com/aminshamim/tagcache
+ * @link https://www.linkedin.com/in/aminshamim/
+ */
+
 namespace TagCache;
 
 use TagCache\Contracts\ClientInterface;
