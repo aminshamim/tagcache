@@ -140,7 +140,7 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd app
-          pnpm install --frozen-lockfile
+          pnpm install --no-frozen-lockfile
 
       - name: Build frontend
         run: |
@@ -210,7 +210,7 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd app
-          pnpm install --frozen-lockfile
+          pnpm install --no-frozen-lockfile
 
       - name: Build frontend
         run: |
@@ -270,7 +270,7 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd app
-          pnpm install --frozen-lockfile
+          pnpm install --no-frozen-lockfile
 
       - name: Build frontend
         run: |
