@@ -16,7 +16,51 @@ A lightweight, sharded, tag-aware in‑memory cache server written in Rust. It e
 - Stats endpoint (hits, misses, puts, invalidations, hit ratio)
 - Compact TCP protocol for reduced overhead vs HTTP/JSON
 
-## Build & Run (Rust)
+## Installation
+
+### Homebrew (macOS/Linux)
+```bash
+brew install tagcache
+```
+
+### Debian/Ubuntu
+```bash
+# Download from releases page
+wget https://github.com/aminshamim/tagcache/releases/download/v0.1.0/tagcache_0.1.0_amd64.deb
+sudo dpkg -i tagcache_0.1.0_amd64.deb
+
+# Start the service
+sudo systemctl enable tagcache
+sudo systemctl start tagcache
+```
+
+### RHEL/CentOS/Fedora
+```bash
+# Download from releases page
+wget https://github.com/aminshamim/tagcache/releases/download/v0.1.0/tagcache-0.1.0-1.x86_64.rpm
+sudo rpm -ivh tagcache-0.1.0-1.x86_64.rpm
+
+# Start the service
+sudo systemctl enable tagcache
+sudo systemctl start tagcache
+```
+
+### Windows
+1. Download `tagcache-windows-x86_64.zip` from [releases](https://github.com/aminshamim/tagcache/releases)
+2. Extract `tagcache.exe` to your desired location
+3. Run `tagcache.exe` from command prompt
+
+### From Source (Rust)
+```bash
+cargo install --git https://github.com/aminshamim/tagcache
+```
+
+### Docker
+```bash
+docker run -p 8080:8080 -p 1984:1984 tagcache:latest
+```
+
+## Build & Run (Development)
 ```bash
 cargo build --release
 ./target/release/tagcache

@@ -2,6 +2,13 @@
 name = "tagcache"
 version = "0.1.0"
 edition = "2021"
+authors = ["Your Name <your.email@domain.com>"]
+description = "Lightweight, sharded, tag-aware in-memory cache server"
+repository = "https://github.com/aminshamim/tagcache"
+license = "MIT OR Apache-2.0"
+keywords = ["cache", "server", "memory", "tags", "performance"]
+categories = ["caching", "database", "web-programming"]
+readme = "README.md"
 
 [dependencies]
 axum = { version = "0.7", features = ["macros", "json"] }
@@ -27,3 +34,45 @@ base64 = "0.22"
 sysinfo = "0.30"
 hdrhistogram = "7"
 once_cell = "1.19"
+
+# Debian package metadata
+[package.metadata.deb]
+maintainer = "TagCache Team <tagcache@example.com>"
+copyright = "2024, TagCache Team <tagcache@example.com>"
+license-file = ["LICENSE", "4"]
+extended-description = """\
+TagCache is a lightweight, sharded, tag-aware in-memory cache server \
+written in Rust. It provides both HTTP API and TCP protocol interfaces \
+with tag-based invalidation and optional TTL support.
+
+Features:
+- High-performance concurrent access with sharding
+- Tag-based cache invalidation
+- HTTP REST API and TCP protocol
+- Optional TTL (time-to-live) support
+- Built-in statistics and monitoring
+- Authentication and authorization
+- Cross-platform support"""
+depends = "$auto"
+section = "database"
+priority = "optional"
+assets = [
+    ["target/release/tagcache", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/tagcache/README", "644"],
+    ["packaging/systemd/tagcache.service", "lib/systemd/system/", "644"],
+]
+maintainer-scripts = "packaging/debian/"
+systemd-units = { enable = false }
+
+# RPM package metadata
+[package.metadata.generate-rpm]
+license = "MIT OR Apache-2.0"
+summary = "Lightweight, sharded, tag-aware in-memory cache server"
+assets = [
+    { source = "target/release/tagcache", dest = "/usr/bin/tagcache", mode = "755" },
+    { source = "README.md", dest = "/usr/share/doc/tagcache/README.md", mode = "644" },
+    { source = "packaging/systemd/tagcache.service", dest = "/usr/lib/systemd/system/tagcache.service", mode = "644" },
+]
+
+[package.metadata.generate-rpm.requires]
+glibc = "*"
