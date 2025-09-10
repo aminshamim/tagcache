@@ -78,7 +78,7 @@ final class HttpTransport implements TransportInterface
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
         }
         curl_setopt($ch, CURLOPT_TIMEOUT_MS, $this->timeoutMs);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, min($this->timeoutMs, 2000));
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, (int)($this->timeoutMs * 0.3)); // 30% of total timeout for connection
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
         // Build headers; prefer Bearer token if present, else Basic auth if available
         $authHeader = null;

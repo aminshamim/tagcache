@@ -159,11 +159,14 @@ final class Client implements ClientInterface
      */
     public function keysByTag(string $tag, ?int $limit = null): array
     {
-        $res = $this->search(['tag_any' => [$tag], 'limit' => $limit]);
-        $keys = [];
-        foreach ($res as $it) {
-            $keys[] = $it['key'];
+        // Use direct transport method which all transports support
+        $keys = $this->transport->getKeysByTag($tag);
+        
+        // Apply limit if specified
+        if ($limit !== null && count($keys) > $limit) {
+            return array_slice($keys, 0, $limit);
         }
+        
         return $keys;
     }
 

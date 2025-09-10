@@ -176,7 +176,7 @@ class ClientTest extends TestCase
         $this->assertContains($key, $keys);
         
         // Delete by tag
-        $this->assertTrue($this->client->deleteByTag($tag));
+        $this->assertGreaterThan(0, $this->client->deleteByTag($tag));
         
         // Verify deletion
         $this->assertNull($this->client->get($key));

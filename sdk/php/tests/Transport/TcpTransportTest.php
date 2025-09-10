@@ -160,10 +160,11 @@ class TcpTransportTest extends TestCase
     {
         $transport = new TcpTransport($this->createMockConfig());
 
-        // Health check is not supported over TCP transport
-        $this->expectException(ApiException::class);
-        $this->expectExceptionMessage('health not supported over TCP transport');
-        $transport->health();
+        // Health check is now supported as a connectivity test
+        $result = $transport->health();
+        $this->assertIsArray($result);
+        $this->assertEquals('ok', $result['status']);
+        $this->assertEquals('tcp', $result['transport']);
     }
     
     public function test_connection_failure(): void
@@ -270,8 +271,8 @@ class TcpTransportTest extends TestCase
         $this->assertGreaterThanOrEqual(0, $result);
 
         // Verify data is gone
-        $response = $transport->get('flush:test:1');
-        $this->assertNull($response);
+        $this->expectException(NotFoundException::class);
+        $transport->get('flush:test:1');
     }
 
     public function test_auth_operations(): void

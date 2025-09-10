@@ -125,7 +125,7 @@ class LiveServerTest extends TestCase
         
         // 7. Health check
         $health = $client->health();
-        $this->assertSame('OK', $health['status']);
+        $this->assertSame('ok', $health['status']);
         
         // 8. Cleanup by tag
         $this->assertTrue($client->invalidateByTag($tag));
@@ -177,7 +177,7 @@ class LiveServerTest extends TestCase
         }
         
         // Bulk cleanup
-        $this->assertTrue($client->bulkDelete($keys));
+        $this->assertGreaterThan(0, $client->bulkDelete($keys));
         
         // Verify cleanup
         $results = $client->bulkGet($keys);
@@ -237,7 +237,7 @@ class LiveServerTest extends TestCase
         $this->assertGreaterThan(0, $keysBefore);
         
         // Flush and verify
-        $this->assertTrue($client->flush());
+        $this->assertGreaterThan(0, $client->flush());
         
         $stats = $client->getStats();
         $this->assertSame(0, $stats['items']);

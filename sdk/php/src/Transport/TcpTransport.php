@@ -128,9 +128,10 @@ final class TcpTransport implements TransportInterface
      */
     public function getKeysByTag(string $tag): array
     {
-        $resp = $this->cmd("GET_TAG	{$tag}"); $parts = explode("	", $resp);
-        if ($parts[0] !== 'GET_TAG') return [];
-        return explode(",", $parts[1] ?? '');
+        $resp = $this->cmd("KEYS_BY_TAG	{$tag}"); $parts = explode("	", $resp);
+        if ($parts[0] !== 'KEYS') return [];
+        $keysStr = $parts[1] ?? '';
+        return empty($keysStr) ? [] : explode(",", $keysStr);
     }
 
     /**
@@ -164,7 +165,34 @@ final class TcpTransport implements TransportInterface
      */
     public function search(array $params): array
     {
-        // Not supported over TCP in this simple protocol; ask user to use HTTP transport for search
+        // Limited search support for TCP - only tag-based queries
+        if (isset($params['tag_any']) && is_array($params['tag_any'])) {
+            // For tag_any, get keys for first tag (TCP protocol limitation)
+            $tag = $params['tag_any'][0] ?? null;
+            if ($tag) {
+                $keys = $this->getKeysByTag($tag);
+                $result = [];
+                foreach ($keys as $key) {
+                    $result[] = ['key' => $key];
+                }
+                return $result;
+            }
+        }
+        
+        if (isset($params['tag_all']) && is_array($params['tag_all'])) {
+            // For tag_all, get keys for first tag (TCP protocol limitation)
+            $tag = $params['tag_all'][0] ?? null;
+            if ($tag) {
+                $keys = $this->getKeysByTag($tag);
+                $result = [];
+                foreach ($keys as $key) {
+                    $result[] = ['key' => $key];
+                }
+                return $result;
+            }
+        }
+        
+        // For other search types, throw exception
         throw new ApiException('search not supported over TCP transport; use HTTP');
     }
 
@@ -215,8 +243,13 @@ final class TcpTransport implements TransportInterface
      */
     public function health(): array
     {
-        // Not supported over TCP protocol; use HTTP for health endpoints
-        throw new ApiException('health not supported over TCP transport; use HTTP');
+        // TCP doesn't have a dedicated health endpoint, so we'll do a simple connectivity test
+        try {
+            $this->conn();
+            return ['status' => 'ok', 'transport' => 'tcp'];
+        } catch (\Exception $e) {
+            throw new \TagCache\Exceptions\ConnectionException('TCP health check failed: ' . $e->getMessage());
+        }
     }
 
     public function login(string $username, string $password): bool

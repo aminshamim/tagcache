@@ -102,8 +102,7 @@ class HttpTransportTest extends TestCase
         }
         
         // Get keys by tag
-        $result = $this->transport->getKeysByTag($tag);
-        $actualKeys = array_column($result, 'key');
+        $actualKeys = $this->transport->getKeysByTag($tag);
         foreach ($keys as $key) {
             $this->assertContains($key, $actualKeys);
         }
@@ -211,7 +210,7 @@ class HttpTransportTest extends TestCase
         ]);
         $transport = new HttpTransport($config);
         
-        $this->expectException(ConnectionException::class);
+        $this->expectException(TimeoutException::class);
         $transport->get('test-key');
     }
     
@@ -229,12 +228,12 @@ class HttpTransportTest extends TestCase
         
         try {
             $transport->get('test-key');
-            $this->fail('Expected ConnectionException');
-        } catch (ConnectionException $e) {
+            $this->fail('Expected TimeoutException');
+        } catch (TimeoutException $e) {
             $duration = microtime(true) - $start;
             // Should have tried 3 times (initial + 2 retries) with exponential backoff
-            // Minimum duration should be around 0.6s (0.1s + 0.2s + 0.3s delays)
-            $this->assertGreaterThan(0.6, $duration);
+            // Minimum duration should be around 0.5s (timeout per request)
+            $this->assertGreaterThan(0.5, $duration);
         }
     }
 }

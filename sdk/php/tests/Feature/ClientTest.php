@@ -69,8 +69,7 @@ class ClientTest extends TestCase
         $this->assertTrue($this->client->put($key2, $value, 300, [$tag]));
         
         // Get keys by tag
-        $items = $this->client->getKeysByTag($tag);
-        $keys = array_map(fn($item) => $item->key, $items);
+        $keys = $this->client->getKeysByTag($tag);
         $this->assertContains($key1, $keys);
         $this->assertContains($key2, $keys);
         $this->assertCount(2, $keys);
@@ -100,8 +99,7 @@ class ClientTest extends TestCase
         $this->assertCount(3, $results);
         foreach ($keys as $key => $value) {
             $this->assertArrayHasKey($key, $results);
-            $this->assertInstanceOf(\TagCache\Models\Item::class, $results[$key]);
-            $this->assertSame($value, $results[$key]->value);
+            $this->assertSame($value, $results[$key]);
         }
         
         // Bulk delete
@@ -146,11 +144,11 @@ class ClientTest extends TestCase
         
         // Search by prefix
         $results = $this->client->search(['prefix' => $prefix]);
-        $this->assertGreaterThanOrEqual(3, count($results['keys'] ?? []));
+        $this->assertGreaterThanOrEqual(3, count($results));
         
-        // Search with pattern
+        // Search with pattern  
         $results = $this->client->search(['pattern' => $prefix . 'app*']);
-        $foundKeys = array_column($results['keys'] ?? [], 'key');
+        $foundKeys = array_column($results, 'key');
         $this->assertContains($prefix . 'apple', $foundKeys);
         $this->assertContains($prefix . 'application', $foundKeys);
         
@@ -172,8 +170,7 @@ class ClientTest extends TestCase
         $this->assertSame('value', $this->client->get($key));
         
         // Get keys by tag
-        $items = $this->client->getKeysByTag($tag);
-        $keys = array_map(fn($item) => $item->key, $items);
+        $keys = $this->client->getKeysByTag($tag);
         $this->assertContains($key, $keys);
         
         // Delete by tag

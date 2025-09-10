@@ -68,7 +68,13 @@ final class ConfigTest extends TestCase
     
     public function testEnvironmentVariables(): void
     {
-        // Mock environment variables using putenv for getenv compatibility
+        // Save original values
+        $originalUrl = $_ENV['TAGCACHE_HTTP_URL'] ?? null;
+        $originalToken = $_ENV['TAGCACHE_TOKEN'] ?? null;
+        
+        // Set test values
+        $_ENV['TAGCACHE_HTTP_URL'] = 'http://test:9090';
+        $_ENV['TAGCACHE_TOKEN'] = 'test-token';
         putenv('TAGCACHE_HTTP_URL=http://test:9090');
         putenv('TAGCACHE_TOKEN=test-token');
         
@@ -77,8 +83,21 @@ final class ConfigTest extends TestCase
         $this->assertSame('http://test:9090', $config->http['base_url']);
         $this->assertSame('test-token', $config->auth['token']);
         
-        // Cleanup
-        putenv('TAGCACHE_HTTP_URL');
-        putenv('TAGCACHE_TOKEN');
+        // Restore original values
+        if ($originalUrl !== null) {
+            $_ENV['TAGCACHE_HTTP_URL'] = $originalUrl;
+            putenv("TAGCACHE_HTTP_URL=$originalUrl");
+        } else {
+            unset($_ENV['TAGCACHE_HTTP_URL']);
+            putenv('TAGCACHE_HTTP_URL');
+        }
+        
+        if ($originalToken !== null) {
+            $_ENV['TAGCACHE_TOKEN'] = $originalToken;
+            putenv("TAGCACHE_TOKEN=$originalToken");
+        } else {
+            unset($_ENV['TAGCACHE_TOKEN']);
+            putenv('TAGCACHE_TOKEN');
+        }
     }
 }

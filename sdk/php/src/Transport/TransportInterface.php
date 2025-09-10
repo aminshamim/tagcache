@@ -44,6 +44,11 @@ interface TransportInterface
     public function search(array $params): array;
     
     /**
+     * @return array<string>
+     */
+    public function getKeysByTag(string $tag): array;
+    
+    /**
      * @return array<string, mixed>
      */
     public function stats(): array;
