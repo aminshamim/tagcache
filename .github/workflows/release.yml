@@ -11,6 +11,10 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: write
+  actions: read
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -19,9 +23,11 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
       - name: Get version from tag
         id: get_version
         run: |
@@ -32,13 +38,10 @@ jobs:
           fi
       
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.version }}
-          release_name: TagCache ${{ steps.get_version.outputs.version }}
+          name: TagCache ${{ steps.get_version.outputs.version }}
           body: |
             ## TagCache ${{ steps.get_version.outputs.version }}
             
@@ -66,6 +69,8 @@ jobs:
             - Windows: `tagcache-windows-x86_64.zip`
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build:
     needs: create-release
@@ -154,27 +159,15 @@ jobs:
           7z a ../../../${{ matrix.name }}.zip tagcache.exe
           cd ../../..
 
-      - name: Upload Unix Asset
-        if: matrix.os != 'windows-latest'
-        uses: actions/upload-release-asset@v1
+      - name: Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: |
+            ${{ matrix.name }}.tar.gz
+            ${{ matrix.name }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ matrix.name }}.tar.gz
-          asset_name: ${{ matrix.name }}.tar.gz
-          asset_content_type: application/gzip
-
-      - name: Upload Windows Asset
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ matrix.name }}.zip
-          asset_name: ${{ matrix.name }}.zip
-          asset_content_type: application/zip
 
   build-deb:
     needs: create-release
@@ -209,14 +202,12 @@ jobs:
           echo "deb_name=$(basename $DEB_FILE)" >> $GITHUB_OUTPUT
 
       - name: Upload DEB Asset
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: ${{ steps.find_deb.outputs.deb_file }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ steps.find_deb.outputs.deb_file }}
-          asset_name: ${{ steps.find_deb.outputs.deb_name }}
-          asset_content_type: application/vnd.debian.binary-package
 
   build-rpm:
     needs: create-release
@@ -244,11 +235,9 @@ jobs:
           echo "rpm_name=$(basename $RPM_FILE)" >> $GITHUB_OUTPUT
 
       - name: Upload RPM Asset
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: ${{ steps.find_rpm.outputs.rpm_file }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ steps.find_rpm.outputs.rpm_file }}
-          asset_name: ${{ steps.find_rpm.outputs.rpm_name }}
-          asset_content_type: application/x-rpm
