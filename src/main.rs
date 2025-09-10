@@ -34,6 +34,16 @@ pub struct Key(String); // Simple wrapper; cloning duplicates the underlying Str
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Tag(String);
 
+impl Key {
+    pub fn new<S: Into<String>>(s: S) -> Self { Key(s.into()) }
+    pub fn as_str(&self) -> &str { &self.0 }
+}
+
+impl Tag {
+    pub fn new<S: Into<String>>(s: S) -> Self { Tag(s.into()) }
+    pub fn as_str(&self) -> &str { &self.0 }
+}
+
 // Represents one cached entry (the stored value + metadata).
 #[derive(Debug, Clone)]
 pub struct Entry {
