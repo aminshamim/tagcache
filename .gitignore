@@ -61,6 +61,15 @@ bench_output/
 # Ignore dist or packaged release directories (optional)
 /dist/
 
+# ---- Release Artifacts ----
+# Generated release assets (keep source packaging files)
+*.tar.gz
+*.zip
+*.deb
+*.rpm
+*.dmg
+*.msi
+
 # ---- Custom Project Notes ----
 # Add any local override env files here if you create them
 .env.local

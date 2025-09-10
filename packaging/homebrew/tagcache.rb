@@ -1,32 +1,35 @@
 class Tagcache < Formula
   desc "Lightweight, sharded, tag-aware in-memory cache server"
   homepage "https://github.com/aminshamim/tagcache"
-  version "1.0.0"
+  version "1.0.2"
+  license "MIT"
   
   on_macos do
     if Hardware::CPU.intel?
       url "https://github.com/aminshamim/tagcache/releases/download/v#{version}/tagcache-macos-x86_64.tar.gz"
-      sha256 "REPLACE_WITH_ACTUAL_SHA256_FOR_INTEL_MAC"
+      sha256 "978de2727a5d80fc2071866539b3ac234800eef0897862d250bbff0f8ef6b767"
     end
     if Hardware::CPU.arm?
       url "https://github.com/aminshamim/tagcache/releases/download/v#{version}/tagcache-macos-arm64.tar.gz"
-      sha256 "REPLACE_WITH_ACTUAL_SHA256_FOR_ARM_MAC"
+      sha256 "51b3006febedf92f40b7845ff33c18607f794788e811c354611e37bd38f14de4"
     end
   end
 
   on_linux do
-    if Hardware::CPU.intel?
-      url "https://github.com/aminshamim/tagcache/releases/download/v#{version}/tagcache-linux-x86_64.tar.gz"
-      sha256 "REPLACE_WITH_ACTUAL_SHA256_FOR_LINUX_X86_64"
-    end
-    if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/aminshamim/tagcache/releases/download/v#{version}/tagcache-linux-arm64.tar.gz"
-      sha256 "REPLACE_WITH_ACTUAL_SHA256_FOR_LINUX_ARM64"
-    end
+    # Linux binaries will be available in future releases
+    # For now, build from source on Linux
+    depends_on "rust" => :build
   end
 
   def install
-    bin.install "tagcache"
+    if OS.linux?
+      # Build from source on Linux
+      system "cargo", "build", "--release"
+      bin.install "target/release/tagcache"
+    else
+      # Use pre-built binary on macOS
+      bin.install "tagcache"
+    end
     
     # Install example configuration
     (etc/"tagcache").mkpath

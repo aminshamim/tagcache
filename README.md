@@ -18,16 +18,46 @@ A lightweight, sharded, tag-aware in‑memory cache server written in Rust. It e
 
 ## Installation
 
-### Homebrew (macOS/Linux)
+### Pre-built Binaries (Recommended)
+
+#### macOS (Both Intel and Apple Silicon supported)
 ```bash
-brew install tagcache
+# For macOS Intel (x86_64)
+wget https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-macos-x86_64.tar.gz
+tar xzf tagcache-macos-x86_64.tar.gz
+sudo cp tagcache /usr/local/bin/
+
+# For macOS Apple Silicon (ARM64/M1/M2)
+wget https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-macos-arm64.tar.gz
+tar xzf tagcache-macos-arm64.tar.gz
+sudo cp tagcache /usr/local/bin/
+
+# Then run
+tagcache
 ```
 
-### Debian/Ubuntu
+#### Windows
 ```bash
-# Download from releases page
-wget https://github.com/aminshamim/tagcache/releases/download/v0.1.0/tagcache_0.1.0_amd64.deb
-sudo dpkg -i tagcache_0.1.0_amd64.deb
+# Download and extract
+curl -L -o tagcache-windows.zip https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-windows-x86_64.exe.zip
+# Extract and run tagcache.exe
+```
+
+### Homebrew (macOS/Linux)
+```bash
+# Install from our tap
+brew tap aminshamim/tap
+brew install tagcache
+
+# Or install directly
+brew install aminshamim/tap/tagcache
+```
+
+### Debian/Ubuntu (Building)
+```bash
+# Download from releases page (when available)
+wget https://github.com/aminshamim/tagcache/releases/download/v1.0.2/tagcache_1.0.2_amd64.deb
+sudo dpkg -i tagcache_1.0.2_amd64.deb
 
 # Start the service
 sudo systemctl enable tagcache
