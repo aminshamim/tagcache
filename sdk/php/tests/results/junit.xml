@@ -1,28 +1,52 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
-  <testsuite name="CLI Arguments" tests="15" assertions="56" errors="0" failures="0" skipped="0" time="0.434964">
-    <testsuite name="TagCache\Tests\ClientTest" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" tests="10" assertions="46" errors="0" failures="0" skipped="0" time="0.106724">
-      <testcase name="testPutAndGet" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="36" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.049330"/>
-      <testcase name="testGetNonExistent" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="53" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.003262"/>
-      <testcase name="testDeleteNonExistent" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="59" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.001946"/>
-      <testcase name="testPutWithTags" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="64" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="7" time="0.006735"/>
-      <testcase name="testBulkOperations" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="88" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="12" time="0.006704"/>
-      <testcase name="testStats" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="117" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.003373"/>
-      <testcase name="testHealth" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="125" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.003402"/>
-      <testcase name="testSearch" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="133" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="7" time="0.011111"/>
-      <testcase name="testTagHelpers" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="163" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="5" time="0.016933">
+  <testsuite name="CLI Arguments" tests="35" assertions="121" errors="0" failures="0" skipped="1" time="0.635260">
+    <testsuite name="TagCache\Tests\ClientTest" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" tests="10" assertions="46" errors="0" failures="0" skipped="0" time="0.085348">
+      <testcase name="testPutAndGet" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="36" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.042599"/>
+      <testcase name="testGetNonExistent" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="53" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.002744"/>
+      <testcase name="testDeleteNonExistent" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="59" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.001729"/>
+      <testcase name="testPutWithTags" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="64" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="7" time="0.004931"/>
+      <testcase name="testBulkOperations" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="88" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="12" time="0.005017"/>
+      <testcase name="testStats" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="117" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.002057"/>
+      <testcase name="testHealth" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="125" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.001897"/>
+      <testcase name="testSearch" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="133" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="7" time="0.007125"/>
+      <testcase name="testTagHelpers" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="163" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="5" time="0.014788">
         <system-out>
-DEBUG TEST: key='helper:test:68c2acc8d1467', tag='helper-tag-68c2acc8d1469', found keys: ["helper:test:68c2acc8d1467"]
+DEBUG TEST: key='helper:test:68c2b80a6fc92', tag='helper-tag-68c2b80a6fc93', found keys: ["helper:test:68c2b80a6fc92"]
 </system-out>
       </testcase>
-      <testcase name="testInvalidateByKey" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="189" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="4" time="0.003927"/>
+      <testcase name="testInvalidateByKey" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="189" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="4" time="0.002462"/>
     </testsuite>
-    <testsuite name="HttpTransportTest" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" tests="5" assertions="10" errors="0" failures="0" skipped="0" time="0.328240">
-      <testcase name="testBuilds" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="10" class="HttpTransportTest" classname="HttpTransportTest" assertions="1" time="0.001132"/>
-      <testcase name="testGuzzleClientIsUsed" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="25" class="HttpTransportTest" classname="HttpTransportTest" assertions="2" time="0.000271"/>
-      <testcase name="testAuthenticationFailureDoesNotRetry" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="49" class="HttpTransportTest" classname="HttpTransportTest" assertions="2" time="0.011192"/>
-      <testcase name="testConnectionFailureRetriesWithExponentialBackoff" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="82" class="HttpTransportTest" classname="HttpTransportTest" assertions="2" time="0.314680"/>
-      <testcase name="testConfigurationExceptionForMissingSerializerExtension" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="117" class="HttpTransportTest" classname="HttpTransportTest" assertions="3" time="0.000965"/>
+    <testsuite name="HttpTransportTest" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" tests="5" assertions="10" errors="0" failures="0" skipped="0" time="0.323821">
+      <testcase name="testBuilds" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="10" class="HttpTransportTest" classname="HttpTransportTest" assertions="1" time="0.001001"/>
+      <testcase name="testGuzzleClientIsUsed" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="25" class="HttpTransportTest" classname="HttpTransportTest" assertions="2" time="0.000387"/>
+      <testcase name="testAuthenticationFailureDoesNotRetry" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="49" class="HttpTransportTest" classname="HttpTransportTest" assertions="2" time="0.008081"/>
+      <testcase name="testConnectionFailureRetriesWithExponentialBackoff" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="82" class="HttpTransportTest" classname="HttpTransportTest" assertions="2" time="0.313605"/>
+      <testcase name="testConfigurationExceptionForMissingSerializerExtension" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="117" class="HttpTransportTest" classname="HttpTransportTest" assertions="3" time="0.000748"/>
+    </testsuite>
+    <testsuite name="TagCache\Tests\TcpTransportTest" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" tests="20" assertions="65" errors="0" failures="0" skipped="1" time="0.226091">
+      <testcase name="testBuilds" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="54" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="1" time="0.003918"/>
+      <testcase name="testConfigurationValidation" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="61" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="1" time="0.000601"/>
+      <testcase name="testInvalidSerializerConfiguration" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="74" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="0" time="0.004829">
+        <skipped/>
+      </testcase>
+      <testcase name="testConnectionFailureWithRetry" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="92" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="2" time="0.188731"/>
+      <testcase name="testHealthCheckWithConnectionDetails" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="116" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="9" time="0.002183"/>
+      <testcase name="testEnhancedSerialization" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="135" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="3" time="0.002755"/>
+      <testcase name="testEnhancedPutWithDefaultTtl" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="164" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="1" time="0.001242"/>
+      <testcase name="testEnhancedGetWithDeserialization" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="179" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="3" time="0.001934"/>
+      <testcase name="testGetNotFound" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="199" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="2" time="0.001521"/>
+      <testcase name="testEnhancedDelete" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="212" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="2" time="0.001989"/>
+      <testcase name="testBulkOperations" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="229" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="9" time="0.003096"/>
+      <testcase name="testTagOperations" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="262" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="6" time="0.001479"/>
+      <testcase name="testEnhancedSearch" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="295" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="3" time="0.003181"/>
+      <testcase name="testUnsupportedOperations" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="320" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="2" time="0.000497"/>
+      <testcase name="testAuthenticationNotSupported" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="328" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="2" time="0.000427"/>
+      <testcase name="testEnhancedStats" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="335" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="11" time="0.002213"/>
+      <testcase name="testFlushOperation" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="363" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="2" time="0.001607"/>
+      <testcase name="testComplexSearchNotSupported" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="379" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="2" time="0.000558"/>
+      <testcase name="testInvalidateTagsAllModeNotSupported" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="387" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="2" time="0.000332"/>
+      <testcase name="testConnectionPoolBehavior" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="395" class="TagCache\Tests\TcpTransportTest" classname="TagCache.Tests.TcpTransportTest" assertions="2" time="0.002994"/>
     </testsuite>
   </testsuite>
 </testsuites>
