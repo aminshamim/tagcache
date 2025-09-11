@@ -27,6 +27,8 @@ final class HttpTransport implements TransportInterface
     private ?string $token;
     private ?string $basicUser;
     private ?string $basicPass;
+    private string $serializer;
+    private bool $autoSerialize;
 
     public function __construct(Config $config)
     {
@@ -38,6 +40,10 @@ final class HttpTransport implements TransportInterface
         // Support basic auth username/password
         $this->basicUser = $config->auth['username'] ?? null;
         $this->basicPass = $config->auth['password'] ?? null;
+        
+        // Initialize serialization settings
+        $this->serializer = $this->validateSerializer($config->http['serializer'] ?? 'native');
+        $this->autoSerialize = (bool)($config->http['auto_serialize'] ?? true);
 
         // Initialize Guzzle client
         $this->client = new Client([
@@ -208,9 +214,12 @@ final class HttpTransport implements TransportInterface
 
     public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool
     {
+        // Serialize the value if needed
+        $serializedValue = $this->serializeValue($value);
+        
         // server expects /keys/:key { value, ttl_ms, tags }
         $this->request('PUT', '/keys/'.rawurlencode($key), [
-            'value' => $value,
+            'value' => $serializedValue,
             'ttl_ms' => $ttlMs,
             'tags' => array_values(array_unique(array_map('strval', $tags)))
         ]);
@@ -223,8 +232,15 @@ final class HttpTransport implements TransportInterface
     public function get(string $key): array
     {
         $res = $this->request('GET', '/keys/'.rawurlencode($key));
-    if (isset($res['error']) && in_array($res['error'], ['not_found', 'not found', 'not_found'])) throw new NotFoundException($res['error']);
-        // normalize into item shape if REST provides metadata endpoint
+        if (isset($res['error']) && in_array($res['error'], ['not_found', 'not found', 'not_found'])) {
+            throw new NotFoundException($res['error']);
+        }
+        
+        // Deserialize the value if needed (use array_key_exists since value might be null)
+        if (array_key_exists('value', $res)) {
+            $res['value'] = $this->deserializeValue($res['value']);
+        }
+        
         return $res;
     }
 
@@ -262,14 +278,24 @@ final class HttpTransport implements TransportInterface
      */
     public function bulkGet(array $keys): array
     {
-    $res = $this->request('POST', '/keys/bulk/get', ['keys' => array_values($keys)]);
-    $items = $res['items'] ?? [];
-    $map = [];
-    foreach ($items as $it) { $map[$it['key']] = $it; }
-    // Preserve requested order and include nulls for missing
-    $out = [];
-    foreach ($keys as $k) { $out[$k] = $map[$k] ?? null; }
-    return $out;
+        $res = $this->request('POST', '/keys/bulk/get', ['keys' => array_values($keys)]);
+        $items = $res['items'] ?? [];
+        $map = [];
+        
+        foreach ($items as $item) {
+            // Deserialize the value if needed (use array_key_exists since value might be null)
+            if (array_key_exists('value', $item)) {
+                $item['value'] = $this->deserializeValue($item['value']);
+            }
+            $map[$item['key']] = $item;
+        }
+        
+        // Preserve requested order and include nulls for missing
+        $out = [];
+        foreach ($keys as $k) {
+            $out[$k] = $map[$k] ?? null;
+        }
+        return $out;
     }
 
     public function bulkDelete(array $keys): int
@@ -363,5 +389,125 @@ final class HttpTransport implements TransportInterface
         // Guzzle automatically manages connections and doesn't need explicit closing
         // but we can clear the reference to help with memory management
         unset($this->client);
+    }
+
+    /**
+     * Validate and determine the best available serializer
+     */
+    private function validateSerializer(string $preferred): string
+    {
+        // Check if the preferred serializer is available
+        return match($preferred) {
+            'igbinary' => function_exists('igbinary_serialize') && function_exists('igbinary_unserialize') ? 'igbinary' : 
+                         (function_exists('msgpack_pack') && function_exists('msgpack_unpack') ? 'msgpack' : 'native'),
+            'msgpack' => function_exists('msgpack_pack') && function_exists('msgpack_unpack') ? 'msgpack' : 'native',
+            'native' => 'native',
+            default => 'native' // Always fall back to native PHP serialization
+        };
+    }
+
+    /**
+     * Serialize a value for storage
+     * 
+     * @param mixed $value The value to serialize
+     * @return string The serialized value
+     */
+    private function serializeValue(mixed $value): string
+    {
+        // If auto-serialization is disabled, only handle strings
+        if (!$this->autoSerialize) {
+            if (!is_string($value)) {
+                throw new \InvalidArgumentException('Auto-serialization is disabled. Only string values are allowed.');
+            }
+            return $value;
+        }
+
+        // Handle primitives that don't need serialization
+        if (is_string($value)) {
+            return $value;
+        }
+        
+        if (is_int($value) || is_float($value)) {
+            return (string)$value;
+        }
+        
+        if (is_bool($value)) {
+            return $value ? '__TC_TRUE__' : '__TC_FALSE__';
+        }
+        
+        if (is_null($value)) {
+            return '__TC_NULL__';
+        }
+
+        // For complex types (arrays, objects), use direct serialization
+        $serialized = $this->performSerialization($value);
+        return '__TC_SERIALIZED__' . base64_encode($serialized);
+    }
+
+    /**
+     * Deserialize a value from storage
+     * 
+     * @param string $value The stored value
+     * @return mixed The deserialized value
+     */
+    private function deserializeValue(string $value): mixed
+    {
+        // Check for special markers
+        if ($value === '__TC_NULL__') {
+            return null;
+        }
+        
+        if ($value === '__TC_TRUE__') {
+            return true;
+        }
+        
+        if ($value === '__TC_FALSE__') {
+            return false;
+        }
+        
+        // Check for serialized data
+        if (str_starts_with($value, '__TC_SERIALIZED__')) {
+            $serializedData = substr($value, strlen('__TC_SERIALIZED__'));
+            $decodedData = base64_decode($serializedData);
+            return $this->performDeserialization($decodedData);
+        }
+        
+        // For backward compatibility, try to detect numeric values
+        if (is_numeric($value)) {
+            if (strpos($value, '.') !== false) {
+                return (float)$value;
+            } else {
+                return (int)$value;
+            }
+        }
+        
+        // Default to string
+        return $value;
+    }
+
+    /**
+     * Perform the actual serialization using the configured serializer
+     */
+    private function performSerialization(mixed $value): string
+    {
+        return match($this->serializer) {
+            'igbinary' => function_exists('igbinary_serialize') ? igbinary_serialize($value) : serialize($value),
+            'msgpack' => function_exists('msgpack_pack') ? msgpack_pack($value) : serialize($value),
+            'native' => serialize($value),
+            default => serialize($value)
+        };
+    }
+
+    /**
+     * Perform the actual deserialization using the configured serializer
+     */
+    private function performDeserialization(string $data): mixed
+    {
+        return match($this->serializer) {
+            'igbinary' => function_exists('igbinary_unserialize') ? igbinary_unserialize($data) : unserialize($data),
+            'msgpack' => function_exists('msgpack_unpack') ? msgpack_unpack($data) : unserialize($data),
+            'native' => unserialize($data),
+            default => unserialize($data)
+        };
     }
 }

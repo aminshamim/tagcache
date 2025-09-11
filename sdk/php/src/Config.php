@@ -69,6 +69,9 @@ final class Config
             'connection_pool_size' => (int)($httpBase['connection_pool_size'] ?? 10),
             'keep_alive' => $httpBase['keep_alive'] ?? true,
             'user_agent' => $httpBase['user_agent'] ?? 'TagCache-PHP-SDK/1.0',
+            // Serialization configuration
+            'serializer' => $httpBase['serializer'] ?? $options['serializer'] ?? 'igbinary', // igbinary > msgpack > native
+            'auto_serialize' => $httpBase['auto_serialize'] ?? $options['auto_serialize'] ?? true,
         ];
         
         // TCP configuration optimized for high performance (matches tagcache.sh defaults)
@@ -164,6 +167,8 @@ final class Config
             'http' => [
                 'base_url' => $getEnvValue('TAGCACHE_HTTP_URL', 'http://localhost:8080'),
                 'timeout_ms' => (int)$getEnvValue('TAGCACHE_HTTP_TIMEOUT', 5000),
+                'serializer' => $getEnvValue('TAGCACHE_SERIALIZER', 'igbinary'),
+                'auto_serialize' => filter_var($getEnvValue('TAGCACHE_AUTO_SERIALIZE', true), FILTER_VALIDATE_BOOLEAN),
             ],
             'tcp' => [
                 'host' => $getEnvValue('TAGCACHE_TCP_HOST', 'localhost'), 

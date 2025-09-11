@@ -57,9 +57,8 @@ final class Client implements ClientInterface
         try {
             $res = $this->transport->get($key);
             // Tests generally expect raw value when get() used directly for backward compatibility
-            if (isset($res['value'])) return $res['value'];
-            if (isset($res['value_raw'])) return $res['value_raw'];
-            if (isset($res['key']) && isset($res['value'])) return $res['value'];
+            if (array_key_exists('value', $res)) return $res['value'];
+            if (array_key_exists('value_raw', $res)) return $res['value_raw'];
             return $res; // fallback: return array/metadata
         } catch (NotFoundException $e) {
             return null;
@@ -98,8 +97,8 @@ final class Client implements ClientInterface
         foreach ($raw as $k => $res) {
             // Return raw values for backward compatibility, like get() method
             if ($res) {
-                if (isset($res['value'])) $out[$k] = $res['value'];
-                elseif (isset($res['value_raw'])) $out[$k] = $res['value_raw'];
+                if (array_key_exists('value', $res)) $out[$k] = $res['value'];
+                elseif (array_key_exists('value_raw', $res)) $out[$k] = $res['value_raw'];
                 else $out[$k] = $res;
             }
             // Skip missing keys (don't add them to result)
