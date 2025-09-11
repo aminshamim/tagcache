@@ -1,31 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
-  <testsuite name="CLI Arguments" tests="14" assertions="52" errors="0" failures="0" skipped="0" time="0.085022">
-    <testsuite name="TagCache\Tests\ClientTest" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" tests="10" assertions="46" errors="0" failures="0" skipped="0" time="0.082019">
-      <testcase name="testPutAndGet" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="36" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.035271"/>
-      <testcase name="testGetNonExistent" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="53" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.002550"/>
-      <testcase name="testDeleteNonExistent" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="59" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.001812"/>
-      <testcase name="testPutWithTags" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="64" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="7" time="0.004823"/>
-      <testcase name="testBulkOperations" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="88" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="12" time="0.005261"/>
-      <testcase name="testStats" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="117" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.002554"/>
-      <testcase name="testHealth" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="125" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.001297"/>
-      <testcase name="testSearch" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="133" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="7" time="0.008466"/>
-      <testcase name="testTagHelpers" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="163" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="5" time="0.015856">
+  <testsuite name="CLI Arguments" tests="14" assertions="53" errors="0" failures="0" skipped="0" time="0.382718">
+    <testsuite name="TagCache\Tests\ClientTest" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" tests="10" assertions="46" errors="0" failures="0" skipped="0" time="0.065287">
+      <testcase name="testPutAndGet" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="36" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.019751"/>
+      <testcase name="testGetNonExistent" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="53" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.003606"/>
+      <testcase name="testDeleteNonExistent" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="59" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="1" time="0.002158"/>
+      <testcase name="testPutWithTags" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="64" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="7" time="0.006024"/>
+      <testcase name="testBulkOperations" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="88" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="12" time="0.006657"/>
+      <testcase name="testStats" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="117" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.002569"/>
+      <testcase name="testHealth" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="125" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="3" time="0.001318"/>
+      <testcase name="testSearch" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="133" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="7" time="0.007022"/>
+      <testcase name="testTagHelpers" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="163" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="5" time="0.013643">
         <system-out>
-DEBUG TEST: key='helper:test:68c295ceb5a48', tag='helper-tag-68c295ceb5a49', found keys: ["helper:test:68c295ceb5a48"]
+DEBUG TEST: key='helper:test:68c298e9f3fda', tag='helper-tag-68c298e9f3fdb', found keys: ["helper:test:68c298e9f3fda"]
 </system-out>
       </testcase>
-      <testcase name="testInvalidateByKey" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="189" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="4" time="0.004129"/>
+      <testcase name="testInvalidateByKey" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ClientTest.php" line="189" class="TagCache\Tests\ClientTest" classname="TagCache.Tests.ClientTest" assertions="4" time="0.002539"/>
     </testsuite>
-    <testsuite name="HttpTransportTest" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" tests="2" assertions="3" errors="0" failures="0" skipped="0" time="0.001420">
-      <testcase name="testBuilds" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="9" class="HttpTransportTest" classname="HttpTransportTest" assertions="1" time="0.000984"/>
-      <testcase name="testGuzzleClientIsUsed" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="24" class="HttpTransportTest" classname="HttpTransportTest" assertions="2" time="0.000437"/>
-    </testsuite>
-    <testsuite name="TcpTransportTest" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" tests="1" assertions="1" errors="0" failures="0" skipped="0" time="0.001194">
-      <testcase name="testBuilds" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/TcpTransportTest.php" line="9" class="TcpTransportTest" classname="TcpTransportTest" assertions="1" time="0.001194"/>
-    </testsuite>
-    <testsuite name="ConfigTest" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ConfigTest.php" tests="1" assertions="2" errors="0" failures="0" skipped="0" time="0.000387">
-      <testcase name="testFromEnvDefaults" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/ConfigTest.php" line="8" class="ConfigTest" classname="ConfigTest" assertions="2" time="0.000387"/>
+    <testsuite name="HttpTransportTest" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" tests="4" assertions="7" errors="0" failures="0" skipped="0" time="0.317431">
+      <testcase name="testBuilds" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="9" class="HttpTransportTest" classname="HttpTransportTest" assertions="1" time="0.000833"/>
+      <testcase name="testGuzzleClientIsUsed" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="24" class="HttpTransportTest" classname="HttpTransportTest" assertions="2" time="0.000414"/>
+      <testcase name="testAuthenticationFailureDoesNotRetry" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="48" class="HttpTransportTest" classname="HttpTransportTest" assertions="2" time="0.003297"/>
+      <testcase name="testConnectionFailureRetriesWithExponentialBackoff" file="/Users/aminshamim/projects/tagcache/sdk/php/tests/HttpTransportTest.php" line="81" class="HttpTransportTest" classname="HttpTransportTest" assertions="2" time="0.312887"/>
     </testsuite>
   </testsuite>
 </testsuites>

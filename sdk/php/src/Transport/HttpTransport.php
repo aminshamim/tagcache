@@ -67,12 +67,17 @@ final class HttpTransport implements TransportInterface
             
             try {
                 return $this->doRequest($method, $path, $json);
-            } catch (ConnectionException | TimeoutException $e) {
+            } catch (ConnectionException | TimeoutException | ServerException $e) {
+                // Retry connection errors, timeouts, and server errors (5xx)
                 $lastError = $e;
                 if ($attempt === $this->maxRetries) break;
                 continue; // retry
+            } catch (UnauthorizedException | NotFoundException | ApiException $e) {
+                // Don't retry client errors (4xx) - these indicate permanent issues
+                throw $e;
             } catch (\Throwable $e) {
-                throw $e; // don't retry non-connection errors
+                // Don't retry other unexpected errors
+                throw $e;
             }
         }
         
