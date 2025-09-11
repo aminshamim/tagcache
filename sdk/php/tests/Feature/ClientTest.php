@@ -24,6 +24,11 @@ class ClientTest extends TestCase
             'http' => [
                 'base_url' => $_ENV['TAGCACHE_HTTP_URL'] ?? 'http://localhost:8080',
                 'timeout_ms' => 5000,
+                'debug' => true,
+            ],
+            'auth' => [
+                'username' => $_ENV['TAGCACHE_USERNAME'] ?? 'admin',
+                'password' => $_ENV['TAGCACHE_PASSWORD'] ?? 'password',
             ],
         ]);
         $this->client = new Client($this->config);
@@ -35,8 +40,9 @@ class ClientTest extends TestCase
         $value = 'test-value-' . time();
         $tags = ['test', 'unit'];
         
-        // Put
-        $this->assertTrue($this->client->put($key, $value, 300, $tags));
+        // Put - use longer TTL to avoid expiration
+        $putResult = $this->client->put($key, $value, 30000, $tags); // 30 seconds
+        $this->assertTrue($putResult, 'PUT operation returned false, check server logs');
         
         // Get
         $result = $this->client->get($key);

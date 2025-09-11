@@ -51,6 +51,10 @@ class LiveServerTest extends TestCase
                     'base_url' => $_ENV['TAGCACHE_HTTP_URL'] ?? 'http://localhost:8080',
                     'timeout_ms' => 5000,
                 ],
+                'auth' => [
+                    'username' => $_ENV['TAGCACHE_USERNAME'] ?? 'admin',
+                    'password' => $_ENV['TAGCACHE_PASSWORD'] ?? 'password',
+                ],
             ]))],
         ];
     }

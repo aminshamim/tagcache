@@ -25,6 +25,10 @@ class ClientTest extends TestCase
                 'base_url' => 'http://localhost:8080',
                 'timeout_ms' => 5000,
             ],
+            'auth' => [
+                'username' => 'admin',
+                'password' => 'password',
+            ],
         ]);
         $this->client = new Client($this->config);
     }

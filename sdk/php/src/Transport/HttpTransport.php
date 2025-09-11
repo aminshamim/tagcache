@@ -2,6 +2,13 @@
 
 namespace TagCache\Transport;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Exception\ServerException as GuzzleServerException;
+use GuzzleHttp\Exception\TooManyRedirectsException;
+use GuzzleHttp\RequestOptions;
 use TagCache\Config;
 use TagCache\Exceptions\ApiException;
 use TagCache\Exceptions\NotFoundException;
@@ -12,6 +19,7 @@ use TagCache\Exceptions\ServerException;
 
 final class HttpTransport implements TransportInterface
 {
+    private Client $client;
     private string $baseUrl;
     private int $timeoutMs;
     private int $maxRetries;
@@ -24,12 +32,24 @@ final class HttpTransport implements TransportInterface
     {
         $this->baseUrl = rtrim($config->http['base_url'] ?? 'http://127.0.0.1:8080', '/');
         $this->timeoutMs = (int)($config->http['timeout_ms'] ?? 5000);
-    $this->maxRetries = (int)($config->http['max_retries'] ?? $config->http['retries'] ?? 3);
-    $this->retryDelayMs = (int)($config->http['retry_delay_ms'] ?? 100);
-    $this->token = ($config->auth['token'] ?? '') ?: null;
-    // Support basic auth username/password
-    $this->basicUser = $config->auth['username'] ?? null;
-    $this->basicPass = $config->auth['password'] ?? null;
+        $this->maxRetries = (int)($config->http['max_retries'] ?? $config->http['retries'] ?? 3);
+        $this->retryDelayMs = (int)($config->http['retry_delay_ms'] ?? 100);
+        $this->token = ($config->auth['token'] ?? '') ?: null;
+        // Support basic auth username/password
+        $this->basicUser = $config->auth['username'] ?? null;
+        $this->basicPass = $config->auth['password'] ?? null;
+
+        // Initialize Guzzle client
+        $this->client = new Client([
+            'base_uri' => $this->baseUrl,
+            'timeout' => $this->timeoutMs / 1000, // Guzzle expects seconds
+            'connect_timeout' => ($this->timeoutMs * 0.3) / 1000, // 30% of total timeout for connection
+            'allow_redirects' => false,
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'Connection' => 'keep-alive',
+            ],
+        ]);
     }
 
     /**
@@ -65,85 +85,120 @@ final class HttpTransport implements TransportInterface
      */
     private function doRequest(string $method, string $path, ?array $json = null): array
     {
-        $url = $this->baseUrl . $path;
-        // If GET with params, append as query string (server expects query for many endpoints)
-        if (strtoupper($method) === 'GET' && $json !== null) {
-            $qs = http_build_query($json);
-            $url .= (str_contains($url, '?') ? '&' : '?') . $qs;
-            $json = null; // don't send body on GET
-        }
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        if ($method !== '') {
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-        }
-        curl_setopt($ch, CURLOPT_TIMEOUT_MS, $this->timeoutMs);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, (int)($this->timeoutMs * 0.3)); // 30% of total timeout for connection
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-        // Build headers; prefer Bearer token if present, else Basic auth if available
-        $authHeader = null;
-        if (!empty($this->token)) {
-            $authHeader = 'Authorization: Bearer '.$this->token;
-        } elseif ($this->basicUser !== null && $this->basicPass !== null) {
-            $authHeader = 'Authorization: Basic '.base64_encode($this->basicUser.':'.$this->basicPass);
-        }
-        $headers = ['Content-Type: application/json', 'Connection: keep-alive'];
-        if ($authHeader !== null) $headers[] = $authHeader;
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        if ($json !== null) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($json, JSON_THROW_ON_ERROR));
-        }
-        
-        $resp = curl_exec($ch);
-        $errno = curl_errno($ch);
-        $error = curl_error($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        if ($resp === false) {
-            if ($errno === CURLE_OPERATION_TIMEOUTED) {
-                throw new TimeoutException('Request timeout: '.$error);
+        try {
+            $options = [
+                RequestOptions::HEADERS => $this->buildHeaders(),
+            ];
+
+            // If GET with params, append as query string
+            if (strtoupper($method) === 'GET' && $json !== null) {
+                $options[RequestOptions::QUERY] = $json;
+                $json = null; // don't send body on GET
             }
-            throw new ConnectionException('Connection error: '.$error);
-        }
-        
-        if (!is_string($resp)) {
-            throw new ServerException('Invalid response from server');
-        }
-        
-        $data = json_decode($resp, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new ServerException('Invalid JSON response: '.json_last_error_msg());
-        }
-        
-        if ($code >= 500) {
-            throw new ServerException('Server error '.$code.': '.($data['error'] ?? $resp));
-        }
-        if ($code === 401) {
-            // Try to exchange provided basic credentials for a token once, then retry automatically.
-            if ($this->basicUser !== null && $this->basicPass !== null && empty($this->token)) {
-                try {
-                    $loginRes = $this->doRequest('POST', '/auth/login', ['username' => $this->basicUser, 'password' => $this->basicPass]);
-                    if (isset($loginRes['token'])) {
-                        $this->token = $loginRes['token'];
-                        // retry original request with token
-                        return $this->doRequest($method, $path, $json);
-                    }
-                } catch (\Throwable $le) {
-                    // fall through to Unauthorized below
+
+            if ($json !== null) {
+                $options[RequestOptions::JSON] = $json;
+            }
+
+            $response = $this->client->request($method, $path, $options);
+            $body = $response->getBody()->getContents();
+            
+            $data = json_decode($body, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new ServerException('Invalid JSON response: '.json_last_error_msg());
+            }
+
+            return is_array($data) ? $data : [];
+
+        } catch (ConnectException $e) {
+            throw new ConnectionException('Connection error: ' . $e->getMessage(), 0, $e);
+        } catch (RequestException $e) {
+            if ($e->hasResponse()) {
+                $response = $e->getResponse();
+                $code = $response->getStatusCode();
+                $body = $response->getBody()->getContents();
+                
+                $data = json_decode($body, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    $data = ['error' => $body];
                 }
+
+                if ($code >= 500) {
+                    throw new ServerException('Server error '.$code.': '.($data['error'] ?? $body));
+                }
+                
+                if ($code === 401) {
+                    // Try to exchange provided basic credentials for a token once, then retry automatically.
+                    // Avoid infinite recursion by only doing this for non-login requests
+                    if ($this->basicUser !== null && $this->basicPass !== null && empty($this->token) && $path !== '/auth/login') {
+                        try {
+                            $loginRes = $this->doRequest('POST', '/auth/login', ['username' => $this->basicUser, 'password' => $this->basicPass]);
+                            if (isset($loginRes['token'])) {
+                                $this->token = $loginRes['token'];
+                                // retry original request with token
+                                return $this->doRequest($method, $path, $json);
+                            }
+                        } catch (\Throwable $le) {
+                            // fall through to Unauthorized below
+                        }
+                    }
+                    throw new UnauthorizedException($data['error'] ?? 'Unauthorized');
+                }
+                
+                if ($code === 404) {
+                    // Some handlers return { error: 'not_found' } with 200; tests expect NotFoundException on 404
+                    throw new NotFoundException($data['error'] ?? 'Not found');
+                }
+                
+                if ($code >= 400) {
+                    throw new ApiException('HTTP '.$code.': '.($data['error'] ?? $body));
+                }
+            } else {
+                // Handle timeout and connection errors
+                if (str_contains($e->getMessage(), 'timeout') || str_contains($e->getMessage(), 'timed out')) {
+                    throw new TimeoutException('Request timeout: ' . $e->getMessage(), 0, $e);
+                }
+                throw new ConnectionException('Connection error: ' . $e->getMessage(), 0, $e);
             }
-            throw new UnauthorizedException($data['error'] ?? 'Unauthorized');
+        } catch (GuzzleServerException $e) {
+            $response = $e->getResponse();
+            $body = $response->getBody()->getContents();
+            $data = json_decode($body, true);
+            throw new ServerException('Server error '.$response->getStatusCode().': '.($data['error'] ?? $body));
+        } catch (ClientException $e) {
+            $response = $e->getResponse();
+            $code = $response->getStatusCode();
+            $body = $response->getBody()->getContents();
+            $data = json_decode($body, true);
+            
+            if ($code === 401) {
+                throw new UnauthorizedException($data['error'] ?? 'Unauthorized');
+            }
+            if ($code === 404) {
+                throw new NotFoundException($data['error'] ?? 'Not found');
+            }
+            throw new ApiException('HTTP '.$code.': '.($data['error'] ?? $body));
+        } catch (TooManyRedirectsException $e) {
+            throw new ConnectionException('Too many redirects: ' . $e->getMessage(), 0, $e);
         }
-        if ($code === 404) {
-            // Some handlers return { error: 'not_found' } with 200; tests expect NotFoundException on 404
-            throw new NotFoundException($data['error'] ?? 'Not found');
-        }
-        if ($code >= 400) {
-            throw new ApiException('HTTP '.$code.': '.($data['error'] ?? $resp));
+    }
+
+    /**
+     * Build HTTP headers for requests
+     * @return array<string, string>
+     */
+    private function buildHeaders(): array
+    {
+        $headers = [];
+        
+        // Build auth header; prefer Bearer token if present, else Basic auth if available
+        if (!empty($this->token)) {
+            $headers['Authorization'] = 'Bearer ' . $this->token;
+        } elseif ($this->basicUser !== null && $this->basicPass !== null) {
+            $headers['Authorization'] = 'Basic ' . base64_encode($this->basicUser . ':' . $this->basicPass);
         }
         
-        return is_array($data) ? $data : [];
+        return $headers;
     }
 
     public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool
@@ -300,6 +355,8 @@ final class HttpTransport implements TransportInterface
 
     public function close(): void
     {
-        // HTTP transport doesn't need to close connections
+        // Guzzle automatically manages connections and doesn't need explicit closing
+        // but we can clear the reference to help with memory management
+        unset($this->client);
     }
 }
