@@ -22,17 +22,17 @@ final class Client implements ClientInterface
     private Config $config;
     private TransportInterface $transport;
 
-    public function __construct(Config $config, ?TransportInterface $transport = null)
+    public function __construct(?Config $config = null, ?TransportInterface $transport = null)
     {
-        $this->config = $config;
+        $this->config = $config ?? new Config();
         if ($transport) { $this->transport = $transport; }
         else {
-            $mode = strtolower($config->mode);
-            if ($mode === 'tcp') $this->transport = new TcpTransport($config);
+            $mode = strtolower($this->config->mode);
+            if ($mode === 'tcp') $this->transport = new TcpTransport($this->config);
             elseif ($mode === 'auto') {
-                try { $this->transport = new TcpTransport($config); }
-                catch (\Throwable $e) { $this->transport = new HttpTransport($config); }
-            } else { $this->transport = new HttpTransport($config); }
+                try { $this->transport = new TcpTransport($this->config); }
+                catch (\Throwable $e) { $this->transport = new HttpTransport($this->config); }
+            } else { $this->transport = new HttpTransport($this->config); }
         }
     }
 
