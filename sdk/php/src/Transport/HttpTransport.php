@@ -13,6 +13,7 @@ use TagCache\Config;
 use TagCache\Exceptions\ApiException;
 use TagCache\Exceptions\NotFoundException;
 use TagCache\Exceptions\ConnectionException;
+use TagCache\Exceptions\ConfigurationException;
 use TagCache\Exceptions\TimeoutException;
 use TagCache\Exceptions\UnauthorizedException;
 use TagCache\Exceptions\ServerException;
@@ -399,8 +400,9 @@ final class HttpTransport implements TransportInterface
         // Check if the preferred serializer is available
         return match($preferred) {
             'igbinary' => function_exists('igbinary_serialize') && function_exists('igbinary_unserialize') ? 'igbinary' : 
-                         (function_exists('msgpack_pack') && function_exists('msgpack_unpack') ? 'msgpack' : 'native'),
-            'msgpack' => function_exists('msgpack_pack') && function_exists('msgpack_unpack') ? 'msgpack' : 'native',
+                         throw new ConfigurationException("igbinary serializer is configured but igbinary extension is not available. Please install php-igbinary extension or change the serializer configuration."),
+            'msgpack' => function_exists('msgpack_pack') && function_exists('msgpack_unpack') ? 'msgpack' : 
+                        throw new ConfigurationException("msgpack serializer is configured but msgpack extension is not available. Please install php-msgpack extension or change the serializer configuration."),
             'native' => 'native',
             default => 'native' // Always fall back to native PHP serialization
         };
