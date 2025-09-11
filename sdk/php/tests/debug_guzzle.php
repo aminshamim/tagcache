@@ -27,7 +27,7 @@ try {
     echo "\nTesting PUT operation...\n";
     $key = 'debug:test:' . uniqid();
     $value = 'debug-value-' . time();
-    $result = $client->put($key, $value, 300, ['debug']);
+    $result = $client->put($key, $value, ['debug'], 300);
     var_dump($result);
     
     if ($result) {

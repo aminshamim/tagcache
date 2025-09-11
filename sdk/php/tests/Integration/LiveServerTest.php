@@ -99,8 +99,8 @@ class LiveServerTest extends TestCase
         $tag = "tag:$testId";
         
         // 1. Put operations
-        $this->assertTrue($client->put($key1, 'value1', 300, [$tag, 'test']));
-        $this->assertTrue($client->put($key2, 'value2', 300, [$tag, 'test']));
+        $this->assertTrue($client->put($key1, 'value1', [$tag, 'test'], 300));
+        $this->assertTrue($client->put($key2, 'value2', [$tag, 'test'], 300));
         
         // 2. Get operations
         $this->assertSame('value1', $client->get($key1));
@@ -150,7 +150,7 @@ class LiveServerTest extends TestCase
         // Test 1MB payload
         $largeValue = str_repeat('A', 1024 * 1024);
         
-        $this->assertTrue($client->put($key, $largeValue, 300, ['large']));
+        $this->assertTrue($client->put($key, $largeValue, ['large'], 300));
         $this->assertSame($largeValue, $client->get($key));
         
         // Cleanup
@@ -169,7 +169,7 @@ class LiveServerTest extends TestCase
         for ($i = 0; $i < 20; $i++) {
             $key = "concurrent:$i:$testId";
             $keys[] = $key;
-            $this->assertTrue($client->put($key, "value$i", 300, ['concurrent']));
+            $this->assertTrue($client->put($key, "value$i", ['concurrent'], 300));
         }
         
         // Verify all keys exist
@@ -203,9 +203,9 @@ class LiveServerTest extends TestCase
         $key3 = "tag:test3:$testId";
         
         // Create keys with overlapping tags
-        $this->assertTrue($client->put($key1, 'value1', 300, [$sharedTag, $uniqueTag1]));
-        $this->assertTrue($client->put($key2, 'value2', 300, [$sharedTag, $uniqueTag2]));
-        $this->assertTrue($client->put($key3, 'value3', 300, [$uniqueTag1]));
+        $this->assertTrue($client->put($key1, 'value1', [$sharedTag, $uniqueTag1], 300));
+        $this->assertTrue($client->put($key2, 'value2', [$sharedTag, $uniqueTag2], 300));
+        $this->assertTrue($client->put($key3, 'value3', [$uniqueTag1], 300));
         
         // Verify setup
         $this->assertCount(2, $client->getKeysByTag($sharedTag));
@@ -232,7 +232,7 @@ class LiveServerTest extends TestCase
         // Test flush operation (HTTP only feature in this test)
         $testKey = 'flush:test:' . uniqid();
         
-        $this->assertTrue($client->put($testKey, 'value', 300, ['flush']));
+        $this->assertTrue($client->put($testKey, 'value', ['flush'], 300));
         $this->assertSame('value', $client->get($testKey));
         
         // Note: Flush affects entire cache, so we test it exists first

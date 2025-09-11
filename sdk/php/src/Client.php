@@ -39,8 +39,13 @@ final class Client implements ClientInterface
     /**
      * @param string[] $tags
      */
-    public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool
+    public function put(string $key, mixed $value, array $tags = [], ?int $ttlMs = null): bool
     {
+        // Use default TTL from config if not specified
+        if ($ttlMs === null) {
+            $ttlMs = $this->config->cache['default_ttl_ms'] ?? null;
+        }
+        
         try {
             return $this->transport->put($key, $value, $ttlMs, $tags);
         } catch (\Throwable $e) {
@@ -152,12 +157,18 @@ final class Client implements ClientInterface
         return $this->transport->list($limit);
     }
 
-    public function getOrSet(string $key, callable $producer, ?int $ttlMs = null, array $tags = []): Item
+    public function getOrSet(string $key, callable $producer, array $tags = [], ?int $ttlMs = null): Item
     {
         $found = $this->get($key);
         if ($found) return $found;
+        
+        // Use default TTL from config if not specified
+        if ($ttlMs === null) {
+            $ttlMs = $this->config->cache['default_ttl_ms'] ?? null;
+        }
+        
         $value = $producer($key);
-        $this->put($key, $value, $ttlMs, $tags);
+        $this->put($key, $value, $tags, $ttlMs);
         return new Item($key, $value, $ttlMs, $tags);
     }
 
@@ -231,7 +242,7 @@ final class Client implements ClientInterface
     // Helper methods for convenience and test compatibility
     public function putWithTag(string $key, mixed $value, string $tag, ?int $ttlMs = null): bool
     {
-        return $this->put($key, $value, $ttlMs, [$tag]);
+        return $this->put($key, $value, [$tag], $ttlMs);
     }
     
     public function deleteByTag(string $tag): int

@@ -44,6 +44,8 @@ final class Config
     public readonly array $tcp;
     /** @var array<string, mixed> */
     public readonly array $auth;
+    /** @var array<string, mixed> */
+    public readonly array $cache;
     
     /** @var array<string, mixed>|null */
     private static ?array $credentialCache = null;
@@ -96,6 +98,14 @@ final class Config
                         : ((!empty($options['password'])) ? $options['password'] 
                         : ($credentials['password'] ?? '')),
             'auto_login' => $authBase['auto_login'] ?? true,
+        ];
+        
+        // Cache configuration with default TTL
+        $cacheBase = $options['cache'] ?? [];
+        $defaultTtl = $cacheBase['default_ttl_ms'] ?? $options['default_ttl_ms'] ?? null;
+        $this->cache = [
+            'default_ttl_ms' => $defaultTtl !== null ? (int)$defaultTtl : null,
+            'max_ttl_ms' => (int)($cacheBase['max_ttl_ms'] ?? $options['max_ttl_ms'] ?? 86400000), // 24 hours max
         ];
     }
 
@@ -180,6 +190,10 @@ final class Config
                 'username' => $getEnvValue('TAGCACHE_USERNAME', ''),
                 'password' => $getEnvValue('TAGCACHE_PASSWORD', ''),
                 'token' => $getEnvValue('TAGCACHE_TOKEN', null),
+            ],
+            'cache' => [
+                'default_ttl_ms' => $getEnvValue('TAGCACHE_DEFAULT_TTL_MS', null) ? (int)$getEnvValue('TAGCACHE_DEFAULT_TTL_MS') : null,
+                'max_ttl_ms' => (int)$getEnvValue('TAGCACHE_MAX_TTL_MS', 86400000),
             ],
             'retry_attempts' => (int)$getEnvValue('TAGCACHE_RETRY_ATTEMPTS', 3),
             'retry_delay_ms' => (int)$getEnvValue('TAGCACHE_RETRY_DELAY', 100),

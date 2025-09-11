@@ -67,7 +67,7 @@ runTest('Basic Put/Get/Delete', function() use ($client, $testKey) {
     $tags = ['feature-test', 'basic'];
     
     // Put
-    if (!$client->put($testKey, $value, 300000, $tags)) { // 5 minute TTL
+    if (!$client->put($testKey, $value, $tags, 300000)) { // 5 minute TTL
         throw new Exception('Put failed');
     }
     
@@ -94,7 +94,7 @@ runTest('Tag Operations', function() use ($client) {
     for ($i = 1; $i <= 5; $i++) {
         $key = "tag-test:$i:" . uniqid();
         $keys[] = $key;
-        if (!$client->put($key, "value-$i", 300000, [$tag, 'tag-ops'])) {
+        if (!$client->put($key, "value-$i", [$tag, 'tag-ops'], 300000)) {
             throw new Exception("Failed to put key $key");
         }
     }
@@ -132,7 +132,7 @@ runTest('Bulk Operations', function() use ($client) {
         $keys[] = $key;
         $values[$key] = $value;
         
-        if (!$client->put($key, $value, 300000, ['bulk', 'bulk-test'])) {
+        if (!$client->put($key, $value, ['bulk', 'bulk-test'], 300000)) {
             throw new Exception("Failed to put bulk key $key");
         }
     }
@@ -170,7 +170,7 @@ runTest('Search Functionality', function() use ($client) {
     for ($i = 1; $i <= 10; $i++) {
         $key = "search-test:item-$i:" . uniqid();
         $keys[] = $key;
-        if (!$client->put($key, "search-value-$i", 300000, [$testTag, 'search-test'])) {
+        if (!$client->put($key, "search-value-$i", [$testTag, 'search-test'], 300000)) {
             throw new Exception("Failed to put search key $key");
         }
     }
@@ -198,7 +198,7 @@ runTest('Large Payload Handling', function() use ($client) {
     $key = 'large-payload:' . uniqid();
     $largeValue = str_repeat('X', 100000); // 100KB
     
-    if (!$client->put($key, $largeValue, 300000, ['large-payload'])) {
+    if (!$client->put($key, $largeValue, ['large-payload'], 300000)) {
         throw new Exception('Failed to put large payload');
     }
     
@@ -225,7 +225,7 @@ runTest('Performance Test (100 operations)', function() use ($client) {
     for ($i = 1; $i <= $operations; $i++) {
         $key = "perf:$i:" . uniqid();
         $keys[] = $key;
-        if (!$client->put($key, "perf-value-$i", 300000, ['performance'])) {
+        if (!$client->put($key, "perf-value-$i", ['performance'], 300000)) {
             throw new Exception("Performance test put failed at $i");
         }
     }
