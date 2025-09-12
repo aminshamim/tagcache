@@ -20,7 +20,7 @@ name = "bench_tcp"
 path = "src/bin/bench_tcp.rs"
 
 [features]
-default = []
+default = ["embed-ui"]
 embed-ui = ["rust-embed"]
 
 [dependencies]
