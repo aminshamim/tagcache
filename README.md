@@ -138,7 +138,7 @@ tagcache --version
 ```bash
 # Download the latest .deb package
 curl -L -o tagcache.deb \
-  https://github.com/aminshamim/tagcache/releases/download/v1.0.8/tagcache_1.0.7_amd64.deb
+  https://github.com/aminshamim/tagcache/releases/download/v1.0.8/tagcache_1.0.8_amd64.deb
 
 # Install the package
 sudo dpkg -i tagcache.deb
@@ -158,7 +158,7 @@ sudo systemctl status tagcache
 ```bash
 # Download the latest .rpm package
 curl -L -o tagcache.rpm \
-  https://github.com/aminshamim/tagcache/releases/download/v1.0.8/tagcache-1.0.7-1.x86_64.rpm
+  https://github.com/aminshamim/tagcache/releases/download/v1.0.8/tagcache-1.0.8-1.x86_64.rpm
 
 # Install the package
 sudo rpm -ivh tagcache.rpm
