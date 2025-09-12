@@ -33,7 +33,7 @@ install_build_tools() {
     rustup target add aarch64-unknown-linux-gnu || true
     rustup target add aarch64-unknown-linux-musl || true
     rustup target add x86_64-unknown-linux-musl || true
-    rustup target add x86_64-pc-windows-msvc || true
+    rustup target add x86_64-pc-windows-gnu || true
     
     # Install cross for cross-compilation
     if ! command_exists cross; then
@@ -99,9 +99,19 @@ package_binaries() {
     # Ensure dist directory exists
     mkdir -p "$dist_dir"
     
-    # Check if binaries exist
-    if [ ! -f "$source_dir/tagcache" ] || [ ! -f "$source_dir/bench_tcp" ]; then
+    # Check if binaries exist (handle Windows .exe extension)
+    local tagcache_bin="tagcache"
+    local bench_tcp_bin="bench_tcp"
+    
+    if [[ "$target" == *"windows"* ]]; then
+        tagcache_bin="tagcache.exe"
+        bench_tcp_bin="bench_tcp.exe"
+    fi
+    
+    if [ ! -f "$source_dir/$tagcache_bin" ] || [ ! -f "$source_dir/$bench_tcp_bin" ]; then
         echo "❌ Binaries not found in $source_dir"
+        echo "   Looking for: $tagcache_bin, $bench_tcp_bin"
+        ls -la "$source_dir/" || true
         return 1
     fi
     
@@ -109,12 +119,12 @@ package_binaries() {
     case $format in
         "tar.gz")
             cd "$source_dir"
-            tar czf "../../../$dist_dir/$package_name.tar.gz" tagcache bench_tcp
+            tar czf "../../../$dist_dir/$package_name.tar.gz" "$tagcache_bin" "$bench_tcp_bin"
             cd - > /dev/null
             ;;
         "zip")
             cd "$source_dir"
-            zip "../../../$dist_dir/$package_name.zip" tagcache.exe bench_tcp.exe
+            zip "../../../$dist_dir/$package_name.zip" "$tagcache_bin" "$bench_tcp_bin"
             cd - > /dev/null
             ;;
         *)
@@ -261,7 +271,7 @@ main() {
         "x86_64-unknown-linux-gnu:cross"
         "aarch64-unknown-linux-musl:cross"
         "x86_64-unknown-linux-musl:cross"
-        "x86_64-pc-windows-msvc:cross"
+        "x86_64-pc-windows-gnu:cross"
     )
     
     # Build each target
@@ -315,7 +325,7 @@ main() {
             "x86_64-unknown-linux-musl")
                 # Skip this one as we prefer the gnu version for packages
                 ;;
-            "x86_64-pc-windows-msvc")
+            "x86_64-pc-windows-gnu")
                 package_binaries "$target" "tagcache-windows-x86_64" "zip"
                 ;;
         esac

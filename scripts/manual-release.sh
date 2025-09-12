@@ -66,11 +66,11 @@ if [ ${#MISSING_FILES[@]} -gt 0 ]; then
     done
     echo ""
     echo "📋 To build missing files, run:"
-    echo "   ./scripts/build-all-manual.sh"
+    echo "   ./scripts/build-and-release-complete.sh"
     exit 1
 fi
 
-echo "✅ Found required distribution files"
+echo "✅ Found all required distribution files"
 
 # Check if GitHub CLI is available
 if ! command -v gh &> /dev/null; then
@@ -173,14 +173,14 @@ sudo mv tagcache bench_tcp /usr/local/bin/
 ### Package Manager Installation
 \`\`\`bash
 # Ubuntu/Debian
-wget https://github.com/aminshamim/tagcache/releases/download/$RELEASE_TAG/tagcache_1.0.6_amd64.deb
-sudo dpkg -i tagcache_1.0.6_amd64.deb
+wget https://github.com/aminshamim/tagcache/releases/download/$RELEASE_TAG/tagcache_${VERSION}_amd64.deb
+sudo dpkg -i tagcache_${VERSION}_amd64.deb
 
 # RHEL/CentOS/Fedora
-wget https://github.com/aminshamim/tagcache/releases/download/$RELEASE_TAG/tagcache-1.0.6-1.x86_64.rpm
-sudo rpm -i tagcache-1.0.6-1.x86_64.rpm
+wget https://github.com/aminshamim/tagcache/releases/download/$RELEASE_TAG/tagcache-${VERSION}-1.x86_64.rpm
+sudo rpm -i tagcache-${VERSION}-1.x86_64.rpm
 # or with dnf/yum
-sudo dnf install tagcache-1.0.6-1.x86_64.rpm
+sudo dnf install tagcache-${VERSION}-1.x86_64.rpm
 \`\`\`
 
 ### Windows
