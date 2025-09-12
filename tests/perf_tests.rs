@@ -50,16 +50,14 @@ fn population_test() {
         inserted += 1;
         if inserted % 10_000 == 0 {
             let mem = approx_process_memory_mb();
-            if last_report.elapsed() > Duration::from_secs(2) {
-                let rate = inserted as f64 / start.elapsed().as_secs_f64();
-                println!("inserted={} mem_mb={:.1} rate_kops={:.1}", inserted, mem, rate/1000.0);
-                last_report = Instant::now();
-            }
             if mem >= threshold_mb { break; }
         }
     }
     let duration = start.elapsed();
-    println!("FINAL inserted={} duration_s={:.2} avg_kops={:.1}", inserted, duration.as_secs_f64(), inserted as f64 / duration.as_secs_f64() / 1000.0);
+    
+    // Report final results
+    eprintln!("Performance test completed: {} keys inserted in {:.2}s ({:.0} ops/sec)", 
+              inserted, duration.as_secs_f64(), inserted as f64 / duration.as_secs_f64());
 }
 
 /// Mixed workload: 90% get, 9% put, 1% invalidate(tag) measuring latency distributions.
@@ -104,12 +102,26 @@ fn mixed_workload_latency() {
             let _ = cache.invalidate_tag(&tag);
             hist_inv.record(t0.elapsed().as_nanos() as u64).ok();
         }
-        if op > 0 && op % 200_000 == 0 { println!("progress ops={op}"); }
+        // Progress tracking for very large tests
+        if op > 0 && op % 1_000_000 == 0 { 
+            eprintln!("Performance test progress: {} operations completed", op); 
+        }
     }
 
-    println!("GET p50={}us p95={}us p99={}us", hist_get.value_at_quantile(0.50)/1000, hist_get.value_at_quantile(0.95)/1000, hist_get.value_at_quantile(0.99)/1000);
-    println!("PUT p50={}us p95={}us p99={}us", hist_put.value_at_quantile(0.50)/1000, hist_put.value_at_quantile(0.95)/1000, hist_put.value_at_quantile(0.99)/1000);
-    println!("INV p50={}us p95={}us p99={}us", hist_inv.value_at_quantile(0.50)/1000, hist_inv.value_at_quantile(0.95)/1000, hist_inv.value_at_quantile(0.99)/1000);
+    // Report performance metrics
+    eprintln!("Latency results:");
+    eprintln!("  GET - p50: {}μs, p95: {}μs, p99: {}μs", 
+              hist_get.value_at_quantile(0.50)/1000, 
+              hist_get.value_at_quantile(0.95)/1000, 
+              hist_get.value_at_quantile(0.99)/1000);
+    eprintln!("  PUT - p50: {}μs, p95: {}μs, p99: {}μs", 
+              hist_put.value_at_quantile(0.50)/1000, 
+              hist_put.value_at_quantile(0.95)/1000, 
+              hist_put.value_at_quantile(0.99)/1000);
+    eprintln!("  INVALIDATE - p50: {}μs, p95: {}μs, p99: {}μs", 
+              hist_inv.value_at_quantile(0.50)/1000, 
+              hist_inv.value_at_quantile(0.95)/1000, 
+              hist_inv.value_at_quantile(0.99)/1000);
 }
 
 /// Large tag invalidation stress: many keys share one tag; measure single invalidate latency.
