@@ -80,13 +80,13 @@ Download the latest binaries from our [GitHub Releases](https://github.com/amins
 ```bash
 # For macOS Intel (x86_64)
 curl -L -o tagcache-macos-x86_64.tar.gz \
-  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-macos-x86_64.tar.gz
+  https://github.com/aminshamim/tagcache/releases/download/v1.0.6/tagcache-macos-x86_64.tar.gz
 tar xzf tagcache-macos-x86_64.tar.gz
 sudo cp tagcache bench_tcp /usr/local/bin/
 
 # For macOS Apple Silicon (ARM64/M1/M2/M3)
 curl -L -o tagcache-macos-arm64.tar.gz \
-  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-macos-arm64.tar.gz
+  https://github.com/aminshamim/tagcache/releases/download/v1.0.6/tagcache-macos-arm64.tar.gz
 tar xzf tagcache-macos-arm64.tar.gz
 sudo cp tagcache bench_tcp /usr/local/bin/
 
@@ -98,13 +98,13 @@ tagcache --version
 ```bash
 # For Linux x86_64
 curl -L -o tagcache-linux-x86_64.tar.gz \
-  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-linux-x86_64.tar.gz
+  https://github.com/aminshamim/tagcache/releases/download/v1.0.6/tagcache-linux-x86_64.tar.gz
 tar xzf tagcache-linux-x86_64.tar.gz
 sudo cp tagcache bench_tcp /usr/local/bin/
 
 # For Linux ARM64 (Raspberry Pi, ARM servers)
 curl -L -o tagcache-linux-arm64.tar.gz \
-  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-linux-arm64.tar.gz
+  https://github.com/aminshamim/tagcache/releases/download/v1.0.6/tagcache-linux-arm64.tar.gz
 tar xzf tagcache-linux-arm64.tar.gz
 sudo cp tagcache bench_tcp /usr/local/bin/
 
@@ -116,7 +116,7 @@ tagcache --version
 ```bash
 # Download and extract
 curl -L -o tagcache-windows-x86_64.zip \
-  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-windows-x86_64.zip
+  https://github.com/aminshamim/tagcache/releases/download/v1.0.6/tagcache-windows-x86_64.zip
 # Extract tagcache.exe and bench_tcp.exe to your preferred location
 # Add to PATH or run directly: .\tagcache.exe --version
 ```
@@ -138,7 +138,7 @@ tagcache --version
 ```bash
 # Download the latest .deb package
 curl -L -o tagcache.deb \
-  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache_amd64.deb
+  https://github.com/aminshamim/tagcache/releases/download/v1.0.6/tagcache_1.0.6_amd64.deb
 
 # Install the package
 sudo dpkg -i tagcache.deb
@@ -158,7 +158,7 @@ sudo systemctl status tagcache
 ```bash
 # Download the latest .rpm package
 curl -L -o tagcache.rpm \
-  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache.x86_64.rpm
+  https://github.com/aminshamim/tagcache/releases/download/v1.0.6/tagcache-1.0.6-1.x86_64.rpm
 
 # Install the package
 sudo rpm -ivh tagcache.rpm
