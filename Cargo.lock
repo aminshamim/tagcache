@@ -1742,7 +1742,7 @@ dependencies = [
 
 [[package]]
 name = "tagcache"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "ahash",
  "anyhow",

@@ -232,9 +232,6 @@ EOF
 update_readme() {
     echo "📝 Updating README.md with new version links..."
     
-    # Create backup
-    cp README.md README.md.backup
-    
     # Update version-specific download links to use the new version
     sed -i.tmp "s|/latest/download/|/download/v${VERSION}/|g" README.md
     sed -i.tmp "s|tagcache_amd64.deb|tagcache_${VERSION}_amd64.deb|g" README.md
