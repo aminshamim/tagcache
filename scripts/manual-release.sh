@@ -97,11 +97,9 @@ echo "✅ GitHub CLI authenticated"
 UPDATE_README=true
 if [ -f "README.md.backup" ]; then
     echo "📝 README backup found. README was likely already updated during build."
-    echo "❓ Update README again with new version links? (y/N)"
-    read -r response
-    if [[ ! "$response" =~ ^[Yy]$ ]]; then
-        UPDATE_README=false
-    fi
+    echo "ℹ️ Will update README with version $VERSION links automatically"
+else
+    echo "📝 Will update README.md with new version links"
 fi
 
 # Update README if requested
@@ -113,10 +111,10 @@ if [ "$UPDATE_README" = true ]; then
         cp README.md README.md.backup
     fi
     
-    # Update version-specific download links
-    sed -i.tmp "s|/latest/download/|/download/v${VERSION}/|g" README.md
-    sed -i.tmp "s|tagcache_amd64\.deb|tagcache_${VERSION}_amd64.deb|g" README.md
-    sed -i.tmp "s|tagcache\.x86_64\.rpm|tagcache-${VERSION}-1.x86_64.rpm|g" README.md
+    # Update version-specific download links - comprehensive replacement
+    sed -i.tmp "s|/download/v[0-9]\+\.[0-9]\+\.[0-9]\+/|/download/v${VERSION}/|g" README.md
+    sed -i.tmp "s|tagcache_[0-9]\+\.[0-9]\+\.[0-9]\+_amd64\.deb|tagcache_${VERSION}_amd64.deb|g" README.md
+    sed -i.tmp "s|tagcache-[0-9]\+\.[0-9]\+\.[0-9]\+-1\.x86_64\.rpm|tagcache-${VERSION}-1.x86_64.rpm|g" README.md
     
     # Clean up temporary files
     rm -f README.md.tmp
