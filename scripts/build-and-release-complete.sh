@@ -169,10 +169,17 @@ Description: TagCache - High-performance tag-based caching system
 Homepage: https://github.com/aminshamim/tagcache
 EOF
     
-    # Create package
-    cd dist/deb
-    tar czf "../tagcache_${VERSION}_amd64.deb" -C "tagcache_${VERSION}_amd64" .
-    cd - > /dev/null
+    # Create package using dpkg-deb (proper Debian package)
+    if command -v dpkg-deb >/dev/null 2>&1; then
+        dpkg-deb --build "$deb_dir" "dist/tagcache_${VERSION}_amd64.deb"
+    else
+        echo "⚠️ dpkg-deb not available, creating tar.gz instead"
+        cd dist/deb
+        tar czf "../tagcache_${VERSION}_amd64.tar.gz" -C "tagcache_${VERSION}_amd64" .
+        cd - > /dev/null
+        echo "✅ Created dist/tagcache_${VERSION}_amd64.tar.gz (fallback)"
+        return
+    fi
     
     echo "✅ Created dist/tagcache_${VERSION}_amd64.deb"
 }
