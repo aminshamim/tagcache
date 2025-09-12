@@ -42,7 +42,7 @@ anyhow = "1.0"
 rand = "0.8"
 chrono = { version = "0.4", features=["clock", "serde"] }
 base64 = "0.22"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "blocking"] }
 clap = { version = "4.0", features = ["derive"] }
 tower = { version = "0.4", features = ["util"] }
 rust-embed = { version = "8.0", features = ["debug-embed"], optional = true }
