@@ -1,0 +1,72 @@
+# TagCache Server Configuration File (Example)
+# Copy this file to tagcache.conf and modify as needed
+# Similar to php.ini or nginx.conf - modify settings here to customize server behavior
+# Changes to this file require a server restart to take effect
+
+[server]
+# HTTP server port (default: 8080)
+http_port = 8080
+
+# TCP protocol port for high-performance operations (default: 1984)
+tcp_port = 1984
+
+# Number of cache shards for performance scaling (default: 16)
+num_shards = 16
+
+# Cleanup interval in seconds for expired entries (default: 60)
+cleanup_interval_seconds = 60
+
+# Allow cross-origin requests from this origin (optional)
+# allowed_origin = "https://your-frontend.com"
+
+[authentication]
+# Default authentication credentials
+# IMPORTANT: Change these default credentials in production!
+username = "admin"
+password = "password"
+
+# Session token lifetime in seconds (default: 3600 = 1 hour)
+token_lifetime_seconds = 3600
+
+[cache]
+# Default TTL for cache entries in seconds (0 = no default TTL)
+default_ttl_seconds = 0
+
+# Maximum number of tags per cache entry (default: 100)
+max_tags_per_entry = 100
+
+# Maximum key length in bytes (default: 1024)
+max_key_length = 1024
+
+# Maximum value length in bytes (default: 1048576 = 1MB)
+max_value_length = 1048576
+
+[logging]
+# Log level: trace, debug, info, warn, error (default: info)
+level = "info"
+
+# Log format: json, pretty (default: pretty)
+format = "pretty"
+
+# Log to file (optional, logs to stdout if not specified)
+# file = "/var/log/tagcache.log"
+
+[performance]
+# Enable TCP Nodelay for lower latency (default: true)
+tcp_nodelay = true
+
+# TCP keep-alive timeout in seconds (default: 7200 = 2 hours)
+tcp_keepalive_seconds = 7200
+
+# Maximum concurrent connections (default: 10000)
+max_connections = 10000
+
+[security]
+# Require authentication for all operations (default: true)
+require_auth = true
+
+# Enable rate limiting per IP (requests per minute, 0 = disabled)
+rate_limit_per_minute = 0
+
+# Allowed IP addresses (empty = allow all)
+# allowed_ips = ["127.0.0.1", "192.168.1.0/24"]

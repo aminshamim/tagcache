@@ -42,6 +42,7 @@ TagCache is a high-performance, sharded, tag-aware in-memory cache server that o
 
 - [🚀 Quick Start](#-quick-start)
 - [📥 Installation](#-installation)
+- [⚙️ Configuration Management](#%EF%B8%8F-configuration-management)
 - [🔐 Authentication & Security](#-authentication--security)
 - [💻 Command Line Interface](#-command-line-interface-cli)
 - [🌐 HTTP JSON API](#-http-json-api)
@@ -162,6 +163,77 @@ Primary (preferred):
 
 Legacy (still accepted, logged when used):
 - `TC_HTTP_PORT`, `TC_TCP_PORT`, `TC_NUM_SHARDS`, `TC_SWEEP_INTERVAL_MS`
+
+## ⚙️ Configuration Management
+
+TagCache uses a configuration file system similar to `php.ini` or `nginx.conf` for persistent settings. All configuration changes persist across server restarts.
+
+### 📁 Configuration File Location
+
+TagCache automatically looks for `tagcache.conf` in:
+1. Current working directory (highest priority)
+2. User config directory (`~/.config/tagcache/tagcache.conf` on Linux/macOS)
+
+```bash
+# Check current configuration file path
+tagcache config path
+
+# Show current configuration
+tagcache config show
+```
+
+### 🔧 Configuration Management Commands
+
+```bash
+# Create configuration file with defaults (if it doesn't exist)
+tagcache config show  # Creates tagcache.conf with defaults
+
+# Change authentication credentials
+tagcache config set authentication.username "my_admin"
+tagcache config set authentication.password "secure_password_123"
+
+# Change server settings
+tagcache config set server.http_port 9090
+tagcache config set server.tcp_port 1985
+tagcache config set server.num_shards 32
+
+# Change cache settings
+tagcache config set cache.max_key_length 2048
+tagcache config set logging.level "debug"
+
+# Reset to defaults
+tagcache config reset
+
+# View example configuration
+cat tagcache.conf.example
+```
+
+### 📝 Configuration Sections
+
+The configuration file includes these sections:
+
+- **`[server]`** - HTTP/TCP ports, shards, cleanup interval
+- **`[authentication]`** - Username, password, token lifetime
+- **`[cache]`** - TTL settings, size limits, tag limits
+- **`[logging]`** - Log level, format, file output
+- **`[performance]`** - TCP settings, connection limits
+- **`[security]`** - Auth requirements, rate limiting, IP restrictions
+
+### 🔄 Configuration Changes
+
+Configuration changes via CLI persist to the file immediately:
+
+```bash
+# Change password via configuration
+tagcache config set authentication.password "new_password"
+
+# Change password via API (also persists to config file)
+tagcache --username admin --password current_password change-password "new_password"
+
+# Both methods update tagcache.conf and persist across server restarts
+```
+
+**Important:** Server restart is required for configuration changes to take effect.
 
 ## 🔐 Authentication & Security
 

@@ -126,6 +126,210 @@ use rand::{Rng, distributions::Alphanumeric};
 
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
+use std::path::PathBuf;
+use std::fs;
+
+// =============================
+// CONFIGURATION MANAGEMENT
+// =============================
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerConfig {
+    pub http_port: u16,
+    pub tcp_port: u16,
+    pub num_shards: usize,
+    pub cleanup_interval_seconds: u64,
+    pub allowed_origin: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthConfig {
+    pub username: String,
+    pub password: String,
+    pub token_lifetime_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CacheConfig {
+    pub default_ttl_seconds: u64,
+    pub max_tags_per_entry: usize,
+    pub max_key_length: usize,
+    pub max_value_length: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoggingConfig {
+    pub level: String,
+    pub format: String,
+    pub file: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceConfig {
+    pub tcp_nodelay: bool,
+    pub tcp_keepalive_seconds: u64,
+    pub max_connections: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityConfig {
+    pub require_auth: bool,
+    pub rate_limit_per_minute: u64,
+    pub allowed_ips: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TagCacheConfig {
+    pub server: ServerConfig,
+    pub authentication: AuthConfig,
+    pub cache: CacheConfig,
+    pub logging: LoggingConfig,
+    pub performance: PerformanceConfig,
+    pub security: SecurityConfig,
+}
+
+impl Default for TagCacheConfig {
+    fn default() -> Self {
+        Self {
+            server: ServerConfig {
+                http_port: 8080,
+                tcp_port: 1984,
+                num_shards: 16,
+                cleanup_interval_seconds: 60,
+                allowed_origin: None,
+            },
+            authentication: AuthConfig {
+                username: "admin".to_string(),
+                password: "password".to_string(),
+                token_lifetime_seconds: 3600,
+            },
+            cache: CacheConfig {
+                default_ttl_seconds: 0,
+                max_tags_per_entry: 100,
+                max_key_length: 1024,
+                max_value_length: 1048576,
+            },
+            logging: LoggingConfig {
+                level: "info".to_string(),
+                format: "pretty".to_string(),
+                file: None,
+            },
+            performance: PerformanceConfig {
+                tcp_nodelay: true,
+                tcp_keepalive_seconds: 7200,
+                max_connections: 10000,
+            },
+            security: SecurityConfig {
+                require_auth: true,
+                rate_limit_per_minute: 0,
+                allowed_ips: None,
+            },
+        }
+    }
+}
+
+impl TagCacheConfig {
+    /// Get the default configuration file path
+    pub fn default_config_path() -> PathBuf {
+        // Try current directory first, then user config dir
+        let current_dir_config = PathBuf::from("tagcache.conf");
+        if current_dir_config.exists() {
+            return current_dir_config;
+        }
+        
+        // Check user config directory
+        if let Some(config_dir) = dirs::config_dir() {
+            let user_config = config_dir.join("tagcache").join("tagcache.conf");
+            if user_config.exists() {
+                return user_config;
+            }
+        }
+        
+        // Default to current directory
+        current_dir_config
+    }
+
+    /// Load configuration from file with fallback to defaults
+    pub fn load_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Self> {
+        let path = path.as_ref();
+        if !path.exists() {
+            println!("Configuration file {} not found, creating with defaults", path.display());
+            let default_config = Self::default();
+            default_config.save_to_file(path)?;
+            return Ok(default_config);
+        }
+
+        let content = fs::read_to_string(path)?;
+        let mut config: TagCacheConfig = toml::from_str(&content)?;
+        
+        // Apply environment variable overrides
+        config.apply_env_overrides();
+        
+        Ok(config)
+    }
+
+    /// Save configuration to file
+    pub fn save_to_file<P: AsRef<std::path::Path>>(&self, path: P) -> anyhow::Result<()> {
+        let path = path.as_ref();
+        
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        
+        let content = toml::to_string_pretty(self)?;
+        fs::write(path, content)?;
+        println!("Configuration saved to {}", path.display());
+        Ok(())
+    }
+
+    /// Apply environment variable overrides
+    fn apply_env_overrides(&mut self) {
+        // Server overrides
+        if let Ok(port) = env::var("PORT").or_else(|_| env::var("TC_HTTP_PORT")) {
+            if let Ok(p) = port.parse() {
+                self.server.http_port = p;
+            }
+        }
+        
+        if let Ok(tcp_port) = env::var("TCP_PORT").or_else(|_| env::var("TC_TCP_PORT")) {
+            if let Ok(p) = tcp_port.parse() {
+                self.server.tcp_port = p;
+            }
+        }
+        
+        if let Ok(shards) = env::var("NUM_SHARDS").or_else(|_| env::var("TC_NUM_SHARDS")) {
+            if let Ok(s) = shards.parse() {
+                self.server.num_shards = s;
+            }
+        }
+        
+        // Auth overrides
+        if let Ok(username) = env::var("TAGCACHE_USERNAME") {
+            self.authentication.username = username;
+        }
+        
+        if let Ok(password) = env::var("TAGCACHE_PASSWORD") {
+            self.authentication.password = password;
+        }
+        
+        // Other overrides
+        if let Ok(origin) = env::var("ALLOWED_ORIGIN") {
+            self.server.allowed_origin = Some(origin);
+        }
+    }
+
+    /// Update authentication credentials and save to file
+    pub fn update_auth(&mut self, username: Option<String>, password: Option<String>, config_path: &std::path::Path) -> anyhow::Result<()> {
+        if let Some(u) = username {
+            self.authentication.username = u;
+        }
+        if let Some(p) = password {
+            self.authentication.password = p;
+        }
+        self.save_to_file(config_path)?;
+        Ok(())
+    }
+}
 
 // =============================
 // CLI COMMAND DEFINITIONS
@@ -210,6 +414,40 @@ enum Commands {
     
     /// Reset to default credentials (admin/password)
     ResetCredentials,
+    
+    /// Configuration management
+    Config {
+        #[command(subcommand)]
+        config_command: ConfigCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum ConfigCommands {
+    /// Show current configuration
+    Show {
+        /// Configuration file path (default: auto-detect)
+        #[arg(long, short)]
+        config: Option<String>,
+    },
+    /// Set a configuration value
+    Set {
+        /// Configuration key (e.g., "authentication.password")
+        key: String,
+        /// Configuration value
+        value: String,
+        /// Configuration file path (default: auto-detect)
+        #[arg(long, short)]
+        config: Option<String>,
+    },
+    /// Reset configuration to defaults
+    Reset {
+        /// Configuration file path (default: auto-detect)
+        #[arg(long, short)]
+        config: Option<String>,
+    },
+    /// Show configuration file path
+    Path,
 }
 
 #[derive(Subcommand)]
@@ -653,30 +891,63 @@ pub struct CacheStats {
 pub struct Credentials { pub username: String, pub password: String }
 
 #[derive(Clone, Debug)]
-pub struct AuthState { credentials: Arc<Mutex<Credentials>>, tokens: DashSet<String> }
+pub struct AuthState { 
+    credentials: Arc<Mutex<Credentials>>, 
+    tokens: DashSet<String>,
+    config_path: Arc<Mutex<PathBuf>>,  // Path to configuration file for persistence
+}
 
 impl AuthState {
-    fn new(creds: Credentials) -> Self { Self { credentials: Arc::new(Mutex::new(creds)), tokens: DashSet::new() } }
+    fn new(creds: Credentials, config_path: PathBuf) -> Self { 
+        Self { 
+            credentials: Arc::new(Mutex::new(creds)), 
+            tokens: DashSet::new(),
+            config_path: Arc::new(Mutex::new(config_path)),
+        } 
+    }
     fn issue_token(&self) -> String { let token: String = rand::thread_rng().sample_iter(&Alphanumeric).take(48).map(char::from).collect(); self.tokens.insert(token.clone()); token }
     fn rotate(&self) -> Credentials { let new = Credentials { username: rand::thread_rng().sample_iter(&Alphanumeric).take(16).map(char::from).collect(), password: rand::thread_rng().sample_iter(&Alphanumeric).take(24).map(char::from).collect() }; *self.credentials.lock() = new.clone(); self.tokens.clear(); new }
     fn validate_basic(&self, u:&str, p:&str) -> bool { let c = self.credentials.lock(); c.username==u && c.password==p }
     fn validate_token(&self, t:&str) -> bool { self.tokens.contains(t) }
+    
     fn change_password(&self, new_password: String) -> bool {
         let mut creds = self.credentials.lock();
-        creds.password = new_password;
+        creds.password = new_password.clone();
+        
+        // Persist to configuration file
+        if let Err(e) = self.persist_credentials_to_config(Some(creds.username.clone()), Some(new_password)) {
+            eprintln!("Warning: Failed to persist password change to config file: {}", e);
+            // Don't fail the operation, just warn
+        }
+        
         // Clear all tokens to force re-authentication
         self.tokens.clear();
         true
     }
+    
     fn reset_to_defaults(&self) -> bool {
         let new = Credentials {
             username: "admin".to_string(),
             password: "password".to_string(),
         };
-        *self.credentials.lock() = new;
+        *self.credentials.lock() = new.clone();
+        
+        // Persist to configuration file
+        if let Err(e) = self.persist_credentials_to_config(Some(new.username), Some(new.password)) {
+            eprintln!("Warning: Failed to persist credential reset to config file: {}", e);
+            // Don't fail the operation, just warn
+        }
+        
         // Clear all tokens to force re-authentication
         self.tokens.clear();
         true
+    }
+    
+    fn persist_credentials_to_config(&self, username: Option<String>, password: Option<String>) -> anyhow::Result<()> {
+        let config_path = self.config_path.lock();
+        let mut config = TagCacheConfig::load_from_file(&*config_path)?;
+        config.update_auth(username, password, &*config_path)?;
+        Ok(())
     }
 
 }
@@ -1405,6 +1676,136 @@ async fn run_tcp_server(cache: Arc<Cache>, port: u16) -> anyhow::Result<()> {
 }
 
 // =============================
+// CONFIG COMMAND HANDLERS
+// =============================
+async fn handle_config_command(config_command: ConfigCommands) -> anyhow::Result<()> {
+    match config_command {
+        ConfigCommands::Show { config } => {
+            let config_path = config.map(PathBuf::from)
+                .unwrap_or_else(|| TagCacheConfig::default_config_path());
+            
+            match TagCacheConfig::load_from_file(&config_path) {
+                Ok(cfg) => {
+                    println!("Configuration from: {}", config_path.display());
+                    println!("{}", toml::to_string_pretty(&cfg)?);
+                }
+                Err(e) => {
+                    println!("Error loading configuration: {}", e);
+                    return Err(e);
+                }
+            }
+            Ok(())
+        }
+        
+        ConfigCommands::Set { key, value, config } => {
+            let config_path = config.map(PathBuf::from)
+                .unwrap_or_else(|| TagCacheConfig::default_config_path());
+            
+            let mut cfg = TagCacheConfig::load_from_file(&config_path)?;
+            
+            // Parse the key and update the config
+            match set_config_value(&mut cfg, &key, &value) {
+                Ok(_) => {
+                    cfg.save_to_file(&config_path)?;
+                    println!("✓ Configuration updated: {} = {}", key, value);
+                    println!("Configuration saved to: {}", config_path.display());
+                    println!("Restart the server for changes to take effect.");
+                }
+                Err(e) => {
+                    println!("Error setting configuration: {}", e);
+                    return Err(e);
+                }
+            }
+            Ok(())
+        }
+        
+        ConfigCommands::Reset { config } => {
+            let config_path = config.map(PathBuf::from)
+                .unwrap_or_else(|| TagCacheConfig::default_config_path());
+            
+            let default_cfg = TagCacheConfig::default();
+            default_cfg.save_to_file(&config_path)?;
+            println!("✓ Configuration reset to defaults");
+            println!("Configuration saved to: {}", config_path.display());
+            println!("Restart the server for changes to take effect.");
+            Ok(())
+        }
+        
+        ConfigCommands::Path => {
+            let config_path = TagCacheConfig::default_config_path();
+            println!("Configuration file path: {}", config_path.display());
+            if config_path.exists() {
+                println!("Status: EXISTS");
+            } else {
+                println!("Status: NOT FOUND (will be created with defaults on first use)");
+            }
+            Ok(())
+        }
+    }
+}
+
+fn set_config_value(config: &mut TagCacheConfig, key: &str, value: &str) -> anyhow::Result<()> {
+    let parts: Vec<&str> = key.split('.').collect();
+    if parts.len() != 2 {
+        anyhow::bail!("Invalid config key format. Use section.key (e.g., authentication.password)");
+    }
+    
+    let section = parts[0];
+    let field = parts[1];
+    
+    match section {
+        "server" => match field {
+            "http_port" => config.server.http_port = value.parse()?,
+            "tcp_port" => config.server.tcp_port = value.parse()?,
+            "num_shards" => config.server.num_shards = value.parse()?,
+            "cleanup_interval_seconds" => config.server.cleanup_interval_seconds = value.parse()?,
+            "allowed_origin" => config.server.allowed_origin = if value.is_empty() { None } else { Some(value.to_string()) },
+            _ => anyhow::bail!("Unknown server field: {}", field),
+        },
+        "authentication" => match field {
+            "username" => config.authentication.username = value.to_string(),
+            "password" => config.authentication.password = value.to_string(),
+            "token_lifetime_seconds" => config.authentication.token_lifetime_seconds = value.parse()?,
+            _ => anyhow::bail!("Unknown authentication field: {}", field),
+        },
+        "cache" => match field {
+            "default_ttl_seconds" => config.cache.default_ttl_seconds = value.parse()?,
+            "max_tags_per_entry" => config.cache.max_tags_per_entry = value.parse()?,
+            "max_key_length" => config.cache.max_key_length = value.parse()?,
+            "max_value_length" => config.cache.max_value_length = value.parse()?,
+            _ => anyhow::bail!("Unknown cache field: {}", field),
+        },
+        "logging" => match field {
+            "level" => config.logging.level = value.to_string(),
+            "format" => config.logging.format = value.to_string(),
+            "file" => config.logging.file = if value.is_empty() { None } else { Some(value.to_string()) },
+            _ => anyhow::bail!("Unknown logging field: {}", field),
+        },
+        "performance" => match field {
+            "tcp_nodelay" => config.performance.tcp_nodelay = value.parse()?,
+            "tcp_keepalive_seconds" => config.performance.tcp_keepalive_seconds = value.parse()?,
+            "max_connections" => config.performance.max_connections = value.parse()?,
+            _ => anyhow::bail!("Unknown performance field: {}", field),
+        },
+        "security" => match field {
+            "require_auth" => config.security.require_auth = value.parse()?,
+            "rate_limit_per_minute" => config.security.rate_limit_per_minute = value.parse()?,
+            "allowed_ips" => {
+                if value.is_empty() {
+                    config.security.allowed_ips = None;
+                } else {
+                    config.security.allowed_ips = Some(value.split(',').map(|s| s.trim().to_string()).collect());
+                }
+            },
+            _ => anyhow::bail!("Unknown security field: {}", field),
+        },
+        _ => anyhow::bail!("Unknown config section: {}", section),
+    }
+    
+    Ok(())
+}
+
+// =============================
 // MAIN ENTRY POINT
 // =============================
 #[tokio::main] // Macro sets up a multi-threaded async runtime and runs this async fn as root task.
@@ -1444,6 +1845,9 @@ async fn main() -> anyhow::Result<()> {
                 Commands::Restart => client.restart().await,
                 Commands::ChangePassword { new_password } => client.change_password(&new_password).await,
                 Commands::ResetCredentials => client.reset_credentials().await,
+                Commands::Config { config_command } => {
+                    handle_config_command(config_command).await
+                }
                 Commands::Server => unreachable!(), // Already handled above
             }
         }
@@ -1459,42 +1863,28 @@ async fn start_server() -> anyhow::Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    // Small helper closure: try primary env var name first, then legacy fallback; return Option<String>.
-    let fetch = |primary: &str, legacy: &str| -> Option<String> {
-        if let Ok(v) = env::var(primary) { return Some(v); }
-        if let Ok(v) = env::var(legacy) { println!("Using legacy env var {legacy} for {primary}"); return Some(v); }
-        None
-    };
-
-    // Parse configuration with defaults; unwrap_or falls back if parse fails.
-    let port: u16 = fetch("PORT", "TC_HTTP_PORT").unwrap_or_else(|| "8080".to_string()).parse().unwrap_or(8080);
-    let tcp_port: u16 = fetch("TCP_PORT", "TC_TCP_PORT").unwrap_or_else(|| "1984".to_string()).parse().unwrap_or(1984);
-    let num_shards: usize = fetch("NUM_SHARDS", "TC_NUM_SHARDS").unwrap_or_else(|| "16".to_string()).parse().unwrap_or(16);
-
-    // Cleanup interval: prefer ms, else seconds, else default 60s.
-    let cleanup_interval = if let Some(ms) = fetch("CLEANUP_INTERVAL_MS", "TC_SWEEP_INTERVAL_MS") {
-        // Provided in ms -> convert to seconds (ceil) because we use time::interval with whole seconds.
-        ms.parse::<u64>().ok().map(|v| (v.max(1)+999)/1000).unwrap_or(60)
-    } else if let Some(secs) = fetch("CLEANUP_INTERVAL_SECONDS", "CLEANUP_INTERVAL_SECS") {
-        secs.parse::<u64>().unwrap_or(60)
-    } else { 60 };
+    // Load configuration from file
+    let config_path = TagCacheConfig::default_config_path();
+    let config = TagCacheConfig::load_from_file(&config_path)?;
+    
+    println!("TagCache Server starting...");
+    println!("Configuration loaded from: {}", config_path.display());
 
     // Build the cache (Arc so it can be shared across tasks / threads).
-    let cache = Arc::new(Cache::new(num_shards));
+    let cache = Arc::new(Cache::new(config.server.num_shards));
     
-    // Use default credentials (admin/password) - can be changed via CLI
-    let default_creds = Credentials {
-        username: "admin".to_string(),
-        password: "password".to_string(),
+    // Use credentials from configuration file
+    let auth_creds = Credentials {
+        username: config.authentication.username.clone(),
+        password: config.authentication.password.clone(),
     };
-    let auth_state = Arc::new(AuthState::new(default_creds));
+    let auth_state = Arc::new(AuthState::new(auth_creds, config_path.clone()));
     let app_state = Arc::new(AppState { cache: cache.clone(), auth: auth_state.clone() });
-    let allowed_origin = env::var("ALLOWED_ORIGIN").ok();
 
     // Background task: periodically sweep expired entries to free memory.
     let cleanup_cache = cache.clone();
     tokio::spawn(async move { // Spawn detached task (no join handle needed here)
-        let mut interval = time::interval(Duration::from_secs(cleanup_interval));
+        let mut interval = time::interval(Duration::from_secs(config.server.cleanup_interval_seconds));
         loop {
             interval.tick().await;                       // Wait for next tick
             let expired_count = cleanup_cache.cleanup_expired();
@@ -1507,15 +1897,16 @@ async fn start_server() -> anyhow::Result<()> {
     // Launch TCP server early (independent of HTTP lifecycle). Errors logged to stderr.
     let tcp_cache = cache.clone();
     tokio::spawn(async move {
-        if let Err(e) = run_tcp_server(tcp_cache, tcp_port).await { eprintln!("TCP server error: {e}"); }
+        if let Err(e) = run_tcp_server(tcp_cache, config.server.tcp_port).await { eprintln!("TCP server error: {e}"); }
     });
 
     // Build Axum router with all endpoints.
-    let app = build_app(app_state.clone(), allowed_origin);
+    let app = build_app(app_state.clone(), config.server.allowed_origin.clone());
 
     // Bind TCP listener for HTTP (await returns listener only when bind succeeds).
-    let listener = tokio::net::TcpListener::bind(&format!("0.0.0.0:{}", port)).await?;
-    info!("TagCache HTTP port={} TCP port={} shards={} cleanup={}s", port, tcp_port, num_shards, cleanup_interval);
+    let listener = tokio::net::TcpListener::bind(&format!("0.0.0.0:{}", config.server.http_port)).await?;
+    info!("TagCache HTTP port={} TCP port={} shards={} cleanup={}s", 
+          config.server.http_port, config.server.tcp_port, config.server.num_shards, config.server.cleanup_interval_seconds);
 
     // Serve HTTP forever (await until server stops via error / shutdown signal).
     axum::serve(listener, app).await?;

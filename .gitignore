@@ -79,6 +79,7 @@ bench_output/
 
 # ---- Secrets / Credentials ----
 credential.txt
+tagcache.conf  # Configuration file with credentials
 
 # ---- Frontend (Vite/React) ----
 app/node_modules/

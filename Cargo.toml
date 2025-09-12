@@ -47,6 +47,8 @@ clap = { version = "4.0", features = ["derive"] }
 tower = { version = "0.4", features = ["util"] }
 rust-embed = { version = "8.0", features = ["debug-embed"], optional = true }
 mime_guess = "2.0"
+toml = "0.8"
+dirs = "5.0"
 
 [dev-dependencies]
 sysinfo = "0.30"
