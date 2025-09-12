@@ -74,75 +74,191 @@ open http://localhost:8080
 
 ### 📦 Pre-built Binaries (Recommended)
 
+Download the latest binaries from our [GitHub Releases](https://github.com/aminshamim/tagcache/releases/latest) page.
+
 #### 🍎 macOS (Intel & Apple Silicon)
 ```bash
 # For macOS Intel (x86_64)
-wget https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-macos-x86_64.tar.gz
+curl -L -o tagcache-macos-x86_64.tar.gz \
+  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-macos-x86_64.tar.gz
 tar xzf tagcache-macos-x86_64.tar.gz
-sudo cp tagcache /usr/local/bin/
+sudo cp tagcache bench_tcp /usr/local/bin/
 
-# For macOS Apple Silicon (ARM64/M1/M2)
-wget https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-macos-arm64.tar.gz
+# For macOS Apple Silicon (ARM64/M1/M2/M3)
+curl -L -o tagcache-macos-arm64.tar.gz \
+  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-macos-arm64.tar.gz
 tar xzf tagcache-macos-arm64.tar.gz
-sudo cp tagcache /usr/local/bin/
+sudo cp tagcache bench_tcp /usr/local/bin/
 
-# Then run
-tagcache
+# Verify installation
+tagcache --version
+```
+
+#### 🐧 Linux (x86_64 & ARM64)
+```bash
+# For Linux x86_64
+curl -L -o tagcache-linux-x86_64.tar.gz \
+  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-linux-x86_64.tar.gz
+tar xzf tagcache-linux-x86_64.tar.gz
+sudo cp tagcache bench_tcp /usr/local/bin/
+
+# For Linux ARM64 (Raspberry Pi, ARM servers)
+curl -L -o tagcache-linux-arm64.tar.gz \
+  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-linux-arm64.tar.gz
+tar xzf tagcache-linux-arm64.tar.gz
+sudo cp tagcache bench_tcp /usr/local/bin/
+
+# Verify installation
+tagcache --version
 ```
 
 #### 🪟 Windows
 ```bash
 # Download and extract
-curl -L -o tagcache-windows.zip https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-windows-x86_64.exe.zip
-# Extract and run tagcache.exe
+curl -L -o tagcache-windows-x86_64.zip \
+  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-windows-x86_64.zip
+# Extract tagcache.exe and bench_tcp.exe to your preferred location
+# Add to PATH or run directly: .\tagcache.exe --version
 ```
 
 ### 🍺 Homebrew (macOS/Linux)
 ```bash
-# Install from our tap
+# Add our tap and install
 brew tap aminshamim/tap
 brew install tagcache
 
 # Or install directly
 brew install aminshamim/tap/tagcache
+
+# Verify installation
+tagcache --version
 ```
 
-### 🐧 Debian/Ubuntu
+### 🐧 Debian/Ubuntu (APT)
 ```bash
-# Download from releases page (when available)
-wget https://github.com/aminshamim/tagcache/releases/download/v1.0.2/tagcache_1.0.2_amd64.deb
-sudo dpkg -i tagcache_1.0.2_amd64.deb
+# Download the latest .deb package
+curl -L -o tagcache.deb \
+  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache_1.0.5_amd64.deb
 
-# Start the service
+# Install the package
+sudo dpkg -i tagcache.deb
+
+# Or if you prefer to auto-resolve dependencies
+sudo apt install ./tagcache.deb
+
+# Start and enable the service
 sudo systemctl enable tagcache
 sudo systemctl start tagcache
+
+# Check status
+sudo systemctl status tagcache
 ```
 
-### RHEL/CentOS/Fedora
+### 🔴 RHEL/CentOS/Fedora (RPM)
 ```bash
-# Download from releases page
-wget https://github.com/aminshamim/tagcache/releases/download/v0.1.0/tagcache-0.1.0-1.x86_64.rpm
-sudo rpm -ivh tagcache-0.1.0-1.x86_64.rpm
+# Download the latest .rpm package
+curl -L -o tagcache.rpm \
+  https://github.com/aminshamim/tagcache/releases/latest/download/tagcache-1.0.5-1.x86_64.rpm
 
-# Start the service
+# Install the package
+sudo rpm -ivh tagcache.rpm
+
+# Or using dnf/yum
+sudo dnf install ./tagcache.rpm
+
+# Start and enable the service
 sudo systemctl enable tagcache
 sudo systemctl start tagcache
-```
 
-### Windows
-1. Download `tagcache-windows-x86_64.zip` from [releases](https://github.com/aminshamim/tagcache/releases)
-2. Extract `tagcache.exe` to your desired location
-3. Run `tagcache.exe` from command prompt
-
-### 🦀 From Source (Rust)
-```bash
-cargo install --git https://github.com/aminshamim/tagcache
+# Check status
+sudo systemctl status tagcache
 ```
 
 ### 🐳 Docker
 ```bash
-docker run -p 8080:8080 -p 1984:1984 tagcache:latest
+# Run with default ports
+docker run -d --name tagcache \
+  -p 8080:8080 -p 1984:1984 \
+  ghcr.io/aminshamim/tagcache:latest
+
+# Or with custom configuration
+docker run -d --name tagcache \
+  -p 9090:8080 -p 1985:1984 \
+  -e NUM_SHARDS=32 \
+  -e CLEANUP_INTERVAL_MS=5000 \
+  ghcr.io/aminshamim/tagcache:latest
+
+# Check logs
+docker logs tagcache
 ```
+
+### 🦀 From Source (Rust)
+```bash
+# Install from Git (latest development version)
+cargo install --git https://github.com/aminshamim/tagcache --features embed-ui
+
+# Or clone and build locally
+git clone https://github.com/aminshamim/tagcache.git
+cd tagcache
+./scripts/build-and-release.sh
+```
+
+### 📋 Available Downloads
+
+Each release includes binaries for all major platforms:
+
+| Platform | Architecture | Download |
+|----------|-------------|----------|
+| **macOS** | Intel (x86_64) | `tagcache-macos-x86_64.tar.gz` |
+| **macOS** | Apple Silicon (ARM64) | `tagcache-macos-arm64.tar.gz` |
+| **Linux** | x86_64 | `tagcache-linux-x86_64.tar.gz` |
+| **Linux** | ARM64 | `tagcache-linux-arm64.tar.gz` |
+| **Linux** | x86_64 (musl) | `tagcache-linux-x86_64-musl.tar.gz` |
+| **Linux** | ARM64 (musl) | `tagcache-linux-arm64-musl.tar.gz` |
+| **Windows** | x86_64 | `tagcache-windows-x86_64.zip` |
+| **Debian** | x86_64 | `tagcache_X.X.X_amd64.deb` |
+| **RPM** | x86_64 | `tagcache-X.X.X-1.x86_64.rpm` |
+
+### ✅ Verify Installation
+
+After installation, verify TagCache is working:
+
+```bash
+# Check version
+tagcache --version
+
+# Verify bench_tcp is also available
+bench_tcp --help
+
+# Start server (Ctrl+C to stop)
+tagcache server
+
+# In another terminal, test basic operations
+tagcache --username admin --password password put "test" "hello world"
+tagcache --username admin --password password get key "test"
+tagcache --username admin --password password stats
+
+# Test performance with bench_tcp
+bench_tcp localhost 1984 32 5  # host port connections duration_seconds
+
+# Open web dashboard
+open http://localhost:8080  # macOS
+# or visit http://localhost:8080 in your browser
+```
+
+### 📋 What's Included in Each Distribution
+
+All TagCache distributions include both binaries:
+
+- **`tagcache`** - Main cache server with CLI interface
+- **`bench_tcp`** - High-performance TCP protocol benchmark tool
+
+Both tools are available in:
+- ✅ All binary releases (.tar.gz, .zip)
+- ✅ Debian packages (.deb) - installed to `/usr/bin/`
+- ✅ RPM packages (.rpm) - installed to `/usr/bin/`
+- ✅ Homebrew formula
+- ✅ Docker images
 
 ## ⚙️ Configuration
 
@@ -549,23 +665,27 @@ Set `TAGCACHE_URL` for a custom base URL.
 
 ## 📊 Performance Testing
 
-### Included TCP Benchmark Tool
+### 🚀 Built-in TCP Benchmark Tool
 
-TagCache includes `bench_tcp`, a high-performance benchmarking tool for testing server throughput and latency.
+TagCache includes `bench_tcp`, a high-performance benchmarking tool that's **available in all distributions**:
 
 ```bash
-# Basic benchmark (if installed via Homebrew/package)
+# Basic benchmark (default: localhost:1984, 32 connections, 10 seconds)
 bench_tcp
 
-# From source
-cargo run --release --bin bench_tcp
-./target/release/bench_tcp
-
 # Custom benchmark parameters
-bench_tcp localhost 1984 64 15  # host port connections duration_seconds
+bench_tcp <host> <port> <connections> <duration_seconds>
+bench_tcp localhost 1984 64 15
+
+# Benchmark different modes
+bench_tcp --mode put localhost 1984 32 10    # Test PUT operations
+bench_tcp --mode get localhost 1984 32 10    # Test GET operations (default)
+
+# Custom TTL and key count
+bench_tcp --ttl 30000 --keys 1000 localhost 1984 32 5
 ```
 
-Example output:
+#### Example Output:
 ```
 Benchmark config: host=127.0.0.1 port=1984 conns=32 duration=10s keys=100 mode=get ttl_ms=60000
 Results:
@@ -574,19 +694,21 @@ Throughput: 187785.90 ops/sec
 Latency (microseconds): min 19.4 p50 166.2 p90 224.4 p95 244.6 p99 289.9 max 914.4 avg 170.2
 ```
 
-The benchmark tool tests the high-performance TCP protocol and can achieve very high throughput rates depending on your hardware.
-- `--mode` - Benchmark mode: `get` or `put` (default: get)
+#### Benchmark Options:
+- `--mode` - Operation type: `get` (default) or `put`
 - `--ttl` - TTL in milliseconds (default: 60000)
+- `--keys` - Number of unique keys to cycle through (default: 100)
 
-**Note:** Make sure TagCache server is running first using `./tagcache.sh`
+The benchmark tool tests the high-performance TCP protocol and can achieve very high throughput rates depending on your hardware.
 
-Sample results (reference only):
+**Installation Verification**: After installing TagCache from any source, `bench_tcp` should be immediately available:
+```bash
+# Verify installation
+which bench_tcp
+bench_tcp --help
 ```
-PUT:  ~69.9 K ops/sec  p50 ~0.87 ms  p99 ~1.79 ms
-GET:  ~65.2 K ops/sec  p50 ~0.95 ms  p99 ~2.25 ms
-```
 
-### HTTP via wrk
+### 🌐 HTTP Benchmarking via wrk
 `put.lua`:
 ```lua
 wrk.method = "POST"

@@ -1,7 +1,7 @@
 class Tagcache < Formula
   desc "Lightweight, sharded, tag-aware in-memory cache server"
   homepage "https://github.com/aminshamim/tagcache"
-  version "1.0.2"
+  version "1.0.6"
   license "MIT"
   
   on_macos do
