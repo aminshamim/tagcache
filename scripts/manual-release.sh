@@ -106,10 +106,6 @@ fi
 if [ "$UPDATE_README" = true ]; then
     echo "📝 Updating README.md with version $VERSION links..."
     
-    # Create backup if it doesn't exist
-    if [ ! -f "README.md.backup" ]; then
-        cp README.md README.md.backup
-    fi
     
     # Update version-specific download links - comprehensive replacement
     sed -i.tmp "s|/download/v[0-9]\+\.[0-9]\+\.[0-9]\+/|/download/v${VERSION}/|g" README.md
