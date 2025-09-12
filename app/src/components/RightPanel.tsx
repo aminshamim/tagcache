@@ -7,10 +7,12 @@ import { useNavigate } from 'react-router-dom';
 import { deleteKey, getKey, listKeys } from '../api/client';
 import { useAuthStore } from '../store/auth';
 import { useSelectionStore } from '../store/selection';
+import { useCacheStore } from '../store/cache';
 
 export function RightPanel() {
   const token = useAuthStore(s=>s.token);
   const { selectedKey, clear, triggerInvalidated } = useSelectionStore();
+  const { flushCounter } = useCacheStore();
   const hasSelection = !!selectedKey;
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -43,6 +45,15 @@ export function RightPanel() {
   });
 
   const now = Date.now();
+  
+  // Listen for flush events and refetch data
+  useEffect(() => {
+    if (flushCounter > 0) {
+      clear(); // Clear any selected key since it's been flushed
+      refetch(); // Refetch latest keys
+    }
+  }, [flushCounter, clear, refetch]);
+  
   // Close key details when clicking outside the details card AND outside the selected row
   useEffect(() => {
     function onDocClick(e: MouseEvent){
