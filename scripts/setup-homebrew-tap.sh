@@ -68,7 +68,7 @@ echo "✅ Copied formula to Formula/$FORMULA_NAME.rb"
 
 # Commit and push
 git add .
-git commit -m "Add/update TagCache formula v1.0.2" || echo "No changes to commit"
+git commit -m "Add/update TagCache formula $(cat VERSION || grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2)" || echo "No changes to commit"
 
 echo ""
 echo "🚀 Next steps:"

@@ -28,7 +28,13 @@ cd ../..
 echo "✅ Created: dist/tagcache-linux-x86_64.tar.gz"
 
 # Create a new tag for production release
-NEW_VERSION="v1.0.2"
+VERSION_FILE="VERSION"
+if [ -f "$VERSION_FILE" ]; then
+    NEW_VERSION="v$(cat $VERSION_FILE)"
+else
+    # Fallback: get version from Cargo.toml
+    NEW_VERSION="v$(grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2)"
+fi
 echo "🏷️  Creating production tag: $NEW_VERSION"
 
 if git tag -l | grep -q "^$NEW_VERSION$"; then
