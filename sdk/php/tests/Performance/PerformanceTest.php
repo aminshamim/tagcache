@@ -53,7 +53,7 @@ class PerformanceTest extends TestCase
         // Measure individual puts
         $start = microtime(true);
         foreach ($values as $key => $value) {
-            $this->client->put($key, $value, 300, ['performance']);
+            $this->client->put($key, $value, ['performance'], 300);
         }
         $individualTime = microtime(true) - $start;
         
@@ -94,7 +94,7 @@ class PerformanceTest extends TestCase
             for ($k = 0; $k < $keysPerTag; $k++) {
                 $key = "perf:tag:$t:$k:" . uniqid();
                 $allKeys[] = $key;
-                $this->client->put($key, "value-$t-$k", 300, [$tag, 'performance']);
+                $this->client->put($key, "value-$t-$k", [$tag, 'performance'], 300);
             }
         }
         
@@ -131,7 +131,7 @@ class PerformanceTest extends TestCase
         foreach ($prefixes as $prefix) {
             for ($i = 0; $i < $keysPerPrefix; $i++) {
                 $key = $prefix . sprintf('%04d', $i) . ":$testId";
-                $this->client->put($key, "value-$i", 300, ['search-perf']);
+                $this->client->put($key, "value-$i", ['search-perf'], 300);
             }
         }
         
@@ -164,7 +164,7 @@ class PerformanceTest extends TestCase
             
             // Measure put
             $start = microtime(true);
-            $this->client->put($key, $value, 300, ['large-perf']);
+            $this->client->put($key, $value, ['large-perf'], 300);
             $putTime = microtime(true) - $start;
             
             // Measure get
@@ -209,7 +209,7 @@ class PerformanceTest extends TestCase
             $key = "pool:test:$i:" . uniqid();
             
             // Mix of operations
-            $this->client->put($key, "value-$i", 60, ['pool-test']);
+            $this->client->put($key, "value-$i", ['pool-test'], 60);
             $this->assertSame("value-$i", $this->client->get($key));
             $this->client->delete($key);
         }
@@ -234,7 +234,7 @@ class PerformanceTest extends TestCase
             $key = "memory:test:$i:" . uniqid();
             $value = str_repeat('x', 1000);
             
-            $this->client->put($key, $value, 60, ['memory-test']);
+            $this->client->put($key, $value, ['memory-test'], 60);
             $this->client->get($key);
             $this->client->delete($key);
             

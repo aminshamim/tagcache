@@ -22,25 +22,30 @@ final class Client implements ClientInterface
     private Config $config;
     private TransportInterface $transport;
 
-    public function __construct(Config $config, ?TransportInterface $transport = null)
+    public function __construct(?Config $config = null, ?TransportInterface $transport = null)
     {
-        $this->config = $config;
+        $this->config = $config ?? new Config();
         if ($transport) { $this->transport = $transport; }
         else {
-            $mode = strtolower($config->mode);
-            if ($mode === 'tcp') $this->transport = new TcpTransport($config);
+            $mode = strtolower($this->config->mode);
+            if ($mode === 'tcp') $this->transport = new TcpTransport($this->config);
             elseif ($mode === 'auto') {
-                try { $this->transport = new TcpTransport($config); }
-                catch (\Throwable $e) { $this->transport = new HttpTransport($config); }
-            } else { $this->transport = new HttpTransport($config); }
+                try { $this->transport = new TcpTransport($this->config); }
+                catch (\Throwable $e) { $this->transport = new HttpTransport($this->config); }
+            } else { $this->transport = new HttpTransport($this->config); }
         }
     }
 
     /**
      * @param string[] $tags
      */
-    public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool
+    public function put(string $key, mixed $value, array $tags = [], ?int $ttlMs = null): bool
     {
+        // Use default TTL from config if not specified
+        if ($ttlMs === null) {
+            $ttlMs = $this->config->cache['default_ttl_ms'] ?? null;
+        }
+        
         try {
             return $this->transport->put($key, $value, $ttlMs, $tags);
         } catch (\Throwable $e) {
@@ -57,9 +62,8 @@ final class Client implements ClientInterface
         try {
             $res = $this->transport->get($key);
             // Tests generally expect raw value when get() used directly for backward compatibility
-            if (isset($res['value'])) return $res['value'];
-            if (isset($res['value_raw'])) return $res['value_raw'];
-            if (isset($res['key']) && isset($res['value'])) return $res['value'];
+            if (array_key_exists('value', $res)) return $res['value'];
+            if (array_key_exists('value_raw', $res)) return $res['value_raw'];
             return $res; // fallback: return array/metadata
         } catch (NotFoundException $e) {
             return null;
@@ -98,8 +102,8 @@ final class Client implements ClientInterface
         foreach ($raw as $k => $res) {
             // Return raw values for backward compatibility, like get() method
             if ($res) {
-                if (isset($res['value'])) $out[$k] = $res['value'];
-                elseif (isset($res['value_raw'])) $out[$k] = $res['value_raw'];
+                if (array_key_exists('value', $res)) $out[$k] = $res['value'];
+                elseif (array_key_exists('value_raw', $res)) $out[$k] = $res['value_raw'];
                 else $out[$k] = $res;
             }
             // Skip missing keys (don't add them to result)
@@ -153,12 +157,18 @@ final class Client implements ClientInterface
         return $this->transport->list($limit);
     }
 
-    public function getOrSet(string $key, callable $producer, ?int $ttlMs = null, array $tags = []): Item
+    public function getOrSet(string $key, callable $producer, array $tags = [], ?int $ttlMs = null): Item
     {
         $found = $this->get($key);
         if ($found) return $found;
+        
+        // Use default TTL from config if not specified
+        if ($ttlMs === null) {
+            $ttlMs = $this->config->cache['default_ttl_ms'] ?? null;
+        }
+        
         $value = $producer($key);
-        $this->put($key, $value, $ttlMs, $tags);
+        $this->put($key, $value, $tags, $ttlMs);
         return new Item($key, $value, $ttlMs, $tags);
     }
 
@@ -232,7 +242,7 @@ final class Client implements ClientInterface
     // Helper methods for convenience and test compatibility
     public function putWithTag(string $key, mixed $value, string $tag, ?int $ttlMs = null): bool
     {
-        return $this->put($key, $value, $ttlMs, [$tag]);
+        return $this->put($key, $value, [$tag], $ttlMs);
     }
     
     public function deleteByTag(string $tag): int

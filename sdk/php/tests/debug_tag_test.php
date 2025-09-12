@@ -37,7 +37,7 @@ for ($i = 1; $i <= 5; $i++) {
     $keys[] = $key;
     echo "Creating key: $key\n";
     
-    if (!$client->put($key, "value-$i", 300000, [$tag, 'debug-ops'])) {
+    if (!$client->put($key, "value-$i", [$tag, 'debug-ops'], 300000)) {
         echo "❌ Failed to put key $key\n";
         exit(1);
     }

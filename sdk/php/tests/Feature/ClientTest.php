@@ -24,6 +24,11 @@ class ClientTest extends TestCase
             'http' => [
                 'base_url' => $_ENV['TAGCACHE_HTTP_URL'] ?? 'http://localhost:8080',
                 'timeout_ms' => 5000,
+                'debug' => true,
+            ],
+            'auth' => [
+                'username' => $_ENV['TAGCACHE_USERNAME'] ?? 'admin',
+                'password' => $_ENV['TAGCACHE_PASSWORD'] ?? 'password',
             ],
         ]);
         $this->client = new Client($this->config);
@@ -35,8 +40,9 @@ class ClientTest extends TestCase
         $value = 'test-value-' . time();
         $tags = ['test', 'unit'];
         
-        // Put
-        $this->assertTrue($this->client->put($key, $value, 300, $tags));
+        // Put - use longer TTL to avoid expiration
+        $putResult = $this->client->put($key, $value, $tags, 30000); // 30 seconds
+        $this->assertTrue($putResult, 'PUT operation returned false, check server logs');
         
         // Get
         $result = $this->client->get($key);
@@ -65,8 +71,8 @@ class ClientTest extends TestCase
         $tag = 'tag-' . uniqid();
         
         // Put with tags
-        $this->assertTrue($this->client->put($key1, $value, 300, [$tag]));
-        $this->assertTrue($this->client->put($key2, $value, 300, [$tag]));
+        $this->assertTrue($this->client->put($key1, $value, [$tag], 300));
+        $this->assertTrue($this->client->put($key2, $value, [$tag], 300));
         
         // Get keys by tag
         $keys = $this->client->getKeysByTag($tag);
@@ -91,7 +97,7 @@ class ClientTest extends TestCase
         
         // Put all keys
         foreach ($keys as $key => $value) {
-            $this->assertTrue($this->client->put($key, $value, 300, ['bulk']));
+            $this->assertTrue($this->client->put($key, $value, ['bulk'], 300));
         }
         
         // Bulk get
@@ -139,7 +145,7 @@ class ClientTest extends TestCase
         
         // Put test data
         foreach ($keys as $key => $value) {
-            $this->assertTrue($this->client->put($key, $value, 300, ['search']));
+            $this->assertTrue($this->client->put($key, $value, ['search'], 300));
         }
         
         // Search by prefix
@@ -186,7 +192,7 @@ class ClientTest extends TestCase
         $value = 'test-value';
         
         // Put key
-        $this->assertTrue($this->client->put($key, $value, 300, ['invalidate']));
+        $this->assertTrue($this->client->put($key, $value, ['invalidate'], 300));
         $this->assertSame($value, $this->client->get($key));
         
         // Invalidate by key

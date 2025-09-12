@@ -64,121 +64,36 @@
             <li class="success">Tag helpers</li>
             <li class="success">Invalidate by key</li>
         </ul>
-        <h2>Client (TagCache\Tests\Feature\Client)</h2>
+        <h2>Http Transport</h2>
         <ul>
-            <li class="success">Put and get</li>
-            <li class="success">Get non existent</li>
-            <li class="success">Delete non existent</li>
-            <li class="success">Put with tags</li>
-            <li class="success">Bulk operations</li>
-            <li class="success">Stats</li>
-            <li class="success">Health</li>
-            <li class="success">Search</li>
-            <li class="success">Tag helpers</li>
-            <li class="success">Invalidate by key</li>
+            <li class="success">Builds</li>
+            <li class="success">Guzzle client is used</li>
+            <li class="success">Authentication failure does not retry</li>
+            <li class="success">Connection failure retries with exponential backoff</li>
+            <li class="success">Configuration exception for missing serializer extension</li>
         </ul>
-        <h2>Config</h2>
+        <h2>Tcp Transport (TagCache\Tests\TcpTransport)</h2>
         <ul>
-            <li class="success">From env defaults</li>
-        </ul>
-        <h2>Config (TagCache\Tests\Unit\Config)</h2>
-        <ul>
-            <li class="success">From env defaults</li>
-            <li class="success">Http mode</li>
-            <li class="success">Tcp mode</li>
-            <li class="success">With authentication</li>
-            <li class="success">Environment variables</li>
-        </ul>
-        <h2>Exception (TagCache\Tests\Unit\Exceptions\Exception)</h2>
-        <ul>
-            <li class="success">Api exception basic</li>
-            <li class="success">Api exception with previous</li>
-            <li class="success">Not found exception</li>
-            <li class="success">Not found exception with key</li>
-            <li class="success">Connection exception</li>
-            <li class="success">Connection exception for host</li>
-            <li class="success">Timeout exception</li>
-            <li class="success">Timeout exception with duration</li>
-            <li class="success">Authentication exception</li>
-            <li class="success">Authentication exception for invalid token</li>
-            <li class="success">Authentication exception for invalid credentials</li>
-            <li class="success">Exception chaining</li>
-            <li class="success">Exception context</li>
-            <li class="success">Exception serialization</li>
-        </ul>
-        <h2>Http Transport (TagCache\Tests\Transport\HttpTransport)</h2>
-        <ul>
-            <li class="success">Put and get</li>
-            <li class="success">Get non existent</li>
-            <li class="success">Bulk operations</li>
-            <li class="success">Get keys by tag</li>
-            <li class="success">Invalidate by tag</li>
-            <li class="success">Invalidate by key</li>
-            <li class="success">Stats</li>
-            <li class="success">Health</li>
-            <li class="success">Search</li>
-            <li class="success">Flush</li>
-            <li class="success">Connection timeout</li>
-            <li class="success">Retry logic</li>
-        </ul>
-        <h2>Item (TagCache\Tests\Unit\Models\Item)</h2>
-        <ul>
-            <li class="success">Constructor</li>
-            <li class="success">From array</li>
-            <li class="success">To array</li>
-            <li class="success">With default values</li>
-            <li class="success">From array with missing fields</li>
-            <li class="success">Json serialization</li>
-            <li class="success">Equality</li>
-            <li class="success">Has tag</li>
-            <li class="success">Is expired</li>
-        </ul>
-        <h2>Live Server (TagCache\Tests\Integration\LiveServer)</h2>
-        <ul>
-            <li class="success">Full workflow with data set "HTTP Transport"</li>
-            <li class="defect">Full workflow with data set "TCP Transport"</li>
-            <li class="success">Large payloads with data set "HTTP Transport"</li>
-            <li class="success">Large payloads with data set "TCP Transport"</li>
-            <li class="success">Concurrent operations with data set "HTTP Transport"</li>
-            <li class="success">Concurrent operations with data set "TCP Transport"</li>
-            <li class="success">Tag invalidation with data set "HTTP Transport"</li>
-            <li class="success">Tag invalidation with data set "TCP Transport"</li>
-            <li class="success">Http specific features with data set "HTTP Transport"</li>
-        </ul>
-        <h2>Performance (TagCache\Tests\Performance)</h2>
-        <ul>
-            <li class="success">Bulk operation performance</li>
-            <li class="success">Tag operation performance</li>
-            <li class="defect">Search performance</li>
-            <li class="success">Large payload performance</li>
-            <li class="success">Connection pooling efficiency</li>
-            <li class="success">Memory usage</li>
-        </ul>
-        <h2>Performance (TagCache\Tests\Performance\Performance)</h2>
-        <ul>
-            <li class="defect">Bulk operation performance</li>
-            <li class="defect">Tag operation performance</li>
-            <li class="defect">Search performance</li>
-            <li class="success">Large payload performance</li>
-            <li class="success">Connection pooling efficiency</li>
-            <li class="success">Memory usage</li>
-        </ul>
-        <h2>Tcp Transport (TagCache\Tests\Transport\TcpTransport)</h2>
-        <ul>
-            <li class="success">Put and get</li>
-            <li class="success">Get non existent</li>
-            <li class="success">Connection pooling</li>
+            <li class="success">Builds</li>
+            <li class="success">Configuration validation</li>
+            <li class="defect">Invalid serializer configuration</li>
+            <li class="success">Connection failure with retry</li>
+            <li class="success">Health check with connection details</li>
+            <li class="success">Enhanced serialization</li>
+            <li class="success">Enhanced put with default ttl</li>
+            <li class="success">Enhanced get with deserialization</li>
+            <li class="success">Get not found</li>
+            <li class="success">Enhanced delete</li>
             <li class="success">Bulk operations</li>
             <li class="success">Tag operations</li>
-            <li class="success">Stats</li>
-            <li class="success">Health</li>
-            <li class="success">Connection failure</li>
-            <li class="success">Protocol framing</li>
-            <li class="success">Search</li>
-            <li class="success">Advanced tag operations</li>
-            <li class="success">List keys</li>
-            <li class="success">Flush cache</li>
-            <li class="success">Auth operations</li>
+            <li class="success">Enhanced search</li>
+            <li class="success">Unsupported operations</li>
+            <li class="success">Authentication not supported</li>
+            <li class="success">Enhanced stats</li>
+            <li class="success">Flush operation</li>
+            <li class="success">Complex search not supported</li>
+            <li class="success">Invalidate tags all mode not supported</li>
+            <li class="success">Connection pool behavior</li>
         </ul>
     </body>
 </html>

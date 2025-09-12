@@ -9,7 +9,7 @@ interface ClientInterface
     /**
      * @param string[] $tags
      */
-    public function put(string $key, mixed $value, ?int $ttlMs = null, array $tags = []): bool;
+    public function put(string $key, mixed $value, array $tags = [], ?int $ttlMs = null): bool;
     
     public function get(string $key): mixed;
     
@@ -55,7 +55,7 @@ interface ClientInterface
     /**
      * @param string[] $tags
      */
-    public function getOrSet(string $key, callable $producer, ?int $ttlMs = null, array $tags = []): Item;
+    public function getOrSet(string $key, callable $producer, array $tags = [], ?int $ttlMs = null): Item;
     
     public function flush(): int; // clear all cache
     
