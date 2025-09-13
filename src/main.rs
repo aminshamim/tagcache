@@ -12,9 +12,12 @@
 
 use axum::{routing::{get, post}, Json, Router, extract::{Path, Query, FromRequestParts, State}, response::Json as ResponseJson, http::{request::Parts, StatusCode}}; // Axum web framework imports for routing & JSON
 use serde::{Deserialize, Serialize}; // Serde for (de)serialization of JSON payloads
-use std::{sync::Arc, time::{Duration, Instant, SystemTime, UNIX_EPOCH}, env}; // Arc = thread-safe reference counting; time utilities; env vars
+use std::{sync::Arc, time::{Duration, Instant, SystemTime, UNIX_EPOCH}, env, sync::atomic::{AtomicU64, Ordering}}; // Arc = thread-safe reference counting; time utilities; env vars; atomic counters
 use clap::{Parser, Subcommand}; // Command line argument parsing
 use reqwest; // HTTP client for CLI commands
+use once_cell::sync::Lazy; // For global static initialization
+use lru::LruCache; // For authentication caching
+use parking_lot::Mutex; // Faster mutex than std
 use axum::response::{Html, IntoResponse};
 use axum::http::{header, Uri};
 
@@ -871,24 +874,59 @@ impl Shard {
 #[derive(Debug)]
 pub struct Cache {
     pub shards: Vec<Shard>,               // Fixed number of shards selected by hashing the key
-    pub stats: Arc<Mutex<CacheStats>>,    // Shared stats protected by a Mutex (updates are small / low contention)
+    pub stats: Arc<CacheStats>,    // Shared stats with atomic counters (lock-free)
     hasher: RandomState,                 // Fast hashing state (provides build_hasher())
 }
 
 // Simple counters; Clone so we can snapshot for /stats without locking long.
 #[derive(Debug, Default, Clone)]
 pub struct CacheStats {
-    pub hits: u64,
-    pub misses: u64,
-    pub puts: u64,
-    pub invalidations: u64,
+    pub hits: AtomicU64,
+    pub misses: AtomicU64,
+    pub puts: AtomicU64,
+    pub invalidations: AtomicU64,
+}
+
+impl CacheStats {
+    fn new() -> Self {
+        Self {
+            hits: AtomicU64::new(0),
+            misses: AtomicU64::new(0),
+            puts: AtomicU64::new(0),
+            invalidations: AtomicU64::new(0),
+        }
+    }
 }
 
 // =============================
-// AUTH TYPES
+// AUTH TYPES WITH CACHING
 // =============================
 #[derive(Clone, Debug)]
 pub struct Credentials { pub username: String, pub password: String }
+
+// Authentication cache for decoded credentials to avoid repeated Base64 decoding
+static AUTH_CACHE: Lazy<Mutex<LruCache<String, bool>>> = Lazy::new(|| {
+    Mutex::new(LruCache::new(std::num::NonZeroUsize::new(10000).unwrap()))
+});
+
+// Buffer pool to reduce allocations in hot paths
+static STRING_BUFFER_POOL: Lazy<Mutex<Vec<String>>> = Lazy::new(|| {
+    Mutex::new(Vec::with_capacity(100))
+});
+
+fn get_pooled_string() -> String {
+    STRING_BUFFER_POOL.lock().pop().unwrap_or_default()
+}
+
+fn return_pooled_string(mut s: String) {
+    s.clear();
+    if s.capacity() <= 1024 { // Don't pool overly large strings
+        let mut pool = STRING_BUFFER_POOL.lock();
+        if pool.len() < 100 {
+            pool.push(s);
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct AuthState { 
@@ -906,13 +944,48 @@ impl AuthState {
         } 
     }
     fn issue_token(&self) -> String { let token: String = rand::thread_rng().sample_iter(&Alphanumeric).take(48).map(char::from).collect(); self.tokens.insert(token.clone()); token }
-    fn rotate(&self) -> Credentials { let new = Credentials { username: rand::thread_rng().sample_iter(&Alphanumeric).take(16).map(char::from).collect(), password: rand::thread_rng().sample_iter(&Alphanumeric).take(24).map(char::from).collect() }; *self.credentials.lock() = new.clone(); self.tokens.clear(); new }
-    fn validate_basic(&self, u:&str, p:&str) -> bool { let c = self.credentials.lock(); c.username==u && c.password==p }
+    fn rotate(&self) -> Credentials { let new = Credentials { username: rand::thread_rng().sample_iter(&Alphanumeric).take(16).map(char::from).collect(), password: rand::thread_rng().sample_iter(&Alphanumeric).take(24).map(char::from).collect() }; *self.credentials.lock() = new.clone(); self.tokens.clear(); AUTH_CACHE.lock().clear(); new }
+    
+    fn validate_basic(&self, u:&str, p:&str) -> bool { 
+        let c = self.credentials.lock(); 
+        c.username==u && c.password==p 
+    }
+    
+    fn validate_basic_cached(&self, auth_header: &str) -> bool {
+        // Check cache first
+        {
+            let mut cache = AUTH_CACHE.lock();
+            if let Some(&result) = cache.get(auth_header) {
+                return result;
+            }
+        }
+        
+        // Decode and validate
+        let result = if let Ok(decoded) = B64.decode(auth_header) {
+            if let Ok(pair) = String::from_utf8(decoded) {
+                if let Some((u, p)) = pair.split_once(':') {
+                    self.validate_basic(u, p)
+                } else { false }
+            } else { false }
+        } else { false };
+        
+        // Cache the result
+        {
+            let mut cache = AUTH_CACHE.lock();
+            cache.put(auth_header.to_string(), result);
+        }
+        
+        result
+    }
+    
     fn validate_token(&self, t:&str) -> bool { self.tokens.contains(t) }
     
     fn change_password(&self, new_password: String) -> bool {
         let mut creds = self.credentials.lock();
         creds.password = new_password.clone();
+        
+        // Clear auth cache when password changes
+        AUTH_CACHE.lock().clear();
         
         // Persist to configuration file
         if let Err(e) = self.persist_credentials_to_config(Some(creds.username.clone()), Some(new_password)) {
@@ -963,17 +1036,18 @@ impl FromRequestParts<Arc<AppState>> for Authenticated {
     async fn from_request_parts(parts: &mut Parts, state: &Arc<AppState>) -> Result<Self, Self::Rejection> {
         if let Some(hv) = parts.headers.get(axum::http::header::AUTHORIZATION) {
             if let Ok(s) = hv.to_str() {
-                if let Some(bearer) = s.strip_prefix("Bearer ") { if state.auth.validate_token(bearer) { return Ok(Authenticated); } }
+                if let Some(bearer) = s.strip_prefix("Bearer ") { 
+                    if state.auth.validate_token(bearer) { return Ok(Authenticated); } 
+                }
                 if let Some(basic) = s.strip_prefix("Basic ") {
-                    if let Ok(decoded) = B64.decode(basic) {
-                        if let Ok(pair) = String::from_utf8(decoded) {
-                            if let Some((u,p)) = pair.split_once(':') { if state.auth.validate_basic(u,p) { return Ok(Authenticated); } }
-                        }
+                    // Use cached validation to avoid repeated Base64 decoding
+                    if state.auth.validate_basic_cached(basic) { 
+                        return Ok(Authenticated); 
                     }
                 }
             }
         }
-        Err((StatusCode::UNAUTHORIZED, ResponseJson(serde_json::json!({"error":"unauthorized"}))))
+        Err((StatusCode::UNAUTHORIZED, ResponseJson(UNAUTHORIZED_JSON.clone())))
     }
 }
 
@@ -990,7 +1064,7 @@ impl Cache {
         }
         Self {
             shards,
-            stats: Arc::new(Mutex::new(CacheStats::default())),
+            stats: Arc::new(CacheStats::new()),
             hasher: RandomState::new(), // Random seed hashing state for consistent distribution
         }
     }
@@ -1035,7 +1109,7 @@ impl Cache {
         }
 
         shard.entries.insert(key, entry);        // Upsert the actual entry
-        self.stats.lock().puts += 1;              // Increment PUT counter (lock is short-lived)
+        self.stats.puts.fetch_add(1, Ordering::Relaxed); // Increment PUT counter (atomic)
     }
 
     // Retrieve a value if present and not expired.
@@ -1045,14 +1119,14 @@ impl Cache {
         if let Some(entry) = shard.entries.get(key) {   // entry = DashMap reference guard
             if entry.is_expired() {                     // TTL check
                 shard.entries.remove(key);              // Eager removal of expired entry
-                self.stats.lock().misses += 1;          // Count as miss
+                self.stats.misses.fetch_add(1, Ordering::Relaxed); // Count as miss
                 None
             } else {
-                self.stats.lock().hits += 1;            // Count as hit
+                self.stats.hits.fetch_add(1, Ordering::Relaxed); // Count as hit
                 Some(entry.value.clone())               // Clone value out (cheap relative to network cost)
             }
         } else {
-            self.stats.lock().misses += 1;              // Key absent
+            self.stats.misses.fetch_add(1, Ordering::Relaxed); // Key absent
             None
         }
     }
@@ -1084,7 +1158,7 @@ impl Cache {
                     keys.remove(key);
                 }
             }
-            self.stats.lock().invalidations += 1;             // Increment invalidations counter
+            self.stats.invalidations.fetch_add(1, Ordering::Relaxed); // Increment invalidations counter
             true
         } else {
             false
@@ -1105,7 +1179,7 @@ impl Cache {
                 keys.clear();                                 // Clear the tag's set after removals
             }
         }
-        self.stats.lock().invalidations += count as u64;      // Record count
+        self.stats.invalidations.fetch_add(count as u64, Ordering::Relaxed); // Record count
         count
     }
 
@@ -1133,9 +1207,14 @@ impl Cache {
         count
     }
 
-    // Snapshot statistics (cheap clone of small struct).
+    // Snapshot statistics (atomic reads).
     pub fn get_stats(&self) -> CacheStats {
-        self.stats.lock().clone()
+        CacheStats {
+            hits: AtomicU64::new(self.stats.hits.load(Ordering::Relaxed)),
+            misses: AtomicU64::new(self.stats.misses.load(Ordering::Relaxed)),
+            puts: AtomicU64::new(self.stats.puts.load(Ordering::Relaxed)),
+            invalidations: AtomicU64::new(self.stats.invalidations.load(Ordering::Relaxed)),
+        }
     }
 
     pub fn flush_all(&self) -> usize { // Remove ALL entries and tag indexes; return number removed
@@ -1145,7 +1224,7 @@ impl Cache {
             shard.entries.clear();
             shard.tag_to_keys.clear();
         }
-        self.stats.lock().invalidations += total as u64;
+        self.stats.invalidations.fetch_add(total as u64, Ordering::Relaxed);
         total
     }
 }
@@ -1269,10 +1348,23 @@ async fn put_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, J
     ResponseJson(PutResponse { ok: true, ttl_ms: ttl_ms_return })
 }
 
+// Pre-created static JSON for common responses to avoid repeated allocations
+static UNAUTHORIZED_JSON: Lazy<serde_json::Value> = Lazy::new(|| {
+    serde_json::json!({"error":"unauthorized"})
+});
+
+static NOT_FOUND_JSON: Lazy<serde_json::Value> = Lazy::new(|| {
+    serde_json::json!({"error": "not_found"})
+});
+
 // GET handler returns either {value: ...} or {error: "not_found"}
 async fn get_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Path(key): Path<String>) -> ResponseJson<serde_json::Value> {
     let key = Key(key);
-    if let Some(value) = state.cache.get(&key) { ResponseJson(serde_json::json!({"value": value})) } else { ResponseJson(serde_json::json!({"error": "not_found"})) }
+    if let Some(value) = state.cache.get(&key) { 
+        ResponseJson(serde_json::json!({"value": value})) 
+    } else { 
+        ResponseJson(NOT_FOUND_JSON.clone()) 
+    }
 }
 
 // List keys associated with a tag.
@@ -1303,8 +1395,13 @@ async fn flush_handler(State(state): State<Arc<AppState>>, _auth: Authenticated)
 // Return stats snapshot.
 async fn stats_handler(State(state): State<Arc<AppState>>, _auth: Authenticated) -> ResponseJson<StatsResponse> {
     let stats = state.cache.get_stats();
-    let hit_ratio = if stats.hits + stats.misses > 0 {            // Avoid divide by zero
-        stats.hits as f64 / (stats.hits + stats.misses) as f64
+    let hits = stats.hits.load(Ordering::Relaxed);
+    let misses = stats.misses.load(Ordering::Relaxed);
+    let puts = stats.puts.load(Ordering::Relaxed);
+    let invalidations = stats.invalidations.load(Ordering::Relaxed);
+    
+    let hit_ratio = if hits + misses > 0 {            // Avoid divide by zero
+        hits as f64 / (hits + misses) as f64
     } else { 0.0 };
     // aggregate item & byte counts
     let mut items = 0usize;
@@ -1323,10 +1420,10 @@ async fn stats_handler(State(state): State<Arc<AppState>>, _auth: Authenticated)
         for t in shard.tag_to_keys.iter() { tag_set.insert(t.key().0.clone()); }
     }
     ResponseJson(StatsResponse {                                   // Build JSON struct
-        hits: stats.hits,
-        misses: stats.misses,
-        puts: stats.puts,
-        invalidations: stats.invalidations,
+        hits,
+        misses,
+        puts,
+        invalidations,
         hit_ratio,
         items,
         bytes,
