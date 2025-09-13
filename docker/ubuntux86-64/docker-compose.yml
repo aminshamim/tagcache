@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  tagcache:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+      platforms:
+        - linux/amd64
+    image: tagcache:v1.0.8-ubuntu-x86_64-dpkg
+    container_name: tagcache-ubuntu-x86_64
+    ports:
+      - "8080:8080"
+      - "1984:1984"
+    environment:
+      - PORT=8080
+      - TCP_PORT=1984
+      - HOST=0.0.0.0
+    volumes:
+      # Optional: persist data
+      - tagcache_data:/var/lib/tagcache
+      - tagcache_logs:/var/log/tagcache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  tagcache_data:
+    driver: local
+  tagcache_logs:
+    driver: local
