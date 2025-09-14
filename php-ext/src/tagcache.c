@@ -118,9 +118,17 @@ static void tc_client_dtor(zend_resource *res) {
     if (h->pool) {
         for (int i=0;i<h->pool_len;i++) {
             if (h->pool[i].fd>=0) close(h->pool[i].fd);
+            // Cleanup per-connection mutexes
+            pthread_mutex_destroy(&h->pool[i].conn_mutex);
+            pthread_mutex_destroy(&h->pool[i].pipeline_mutex);
         }
         efree(h->pool);
     }
+    
+    // Cleanup thread safety primitives
+    pthread_mutex_destroy(&h->pool_mutex);
+    pthread_mutex_destroy(&h->async_mutex);
+    
     if (h->cfg.host) efree(h->cfg.host);
     if (h->cfg.http_base) efree(h->cfg.http_base);
     efree(h);
@@ -191,13 +199,16 @@ void tc_setup_keep_alive(int fd, tc_client_config *cfg) {
 }
 
 static tc_tcp_conn *tc_get_conn(tc_client_handle *h) {
+    pthread_mutex_lock(&h->pool_mutex);  // THREAD SAFETY: Lock pool access
+    
     double t = now_mono();
     
     // AGGRESSIVE OPTIMIZATION 1: Ultra-fast connection pinning
     // If last connection is still healthy, use it immediately (no health checks)
     if (h->last_used && h->last_used->fd >= 0 && h->last_used->healthy) {
-        // Skip timestamp update for maximum speed
-        return h->last_used;
+        tc_tcp_conn *conn = h->last_used;
+        pthread_mutex_unlock(&h->pool_mutex);
+        return conn;
     }
     
     // AGGRESSIVE OPTIMIZATION 2: Deterministic connection selection
@@ -223,7 +234,8 @@ static tc_tcp_conn *tc_get_conn(tc_client_handle *h) {
         tc_tcp_conn *c = candidates[0];
         c->last_used = t;
         h->last_used = c; // Pin this connection aggressively
-        h->rr = (c - h->pool); // Update position for next search
+        h->rr = (c - h->pool); // Update position for next search (THREAD SAFE: under mutex)
+        pthread_mutex_unlock(&h->pool_mutex);
         return c;
     }
     
@@ -257,7 +269,7 @@ static tc_tcp_conn *tc_get_conn(tc_client_handle *h) {
             if (!recovered) {
                 recovered = c; // Use first successful recovery
                 h->last_used = c;
-                h->rr = idx;
+                h->rr = idx;  // THREAD SAFE: under mutex
             }
         } else {
             c->fd = -1; 
@@ -265,6 +277,7 @@ static tc_tcp_conn *tc_get_conn(tc_client_handle *h) {
         }
     }
     
+    pthread_mutex_unlock(&h->pool_mutex);  // THREAD SAFETY: Unlock before return
     return recovered;
 }
 
@@ -786,8 +799,10 @@ int tc_deserialize_to_zval(const char *data, size_t len, zval *return_value) {
 int tc_pipeline_begin(tc_tcp_conn *conn) {
     if (!conn || !conn->healthy) return -1;
     
+    pthread_mutex_lock(&conn->pipeline_mutex);  // THREAD SAFETY: Lock pipeline
+    
     conn->pipeline_mode = true;
-    conn->pending_requests = 0;
+    atomic_store(&conn->pending_requests, 0);   // THREAD SAFETY: Atomic store
     
     if (!conn->pipeline_buffer) {
         conn->pipeline_buf_size = 65536; // 64KB pipeline buffer
@@ -795,15 +810,19 @@ int tc_pipeline_begin(tc_tcp_conn *conn) {
     }
     conn->pipeline_buf_used = 0;
     
+    pthread_mutex_unlock(&conn->pipeline_mutex);  // THREAD SAFETY: Unlock
     return 0;
 }
 
 int tc_pipeline_add_request(tc_tcp_conn *conn, const char *cmd, size_t cmd_len) {
     if (!conn || !conn->pipeline_mode || !cmd) return -1;
     
+    pthread_mutex_lock(&conn->pipeline_mutex);  // THREAD SAFETY: Lock pipeline
+    
     // Check if buffer has space
     if (conn->pipeline_buf_used + cmd_len >= conn->pipeline_buf_size) {
         // Buffer full, execute current pipeline first
+        pthread_mutex_unlock(&conn->pipeline_mutex);  // Unlock for execute
         smart_str *responses = NULL;
         int response_count = 0;
         if (tc_pipeline_execute(conn, &responses, &response_count) != 0) {
@@ -814,39 +833,53 @@ int tc_pipeline_add_request(tc_tcp_conn *conn, const char *cmd, size_t cmd_len) 
             for (int i = 0; i < response_count; i++) {
                 smart_str_free(&responses[i]);
             }
+        pthread_mutex_lock(&conn->pipeline_mutex);  // Re-lock for buffer ops
             efree(responses);
         }
     }
     
-    // Add command to pipeline buffer
+    // Add command to pipeline buffer (THREAD SAFE: under mutex)
     memcpy(conn->pipeline_buffer + conn->pipeline_buf_used, cmd, cmd_len);
     conn->pipeline_buf_used += cmd_len;
-    conn->pending_requests++;
+    atomic_fetch_add(&conn->pending_requests, 1);  // THREAD SAFETY: Atomic increment
     
+    pthread_mutex_unlock(&conn->pipeline_mutex);  // THREAD SAFETY: Unlock
     return 0;
 }
 
 int tc_pipeline_execute(tc_tcp_conn *conn, smart_str **responses, int *response_count) {
-    if (!conn || !conn->pipeline_mode || conn->pending_requests == 0) return -1;
+    if (!conn || !conn->pipeline_mode) return -1;
     
-    // Send all buffered requests at once
+    pthread_mutex_lock(&conn->pipeline_mutex);  // THREAD SAFETY: Lock pipeline
+    
+    int pending = atomic_load(&conn->pending_requests);  // THREAD SAFETY: Atomic load
+    if (pending == 0) {
+        pthread_mutex_unlock(&conn->pipeline_mutex);
+        return -1;
+    }
+    
+    // Send all buffered requests at once (THREAD SAFE: under mutex)
     if (tc_write(conn, conn->pipeline_buffer, conn->pipeline_buf_used) != 0) {
         conn->healthy = false;
+        pthread_mutex_unlock(&conn->pipeline_mutex);
         return -1;
     }
     
     // Flush write buffer
     if (tc_flush(conn) != 0) {
         conn->healthy = false;
+        pthread_mutex_unlock(&conn->pipeline_mutex);
         return -1;
     }
     
     // Allocate response array
-    *responses = ecalloc(conn->pending_requests, sizeof(smart_str));
-    *response_count = conn->pending_requests;
+    *responses = ecalloc(pending, sizeof(smart_str));
+    *response_count = pending;
+    
+    pthread_mutex_unlock(&conn->pipeline_mutex);  // Unlock for I/O operations
     
     // Read all responses
-    for (int i = 0; i < conn->pending_requests; i++) {
+    for (int i = 0; i < pending; i++) {
         if (tc_readline(conn, &(*responses)[i]) != 0) {
             conn->healthy = false;
             // Free allocated responses
@@ -860,9 +893,11 @@ int tc_pipeline_execute(tc_tcp_conn *conn, smart_str **responses, int *response_
         }
     }
     
-    // Reset pipeline state
+    // Reset pipeline state (THREAD SAFE: atomic operations)
+    pthread_mutex_lock(&conn->pipeline_mutex);  // THREAD SAFETY: Lock for reset
     conn->pipeline_buf_used = 0;
-    conn->pending_requests = 0;
+    atomic_store(&conn->pending_requests, 0);  // THREAD SAFETY: Atomic store
+    pthread_mutex_unlock(&conn->pipeline_mutex);  // THREAD SAFETY: Unlock
     
     return 0;
 }
@@ -916,10 +951,14 @@ int tc_async_add_request(tc_client_handle *h, const char *key, int request_type)
     int flags = fcntl(conn->fd, F_GETFL, 0);
     fcntl(conn->fd, F_SETFL, flags | O_NONBLOCK);
     
-    // Add to async fd list
-    if (h->async_fd_count < h->cfg.pool_size) {
-        h->async_fds[h->async_fd_count++] = conn->fd;
+    // Add to async fd list (THREAD SAFE: atomic operations)
+    pthread_mutex_lock(&h->async_mutex);  // THREAD SAFETY: Lock async operations
+    int current_count = atomic_load(&h->async_fd_count);
+    if (current_count < h->cfg.pool_size) {
+        h->async_fds[current_count] = conn->fd;
+        atomic_fetch_add(&h->async_fd_count, 1);  // THREAD SAFETY: Atomic increment
     }
+    pthread_mutex_unlock(&h->async_mutex);  // THREAD SAFETY: Unlock
     
     // Send request (non-blocking)
     smart_str cmd = {0};
@@ -1083,10 +1122,14 @@ PHP_FUNCTION(tagcache_create) {
     h->pool_len = h->cfg.pool_size;
     h->pool = ecalloc(h->pool_len, sizeof(tc_tcp_conn));
     
+    // Initialize thread safety primitives
+    pthread_mutex_init(&h->pool_mutex, NULL);
+    pthread_mutex_init(&h->async_mutex, NULL);
+    
     // Initialize async I/O if enabled
     h->async_mode = false;
     h->async_fds = NULL;
-    h->async_fd_count = 0;
+    atomic_store(&h->async_fd_count, 0);
     
     // AGGRESSIVE OPTIMIZATION: Pre-warm ALL connections with optimized settings
     double t = now_mono();
@@ -1106,11 +1149,15 @@ PHP_FUNCTION(tagcache_create) {
             h->pool[i].last_used = t;
             
             // Initialize pipelining support
-            h->pool[i].pending_requests = 0;
+            atomic_store(&h->pool[i].pending_requests, 0);
             h->pool[i].pipeline_mode = false;
             h->pool[i].pipeline_buffer = NULL;
             h->pool[i].pipeline_buf_size = 0;
             h->pool[i].pipeline_buf_used = 0;
+            
+            // Initialize connection mutexes
+            pthread_mutex_init(&h->pool[i].conn_mutex, NULL);
+            pthread_mutex_init(&h->pool[i].pipeline_mutex, NULL);
             
             successful_connections++;
             
@@ -1121,6 +1168,9 @@ PHP_FUNCTION(tagcache_create) {
             }
         } else {
             h->pool[i].healthy = false;
+            // Initialize mutexes even for failed connections
+            pthread_mutex_init(&h->pool[i].conn_mutex, NULL);
+            pthread_mutex_init(&h->pool[i].pipeline_mutex, NULL);
         }
         h->pool[i].rlen = 0; 
         h->pool[i].rpos = 0;

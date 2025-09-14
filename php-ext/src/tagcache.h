@@ -8,6 +8,8 @@
 #include <php.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <pthread.h>
+#include <stdatomic.h>
 
 extern zend_module_entry tagcache_module_entry;
 #define phpext_tagcache_ptr &tagcache_module_entry
@@ -51,6 +53,7 @@ typedef struct _tc_tcp_conn {
     bool healthy;
     double created_at;
     double last_used;
+    pthread_mutex_t conn_mutex;    // THREAD SAFETY: Per-connection mutex
     // Phase 1 optimization: buffered read state
     char  rbuf[8192];
     size_t rlen;
@@ -60,9 +63,10 @@ typedef struct _tc_tcp_conn {
     size_t wlen;
     // Ultra-fast command assembly buffer (16KB for complex commands)
     char cmd_buf[16384];
-    // Pipelining support
-    int pending_requests;      // Number of requests sent but not yet responded
+    // Pipelining support (protected by conn_mutex)
+    atomic_int pending_requests;      // THREAD SAFETY: Atomic counter
     bool pipeline_mode;        // Whether connection is in pipeline mode
+    pthread_mutex_t pipeline_mutex;  // THREAD SAFETY: Pipeline operations mutex
     char *pipeline_buffer;     // Buffer for batched requests
     size_t pipeline_buf_size;  // Size of pipeline buffer
     size_t pipeline_buf_used;  // Used bytes in pipeline buffer
@@ -70,10 +74,12 @@ typedef struct _tc_tcp_conn {
 
 typedef struct _tc_client_handle {
     tc_client_config cfg;
+    pthread_mutex_t handle_mutex;    // THREAD SAFETY: Global handle mutex
     tc_tcp_conn *pool; // dynamic array
     int pool_len;
     int rr;
-    // Connection pinning optimization
+    pthread_mutex_t pool_mutex;      // THREAD SAFETY: Connection pool mutex
+    // Connection pinning optimization (protected by pool_mutex)
     tc_tcp_conn *last_used;
     // Shell integration features
     bool shell_integration_enabled;
@@ -81,10 +87,11 @@ typedef struct _tc_client_handle {
     size_t shell_buffer_size;
     int command_hints;
     bool auto_retry_enabled;
-    // Async I/O support
+    // Async I/O support (protected by async_mutex)
     bool async_mode;
+    pthread_mutex_t async_mutex;     // THREAD SAFETY: Async operations mutex
     int *async_fds;           // File descriptors for async operations
-    int async_fd_count;       // Number of async connections
+    atomic_int async_fd_count;       // THREAD SAFETY: Atomic counter
 } tc_client_handle;
 
 // Internal helpers
