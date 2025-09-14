@@ -119,7 +119,7 @@ use tokio::time; // Tokio timing utilities (interval)
 use ahash::{RandomState}; // Fast hashing state for consistent shard distribution
 use std::hash::{Hash, Hasher, BuildHasher}; // Traits for custom hashing
 use tower_http::cors::{CorsLayer}; // CORS middleware for HTTP
-use tracing::{info}; // Structured logging (use RUST_LOG=info to see)
+use tracing::{info, warn}; // Structured logging (use RUST_LOG=info to see)
 use parking_lot::Mutex; // Faster, simpler mutex vs std::sync::Mutex (not poisonable)
 use tokio::net::{TcpListener, TcpStream}; // Async TCP server primitives
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader}; // Async buffered IO extensions
@@ -1741,15 +1741,44 @@ async fn handle_tcp_client(cache: Arc<Cache>, mut stream: TcpStream) {
 }
 
 // TCP accept loop: keeps running forever unless an error bubbles up.
-async fn run_tcp_server(cache: Arc<Cache>, port: u16) -> anyhow::Result<()> {
+async fn run_tcp_server(cache: Arc<Cache>, port: u16, perf_config: PerformanceConfig) -> anyhow::Result<()> {
     let listener = TcpListener::bind(("0.0.0.0", port)).await?; // Bind to all interfaces
-    info!("TCP cache protocol listening on {}", port);          // Log startup
+    info!("TCP cache protocol listening on {} (nodelay: {}, keepalive: {}s)", port, perf_config.tcp_nodelay, perf_config.tcp_keepalive_seconds);
     loop {                                                      // Accept loop
         let (sock, _) = listener.accept().await?;               // Wait for next connection
-        let c = cache.clone();                                  // Clone Arc for task
-        tokio::spawn(async move {                               // Spawn independent task per client
-            handle_tcp_client(c, sock).await;                   // Handle lifecycle
-        });
+        
+        // Apply TCP socket options
+        if perf_config.tcp_nodelay {
+            if let Err(e) = sock.set_nodelay(true) {
+                warn!("Failed to set TCP_NODELAY: {}", e);
+            }
+        }
+        
+        // Set TCP keepalive if configured
+        if perf_config.tcp_keepalive_seconds > 0 {
+            // Convert to socket2::Socket to set keepalive, then back to TcpStream
+            let std_sock = sock.into_std()?;
+            let socket2_sock = socket2::Socket::from(std_sock);
+            
+            let keepalive = socket2::TcpKeepalive::new()
+                .with_time(std::time::Duration::from_secs(perf_config.tcp_keepalive_seconds));
+            
+            if let Err(e) = socket2_sock.set_tcp_keepalive(&keepalive) {
+                warn!("Failed to set TCP keepalive: {}", e);
+            }
+            
+            // Convert back to tokio TcpStream
+            let sock = TcpStream::from_std(socket2_sock.into())?;
+            let c = cache.clone();
+            tokio::spawn(async move {
+                handle_tcp_client(c, sock).await;
+            });
+        } else {
+            let c = cache.clone();                                  // Clone Arc for task
+            tokio::spawn(async move {                               // Spawn independent task per client
+                handle_tcp_client(c, sock).await;                   // Handle lifecycle
+            });
+        }
     }
 }
 
@@ -1984,8 +2013,10 @@ async fn start_server() -> anyhow::Result<()> {
 
     // Launch TCP server early (independent of HTTP lifecycle). Errors logged to stderr.
     let tcp_cache = cache.clone();
+    let perf_config = config.performance.clone();
+    let tcp_port = config.server.tcp_port;
     tokio::spawn(async move {
-        if let Err(e) = run_tcp_server(tcp_cache, config.server.tcp_port).await { eprintln!("TCP server error: {e}"); }
+        if let Err(e) = run_tcp_server(tcp_cache, tcp_port, perf_config).await { eprintln!("TCP server error: {e}"); }
     });
 
     // Build Axum router with all endpoints.

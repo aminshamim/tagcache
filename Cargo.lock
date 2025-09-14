@@ -1763,6 +1763,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
+ "socket2 0.6.0",
  "sysinfo",
  "thiserror 1.0.69",
  "tokio",

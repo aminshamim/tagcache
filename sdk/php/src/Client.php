@@ -2,7 +2,7 @@
 
 /**
  * TagCache PHP SDK - High-performance client for TagCache server
- * 
+ *
  * @author Md. Aminul Islam Sarker <aminshamim@gmail.com>
  * @link https://github.com/aminshamim/tagcache
  * @link https://www.linkedin.com/in/aminshamim/
@@ -24,7 +24,7 @@ final class Client implements ClientInterface
 
     public function __construct(?Config $config = null, ?TransportInterface $transport = null)
     {
-        $this->config = $config ?? new Config();
+        $this->config = $config ?? new Config(config('tagcache'));
         if ($transport) { $this->transport = $transport; }
         else {
             $mode = strtolower($this->config->mode);
@@ -45,7 +45,7 @@ final class Client implements ClientInterface
         if ($ttlMs === null) {
             $ttlMs = $this->config->cache['default_ttl_ms'] ?? null;
         }
-        
+
         try {
             return $this->transport->put($key, $value, $ttlMs, $tags);
         } catch (\Throwable $e) {
@@ -140,7 +140,7 @@ final class Client implements ClientInterface
     {
         return $this->transport->stats();
     }
-    
+
     /**
      * @return array<string, mixed>
      */
@@ -161,12 +161,12 @@ final class Client implements ClientInterface
     {
         $found = $this->get($key);
         if ($found) return $found;
-        
+
         // Use default TTL from config if not specified
         if ($ttlMs === null) {
             $ttlMs = $this->config->cache['default_ttl_ms'] ?? null;
         }
-        
+
         $value = $producer($key);
         $this->put($key, $value, $tags, $ttlMs);
         return new Item($key, $value, $ttlMs, $tags);
@@ -179,12 +179,12 @@ final class Client implements ClientInterface
     {
         // Use direct transport method which all transports support
         $keys = $this->transport->getKeysByTag($tag);
-        
+
         // Apply limit if specified
         if ($limit !== null && count($keys) > $limit) {
             return array_slice($keys, 0, $limit);
         }
-        
+
         return $keys;
     }
 
@@ -238,18 +238,18 @@ final class Client implements ClientInterface
     {
         return $this->transport->setupRequired();
     }
-    
+
     // Helper methods for convenience and test compatibility
     public function putWithTag(string $key, mixed $value, string $tag, ?int $ttlMs = null): bool
     {
         return $this->put($key, $value, [$tag], $ttlMs);
     }
-    
+
     public function deleteByTag(string $tag): int
     {
         return $this->invalidateTags([$tag]);
     }
-    
+
     /**
      * @return array<string>
      */
@@ -257,12 +257,12 @@ final class Client implements ClientInterface
     {
         return $this->keysByTag($tag);
     }
-    
+
     public function invalidateByTag(string $tag): bool
     {
         return $this->invalidateTags([$tag]) > 0;
     }
-    
+
     public function invalidateByKey(string $key): bool
     {
         return $this->delete($key);

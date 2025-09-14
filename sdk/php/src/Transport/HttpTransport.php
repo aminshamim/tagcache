@@ -43,8 +43,8 @@ final class HttpTransport implements TransportInterface
         $this->basicPass = $config->auth['password'] ?? null;
         
         // Initialize serialization settings
-        $this->serializer = $this->validateSerializer($config->http['serializer'] ?? 'native');
-        $this->autoSerialize = (bool)($config->http['auto_serialize'] ?? true);
+        $this->serializer = $this->validateSerializer($config->cache['serializer'] ?? 'native');
+        $this->autoSerialize = (bool)($config->cache['auto_serialize'] ?? true);
 
         // Initialize Guzzle client
         $this->client = new Client([
@@ -267,9 +267,9 @@ final class HttpTransport implements TransportInterface
      */
     public function getKeysByTag(string $tag): array
     {
-        error_log("HttpTransport.getKeysByTag: tag='$tag'");
+        // error_log("HttpTransport.getKeysByTag: tag='$tag'");
         $response = $this->request('GET', '/keys-by-tag', ['tag' => $tag]);
-        error_log("HttpTransport.getKeysByTag response: " . json_encode($response));
+        // error_log("HttpTransport.getKeysByTag response: " . json_encode($response));
         return $response['keys'] ?? [];
     }
 

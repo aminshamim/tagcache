@@ -2,7 +2,7 @@
 
 /**
  * TagCache PHP SDK - Configuration management
- * 
+ *
  * @author Md. Aminul Islam Sarker <aminshamim@gmail.com>
  * @link https://github.com/aminshamim/tagcache
  * @link https://www.linkedin.com/in/aminshamim/
@@ -16,7 +16,7 @@ use RuntimeException;
  * High-performance configuration for TagCache SD        $getEnvValue = function(string $key, mixed $default = null): mixed {
             return $_ENV[$key] ?? (getenv($key) !== false ? getenv($key) : $default);
         };
-        
+
         $options = [
             'mode' => $getEnvValue('TAGCACHE_MODE', 'http'),
             'http' => [
@@ -24,7 +24,7 @@ use RuntimeException;
                 'timeout_ms' => (int)$getEnvValue('TAGCACHE_HTTP_TIMEOUT', 5000),
             ],
             'tcp' => [
-                'host' => $getEnvValue('TAGCACHE_TCP_HOST', 'localhost'), 
+                'host' => $getEnvValue('TAGCACHE_TCP_HOST', 'localhost'),
                 'port' => (int)$getEnvValue('TAGCACHE_TCP_PORT', 1984),
                 'timeout_ms' => (int)$getEnvValue('TAGCACHE_TCP_TIMEOUT', 5000),
                 'pool_size' => (int)$getEnvValue('TAGCACHE_TCP_POOL_SIZE', 5),
@@ -46,7 +46,7 @@ final class Config
     public readonly array $auth;
     /** @var array<string, mixed> */
     public readonly array $cache;
-    
+
     /** @var array<string, mixed>|null */
     private static ?array $credentialCache = null;
 
@@ -57,10 +57,10 @@ final class Config
     {
         // Load credentials from credential.txt if available
         $credentials = $this->loadCredentials();
-        
+
         // Mode selection with intelligent auto-detection
         $this->mode = $options['mode'] ?? 'auto';
-        
+
         // HTTP configuration with production defaults
         $httpBase = $options['http'] ?? [];
         $this->http = [
@@ -75,7 +75,7 @@ final class Config
             'serializer' => $httpBase['serializer'] ?? $options['serializer'] ?? 'igbinary', // igbinary > msgpack > native
             'auto_serialize' => $httpBase['auto_serialize'] ?? $options['auto_serialize'] ?? true,
         ];
-        
+
         // TCP configuration optimized for high performance with enhanced defaults
         $tcpBase = $options['tcp'] ?? [];
         $this->tcp = [
@@ -91,20 +91,20 @@ final class Config
             'keep_alive_interval' => (int)($tcpBase['keep_alive_interval'] ?? 30), // Keep-alive interval
             'persistent' => $tcpBase['persistent'] ?? true,
         ];
-        
+
         // Authentication with credential.txt integration
         $authBase = $options['auth'] ?? [];
         $this->auth = [
             'token' => $authBase['token'] ?? $options['token'] ?? '',
-            'username' => (!empty($authBase['username'])) ? $authBase['username'] 
-                        : ((!empty($options['username'])) ? $options['username'] 
+            'username' => (!empty($authBase['username'])) ? $authBase['username']
+                        : ((!empty($options['username'])) ? $options['username']
                         : ($credentials['username'] ?? '')),
-            'password' => (!empty($authBase['password'])) ? $authBase['password'] 
-                        : ((!empty($options['password'])) ? $options['password'] 
+            'password' => (!empty($authBase['password'])) ? $authBase['password']
+                        : ((!empty($options['password'])) ? $options['password']
                         : ($credentials['password'] ?? '')),
             'auto_login' => $authBase['auto_login'] ?? true,
         ];
-        
+
         // Cache configuration with default TTL
         $cacheBase = $options['cache'] ?? [];
         $defaultTtl = $cacheBase['default_ttl_ms'] ?? $options['default_ttl_ms'] ?? null;
@@ -125,24 +125,24 @@ final class Config
         if (self::$credentialCache !== null) {
             return self::$credentialCache;
         }
-        
+
         $credFile = $this->findCredentialFile();
         if ($credFile === null) {
             return self::$credentialCache = [];
         }
-        
+
         $content = file_get_contents($credFile);
         if ($content === false) {
             return self::$credentialCache = [];
         }
-        
+
         $credentials = [];
         foreach (explode("\n", $content) as $line) {
             $line = trim($line);
             if (empty($line) || str_starts_with($line, '#')) {
                 continue;
             }
-            
+
             if (str_contains($line, '=')) {
                 [$key, $value] = explode('=', $line, 2);
                 $credentials[trim($key)] = trim($value);
@@ -159,7 +159,7 @@ final class Config
             __DIR__ . '/../../../credential.txt',     // Alternative
             getcwd() . '/credential.txt',             // Current working directory
         ];
-        
+
         foreach ($paths as $path) {
             if (file_exists($path)) {
                 return $path;
@@ -176,9 +176,9 @@ final class Config
         $getEnvValue = function(string $key, mixed $default = null): mixed {
             return $_ENV[$key] ?? (getenv($key) !== false ? getenv($key) : $default);
         };
-        
+
         $options = [
-            'mode' => $getEnvValue('TAGCACHE_MODE', 'http'),
+            'mode' => $getEnvValue('TAGCACHE_MODE', 'auto'),
             'http' => [
                 'base_url' => $getEnvValue('TAGCACHE_HTTP_URL', 'http://localhost:8080'),
                 'timeout_ms' => (int)$getEnvValue('TAGCACHE_HTTP_TIMEOUT', 5000),
@@ -186,7 +186,7 @@ final class Config
                 'auto_serialize' => filter_var($getEnvValue('TAGCACHE_AUTO_SERIALIZE', true), FILTER_VALIDATE_BOOLEAN),
             ],
             'tcp' => [
-                'host' => $getEnvValue('TAGCACHE_TCP_HOST', 'localhost'), 
+                'host' => $getEnvValue('TAGCACHE_TCP_HOST', 'localhost'),
                 'port' => (int)$getEnvValue('TAGCACHE_TCP_PORT', 1984),
                 'timeout_ms' => (int)$getEnvValue('TAGCACHE_TCP_TIMEOUT_MS', 5000),
                 'connect_timeout_ms' => (int)$getEnvValue('TAGCACHE_TCP_CONNECT_TIMEOUT_MS', 3000),
@@ -209,10 +209,10 @@ final class Config
             'retry_attempts' => (int)$getEnvValue('TAGCACHE_RETRY_ATTEMPTS', 3),
             'retry_delay_ms' => (int)$getEnvValue('TAGCACHE_RETRY_DELAY', 100),
         ];
-        
+
         return new self(array_merge($options, $overrides));
     }
-    
+
     /**
      * Get the default TTL in milliseconds from configuration
      */

@@ -83,88 +83,83 @@ final class TcpTransport implements TransportInterface
     }
 
     /**
-     * Serializes data using the best available method
+     * Serialize value using unified marker scheme matching HttpTransport.
+     * Uses markers:
+     *  __TC_NULL__ / __TC_TRUE__ / __TC_FALSE__ for primitives
+     *  raw numeric strings for ints/floats
+     *  plain string unchanged
+     *  __TC_SERIALIZED__<base64(serialized-by-configured-serializer)>
      */
     private function performSerialization(mixed $data): string
     {
-        if (is_string($data)) {
-            return $data;
-        }
-        
-        $serializer = $this->config->cache['serializer'] ?? 'auto';
-        
-        if ($serializer === 'auto' || $serializer === 'igbinary') {
-            if (extension_loaded('igbinary')) {
-                $serialized = igbinary_serialize($data);
-                if ($serialized !== null) {
-                    return base64_encode('igb:' . $serialized);
+        // Primitive fast paths identical to HttpTransport
+        if (is_string($data)) return $data;
+        if (is_int($data) || is_float($data)) return (string)$data;
+        if (is_bool($data)) return $data ? '__TC_TRUE__' : '__TC_FALSE__';
+        if ($data === null) return '__TC_NULL__';
+
+        $serializer = $this->config->cache['serializer'] ?? 'native';
+
+        // Choose serializer (igbinary/msgpack/native serialize)
+        switch ($serializer) {
+            case 'igbinary':
+                if (function_exists('igbinary_serialize')) {
+                    $serialized = call_user_func('igbinary_serialize', $data);
+                } else {
+                    $serialized = serialize($data);
                 }
-            }
-        }
-        
-        if ($serializer === 'auto' || $serializer === 'msgpack') {
-            if (extension_loaded('msgpack')) {
-                $serialized = msgpack_pack($data);
-                if ($serialized !== false) {
-                    return base64_encode('msg:' . $serialized);
+                break;
+            case 'msgpack':
+                if (function_exists('msgpack_pack')) {
+                    $serialized = call_user_func('msgpack_pack', $data);
+                } else {
+                    $serialized = serialize($data);
                 }
-            }
+                break;
+            case 'native':
+            case 'auto':
+            default:
+                $serialized = serialize($data);
+                break;
         }
-        
-        // Fallback to JSON
-        $json = json_encode($data, JSON_THROW_ON_ERROR);
-        return base64_encode('json:' . $json);
+
+        // Always base64 encode to keep TCP line safe (no tabs/newlines/binary)
+        return '__TC_SERIALIZED__' . base64_encode($serialized);
     }
-    
+
     /**
-     * Deserializes data based on its prefix
+     * Deserialize value using the unified marker scheme (no legacy compatibility required).
      */
-    private function performDeserialization(string $data): mixed
+    private function performDeserialization(string $value): mixed
     {
-        // Handle plain strings (backward compatibility)
-        if (strlen($data) < 10) {
-            return $data;
-        }
-        
-        // Check if it looks like base64 encoded data
-        if (preg_match('/^[A-Za-z0-9+\/]+=*$/', $data)) {
-            try {
-                $decoded = base64_decode($data, true);
-                if ($decoded !== false) {
-                    if (str_starts_with($decoded, 'igb:')) {
-                        if (extension_loaded('igbinary')) {
-                            $result = igbinary_unserialize(substr($decoded, 4));
-                            if ($result !== null) {
-                                return $result;
-                            }
-                        }
-                    } elseif (str_starts_with($decoded, 'msg:')) {
-                        if (extension_loaded('msgpack')) {
-                            $result = msgpack_unpack(substr($decoded, 4));
-                            if ($result !== false) {
-                                return $result;
-                            }
-                        }
-                    } elseif (str_starts_with($decoded, 'json:')) {
-                        return json_decode(substr($decoded, 5), true, 512, JSON_THROW_ON_ERROR);
-                    }
-                }
-            } catch (\Throwable $e) {
-                // If deserialization fails, continue with fallback logic
+        // Handle new markers
+        if ($value === '__TC_NULL__') return null;
+        if ($value === '__TC_TRUE__') return true;
+        if ($value === '__TC_FALSE__') return false;
+
+        if (str_starts_with($value, '__TC_SERIALIZED__')) {
+            $b64 = substr($value, strlen('__TC_SERIALIZED__'));
+            $decoded = base64_decode($b64, true);
+            if ($decoded === false) return $value; // corrupt
+
+            $serializer = $this->config->cache['serializer'] ?? 'native';
+            switch ($serializer) {
+                case 'igbinary':
+                    return function_exists('igbinary_unserialize') ? call_user_func('igbinary_unserialize', $decoded) : unserialize($decoded);
+                case 'msgpack':
+                    return function_exists('msgpack_unpack') ? call_user_func('msgpack_unpack', $decoded) : unserialize($decoded);
+                case 'native':
+                case 'auto':
+                default:
+                    return unserialize($decoded);
             }
         }
-        
-        // Try JSON decode on original data as fallback
-        try {
-            $json = json_decode($data, true);
-            if ($json !== null) {
-                return $json;
-            }
-        } catch (\Throwable $e) {
-            // Not JSON, return as string
+        // Numeric detection (mirror HttpTransport)
+        if (is_numeric($value)) {
+            return strpos($value, '.') !== false ? (float)$value : (int)$value;
         }
-        
-        return $data;
+
+        return $value; // treat as plain string
     }
 
     /**
