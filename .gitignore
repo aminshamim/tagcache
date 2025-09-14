@@ -88,3 +88,9 @@ app/coverage/
 app/test-results/
 app/playwright-report/
 
+# ---- Local experimental PHP extension (excluded; separate repo) ----
+php-ext/
+
+# ---- AI tooling (regenerated locally, exclude from VCS) ----
+.github/copilot-instructions.md
+
