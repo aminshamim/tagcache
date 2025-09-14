@@ -2,12 +2,13 @@ import { useEffect, useState, useRef } from 'react';
 import { api } from '../api/client';
 import { useAuthStore } from '../store/auth';
 import { TagDistribution } from '../components/TagDistribution';
+import { CpuGauge } from '../components/CpuGauge';
+import { MemoryGauge } from '../components/MemoryGauge';
 
 interface Stats { hits:number; misses:number; puts:number; invalidations:number; hit_ratio:number; items?:number; bytes?:number; tags?:number; shard_count?:number; shard_items?:number[]; shard_bytes?:number[] }
 
 export default function DashboardPage() {
   const [stats,setStats] = useState<Stats|null>(null);
-  const [memSeries,setMemSeries] = useState<{ts:number; bytes:number}[]>([]);
   const [err,setErr] = useState<string|null>(null);
   const prevStatsRef = useRef<Stats|null>(null);
   
@@ -32,13 +33,6 @@ export default function DashboardPage() {
         }
         if(active) {
           setStats(data);
-          if(data && typeof data.bytes === 'number') {
-            setMemSeries(s => {
-              const next = [...s, { ts: Date.now(), bytes: data.bytes }];
-              // keep last 60 points (~4 mins if 4s interval)
-              return next.slice(-60);
-            });
-          }
         }
       } catch(e:any){ if(active) setErr(e.message); }
     };
@@ -176,7 +170,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-  <div className="grid grid-cols-3 gap-6">
+  <div className="grid grid-cols-4 gap-6">
         <div className="col-span-2 bg-white rounded-xl shadow-sm p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Cache Dynamics</h3>
           <div className="grid grid-cols-2 gap-6 text-sm">
@@ -210,45 +204,10 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="bg-white rounded-xl p-6 shadow-sm flex flex-col">
-          <h3 className="text-sm font-medium text-gray-600 mb-3">Memory Usage</h3>
-          <div className="flex-1 relative h-40">
-            {memSeries.length>1 ? (
-              <svg className="absolute inset-0 w-full h-full">
-                {/* grid */}
-                <defs>
-                  <linearGradient id="memLine" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.8" />
-                    <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.1" />
-                  </linearGradient>
-                </defs>
-                {(()=>{
-                  const pts = memSeries;
-                  const max = Math.max(...pts.map(p=>p.bytes),1);
-                  const min = Math.min(...pts.map(p=>p.bytes));
-                  const range = Math.max(max-min,1);
-                  const w = 300; const h = 160;
-                  const path = pts.map((p,i)=>{
-                    const x = (i/(pts.length-1))*w;
-                    const y = h - ((p.bytes-min)/range)*h;
-                    return `${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-                  }).join(' ');
-                  return <>
-                    <path d={path} fill="none" stroke="#0ea5e9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d={path + ` L ${w},${h} L 0,${h} Z`} fill="url(#memLine)" opacity="0.3" />
-                  </>;
-                })()}
-              </svg>
-            ) : <div className="text-xs text-gray-400">Collecting data...</div>}
-          </div>
-          <div className="mt-2 text-xs text-gray-600 flex flex-wrap gap-4">
-            <span>Current {(stats?.bytes||0)/1024 ? ((stats?.bytes||0)/1024).toFixed(1)+' KB':'—'}</span>
-            {memSeries.length>1 && (
-              <>
-                <span>Min {Math.min(...memSeries.map(p=>p.bytes))/1024|0} KB</span>
-                <span>Max {Math.max(...memSeries.map(p=>p.bytes))/1024|0} KB</span>
-              </>
-            )}
-          </div>
+          <MemoryGauge />
+        </div>
+        <div className="bg-white rounded-xl p-6 shadow-sm flex flex-col">
+          <CpuGauge />
         </div>
       </div>
 

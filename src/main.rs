@@ -17,6 +17,7 @@ use clap::{Parser, Subcommand}; // Command line argument parsing
 use reqwest; // HTTP client for CLI commands
 use axum::response::{Html, IntoResponse};
 use axum::http::{header, Uri};
+use sysinfo::{System}; // System info for CPU monitoring
 
 // Conditionally embed assets only if the dist folder exists
 #[cfg(feature = "embed-ui")]
@@ -953,7 +954,11 @@ impl AuthState {
 }
 
 #[derive(Clone)]
-pub struct AppState { pub cache: Arc<Cache>, pub auth: Arc<AuthState> }
+pub struct AppState { 
+    pub cache: Arc<Cache>, 
+    pub auth: Arc<AuthState>,
+    pub system: Arc<parking_lot::Mutex<System>>, // System monitor for CPU stats
+}
 
 // Request guard for auth (per-route, simpler + fast)
 pub struct Authenticated;
@@ -1588,6 +1593,7 @@ pub fn build_app(app_state: Arc<AppState>, allowed_origin: Option<String>) -> Ro
         .route("/auth/change_password", post(change_password_handler))
         .route("/auth/reset", post(reset_credentials_handler))
     .route("/health", get(health_handler))
+    .route("/system", get(system_handler))
         // Serve the React UI for all other routes (SPA routing)
         .fallback(static_handler)
     .with_state(app_state.clone());
@@ -1598,6 +1604,39 @@ pub fn build_app(app_state: Arc<AppState>, allowed_origin: Option<String>) -> Ro
 }
 
 async fn health_handler() -> ResponseJson<serde_json::Value> { ResponseJson(serde_json::json!({"status":"ok","time": chrono::Utc::now().to_rfc3339()})) }
+
+async fn system_handler(State(state): State<Arc<AppState>>) -> ResponseJson<serde_json::Value> {
+    let mut system = state.system.lock();
+    system.refresh_cpu(); // Refresh CPU usage
+    system.refresh_memory(); // Refresh memory usage
+    
+    let cpu_cores: Vec<serde_json::Value> = system.cpus()
+        .iter()
+        .enumerate()
+        .map(|(idx, cpu)| serde_json::json!({
+            "core": idx,
+            "name": cpu.name(),
+            "usage": cpu.cpu_usage(),
+            "frequency": cpu.frequency()
+        }))
+        .collect();
+    
+    // Calculate global CPU usage as average of all cores
+    let global_cpu_usage = if system.cpus().is_empty() {
+        0.0
+    } else {
+        system.cpus().iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / system.cpus().len() as f32
+    };
+    
+    ResponseJson(serde_json::json!({
+        "cpu_cores": cpu_cores,
+        "core_count": system.cpus().len(),
+        "global_cpu_usage": global_cpu_usage,
+        "total_memory": system.total_memory(),
+        "used_memory": system.used_memory(),
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    }))
+}
 
 
 
@@ -1918,7 +1957,17 @@ async fn start_server() -> anyhow::Result<()> {
         password: config.authentication.password.clone(),
     };
     let auth_state = Arc::new(AuthState::new(auth_creds, config_path.clone()));
-    let app_state = Arc::new(AppState { cache: cache.clone(), auth: auth_state.clone() });
+    
+    // Initialize system monitor for CPU stats
+    let mut system = System::new_all();
+    system.refresh_all(); // Initial refresh
+    let system_monitor = Arc::new(parking_lot::Mutex::new(system));
+    
+    let app_state = Arc::new(AppState { 
+        cache: cache.clone(), 
+        auth: auth_state.clone(),
+        system: system_monitor 
+    });
 
     // Background task: periodically sweep expired entries to free memory.
     let cleanup_cache = cache.clone();

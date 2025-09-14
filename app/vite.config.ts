@@ -10,6 +10,7 @@ export default defineConfig({
       // Proxy API calls during dev so hitting http://localhost:5173/... reaches backend
       '/auth': { target: 'http://127.0.0.1:8080', changeOrigin: true },
       '/stats': { target: 'http://127.0.0.1:8080', changeOrigin: true },
+      '/system': { target: 'http://127.0.0.1:8080', changeOrigin: true },
       '/put': { target: 'http://127.0.0.1:8080', changeOrigin: true },
       '/get': { target: 'http://127.0.0.1:8080', changeOrigin: true },
       '/keys': { target: 'http://127.0.0.1:8080', changeOrigin: true },
