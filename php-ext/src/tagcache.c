@@ -13,6 +13,16 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
+
+// Feature detection for optional serializers
+#ifdef HAVE_IGBINARY
+#include "ext/igbinary/igbinary.h"
+#endif
+
+#ifdef HAVE_MSGPACK  
+#include "ext/msgpack/msgpack.h"
+#endif
+
 static zend_class_entry *tagcache_ce; // class entry for OO API
 
 #include <errno.h>
@@ -547,21 +557,92 @@ static int tc_tcp_get_raw(tc_client_handle *h, const char *key, size_t key_len, 
 // Serialization markers
 static void append_marker(smart_str *buf, const char *s){ smart_str_appends(buf,s); }
 
-char *tc_serialize_zval(smart_str *out, zval *val) {
-    switch (Z_TYPE_P(val)) {
-        case IS_STRING: smart_str_append(out, Z_STR_P(val)); break;
-        case IS_LONG: smart_str_append_long(out, Z_LVAL_P(val)); break;
-        case IS_DOUBLE: { smart_str_append_printf(out, "%.*G", 14, Z_DVAL_P(val)); } break;
-        case IS_TRUE: append_marker(out, "__TC_TRUE__"); break;
-        case IS_FALSE: append_marker(out, "__TC_FALSE__"); break;
-        case IS_NULL: append_marker(out, "__TC_NULL__"); break;
-        default: {
-            // serialize complex types using PHP serialize()
-            php_serialize_data_t var_hash; PHP_VAR_SERIALIZE_INIT(var_hash);
-            smart_str ser = {0}; php_var_serialize(&ser, val, &var_hash); PHP_VAR_SERIALIZE_DESTROY(var_hash); smart_str_0(&ser);
-            zend_string *b64 = php_base64_encode((const unsigned char*)ZSTR_VAL(ser.s), ZSTR_LEN(ser.s));
-            append_marker(out, "__TC_SERIALIZED__"); if (b64) { smart_str_append(out, b64); zend_string_release(b64);} smart_str_free(&ser);
-        }
+// Multi-format serializer with runtime format selection
+char *tc_serialize_zval(smart_str *out, zval *val, tc_serialize_t format) {
+    switch (format) {
+        case TC_SERIALIZE_NATIVE:
+            // NATIVE: Only serialize basic types, reject complex ones
+            switch (Z_TYPE_P(val)) {
+                case IS_STRING: smart_str_append(out, Z_STR_P(val)); break;
+                case IS_LONG: smart_str_append_long(out, Z_LVAL_P(val)); break;
+                case IS_DOUBLE: { smart_str_append_printf(out, "%.*G", 14, Z_DVAL_P(val)); } break;
+                case IS_TRUE: append_marker(out, "__TC_TRUE__"); break;
+                case IS_FALSE: append_marker(out, "__TC_FALSE__"); break;
+                case IS_NULL: append_marker(out, "__TC_NULL__"); break;
+                default:
+                    // Complex types not supported in native mode
+                    return NULL;
+            }
+            break;
+            
+        case TC_SERIALIZE_IGBINARY:
+#ifdef HAVE_IGBINARY
+            {
+                uint8_t *serialized_data;
+                size_t serialized_len;
+                if (igbinary_serialize(&serialized_data, &serialized_len, val) == 0) {
+                    // Prefix with format marker and base64 encode
+                    zend_string *b64 = php_base64_encode(serialized_data, serialized_len);
+                    append_marker(out, "__TC_IGBINARY__");
+                    if (b64) { 
+                        smart_str_append(out, b64); 
+                        zend_string_release(b64);
+                    }
+                    efree(serialized_data);
+                } else {
+                    return NULL; // Fallback would be handled by caller
+                }
+            }
+#else
+            // igbinary not available, fallback to PHP serialize
+            goto php_serialize_fallback;
+#endif
+            break;
+            
+        case TC_SERIALIZE_MSGPACK:
+#ifdef HAVE_MSGPACK
+            {
+                msgpack_packer pk;
+                msgpack_sbuffer sbuf;
+                msgpack_sbuffer_init(&sbuf);
+                msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
+                
+                if (msgpack_pack_zval(&pk, val) == 0) {
+                    zend_string *b64 = php_base64_encode((const unsigned char*)sbuf.data, sbuf.size);
+                    append_marker(out, "__TC_MSGPACK__");
+                    if (b64) {
+                        smart_str_append(out, b64);
+                        zend_string_release(b64);
+                    }
+                }
+                msgpack_sbuffer_destroy(&sbuf);
+            }
+#else
+            // msgpack not available, fallback to PHP serialize
+            goto php_serialize_fallback;
+#endif
+            break;
+            
+        case TC_SERIALIZE_PHP:
+        default:
+php_serialize_fallback:
+            // PHP serialize for complex types, fast path for scalars
+            switch (Z_TYPE_P(val)) {
+                case IS_STRING: smart_str_append(out, Z_STR_P(val)); break;
+                case IS_LONG: smart_str_append_long(out, Z_LVAL_P(val)); break;
+                case IS_DOUBLE: { smart_str_append_printf(out, "%.*G", 14, Z_DVAL_P(val)); } break;
+                case IS_TRUE: append_marker(out, "__TC_TRUE__"); break;
+                case IS_FALSE: append_marker(out, "__TC_FALSE__"); break;
+                case IS_NULL: append_marker(out, "__TC_NULL__"); break;
+                default: {
+                    // serialize complex types using PHP serialize()
+                    php_serialize_data_t var_hash; PHP_VAR_SERIALIZE_INIT(var_hash);
+                    smart_str ser = {0}; php_var_serialize(&ser, val, &var_hash); PHP_VAR_SERIALIZE_DESTROY(var_hash); smart_str_0(&ser);
+                    zend_string *b64 = php_base64_encode((const unsigned char*)ZSTR_VAL(ser.s), ZSTR_LEN(ser.s));
+                    append_marker(out, "__TC_SERIALIZED__"); if (b64) { smart_str_append(out, b64); zend_string_release(b64);} smart_str_free(&ser);
+                }
+            }
+            break;
     }
     smart_str_0(out);
     return out->s ? ZSTR_VAL(out->s) : NULL;
@@ -569,7 +650,12 @@ char *tc_serialize_zval(smart_str *out, zval *val) {
 
 // Fast path serializer: writes directly into preallocated buffer when possible.
 // Returns length written or -1 if fallback to smart_str required.
-static int tc_serialize_inline(zval *val, char *buf, size_t buf_cap) {
+static int tc_serialize_inline(zval *val, char *buf, size_t buf_cap, tc_serialize_t format) {
+    // Only native and PHP modes support inline serialization for scalars
+    if (format != TC_SERIALIZE_NATIVE && format != TC_SERIALIZE_PHP) {
+        return -1; // Force smart_str path for igbinary/msgpack
+    }
+    
     switch (Z_TYPE_P(val)) {
         case IS_STRING: {
             size_t l = Z_STRLEN_P(val); if (l > buf_cap) return -1; memcpy(buf, Z_STRVAL_P(val), l); return (int)l;
@@ -596,12 +682,70 @@ int tc_deserialize_to_zval(const char *data, size_t len, zval *return_value) {
     if (strcmp(data,"__TC_NULL__")==0){ ZVAL_NULL(return_value); return 0; }
     if (strcmp(data,"__TC_TRUE__")==0){ ZVAL_TRUE(return_value); return 0; }
     if (strcmp(data,"__TC_FALSE__")==0){ ZVAL_FALSE(return_value); return 0; }
+    
+    // Check for igbinary format
+    if (len>15 && strncmp(data,"__TC_IGBINARY__",15)==0) {
+#ifdef HAVE_IGBINARY
+        const char *b64 = data+15; size_t blen = len-15;
+        zend_string *dec = php_base64_decode_ex((const unsigned char*)b64, blen, 1);
+        if (!dec) { ZVAL_STRINGL(return_value, data, len); return -1; }
+        
+        if (igbinary_unserialize((const uint8_t*)ZSTR_VAL(dec), ZSTR_LEN(dec), return_value) != 0) {
+            ZVAL_STRINGL(return_value, data, len);
+            zend_string_release(dec);
+            return -1;
+        }
+        zend_string_release(dec);
+        return 0;
+#else
+        // igbinary not available, treat as string
+        ZVAL_STRINGL(return_value, data, len);
+        return -1;
+#endif
+    }
+    
+    // Check for msgpack format  
+    if (len>13 && strncmp(data,"__TC_MSGPACK__",13)==0) {
+#ifdef HAVE_MSGPACK
+        const char *b64 = data+13; size_t blen = len-13;
+        zend_string *dec = php_base64_decode_ex((const unsigned char*)b64, blen, 1);
+        if (!dec) { ZVAL_STRINGL(return_value, data, len); return -1; }
+        
+        msgpack_unpacked result;
+        msgpack_unpacked_init(&result);
+        msgpack_unpack_return ret = msgpack_unpack_next(&result, ZSTR_VAL(dec), ZSTR_LEN(dec), NULL);
+        
+        if (ret == MSGPACK_UNPACK_SUCCESS) {
+            if (msgpack_unpack_to_zval(&result.data, return_value) != 0) {
+                ZVAL_STRINGL(return_value, data, len);
+                msgpack_unpacked_destroy(&result);
+                zend_string_release(dec);
+                return -1;
+            }
+        } else {
+            ZVAL_STRINGL(return_value, data, len);
+            msgpack_unpacked_destroy(&result);
+            zend_string_release(dec);
+            return -1;
+        }
+        
+        msgpack_unpacked_destroy(&result);
+        zend_string_release(dec);
+        return 0;
+#else
+        // msgpack not available, treat as string
+        ZVAL_STRINGL(return_value, data, len);
+        return -1;
+#endif
+    }
+    
+    // Check for PHP serialized format
     if (len>17 && strncmp(data,"__TC_SERIALIZED__",17)==0) {
         const char *b64 = data+17; size_t blen = len-17;
-    zend_string *dec = php_base64_decode_ex((const unsigned char*)b64, blen, 1);
+        zend_string *dec = php_base64_decode_ex((const unsigned char*)b64, blen, 1);
         if (!dec) { ZVAL_STRINGL(return_value, data, len); return -1; }
-    const unsigned char *p=(unsigned char*)ZSTR_VAL(dec); php_unserialize_data_t var_hash; PHP_VAR_UNSERIALIZE_INIT(var_hash);
-    if (!php_var_unserialize(return_value, &p, p+ZSTR_LEN(dec), &var_hash)) {
+        const unsigned char *p=(unsigned char*)ZSTR_VAL(dec); php_unserialize_data_t var_hash; PHP_VAR_UNSERIALIZE_INIT(var_hash);
+        if (!php_var_unserialize(return_value, &p, p+ZSTR_LEN(dec), &var_hash)) {
             ZVAL_STRINGL(return_value, data, len);
         }
         PHP_VAR_UNSERIALIZE_DESTROY(var_hash); zend_string_release(dec); return 0;
@@ -630,6 +774,7 @@ PHP_FUNCTION(tagcache_create) {
     h->cfg.timeout_ms = 5000;
     h->cfg.connect_timeout_ms = 3000;
     h->cfg.pool_size = 8;
+    h->cfg.serializer = TC_SERIALIZE_PHP; // Default to PHP serialize
 
     if (options) {
         zval *z;
@@ -644,6 +789,15 @@ PHP_FUNCTION(tagcache_create) {
         if ((z = zend_hash_str_find(Z_ARRVAL_P(options), "timeout_ms", sizeof("timeout_ms")-1)) && Z_TYPE_P(z)==IS_LONG) { h->cfg.timeout_ms = Z_LVAL_P(z); }
         if ((z = zend_hash_str_find(Z_ARRVAL_P(options), "connect_timeout_ms", sizeof("connect_timeout_ms")-1)) && Z_TYPE_P(z)==IS_LONG) { h->cfg.connect_timeout_ms = Z_LVAL_P(z); }
         if ((z = zend_hash_str_find(Z_ARRVAL_P(options), "pool_size", sizeof("pool_size")-1)) && Z_TYPE_P(z)==IS_LONG) { h->cfg.pool_size = Z_LVAL_P(z); }
+        
+        // Parse serializer option
+        if ((z = zend_hash_str_find(Z_ARRVAL_P(options), "serializer", sizeof("serializer")-1)) && Z_TYPE_P(z)==IS_STRING) {
+            if (zend_string_equals_literal_ci(Z_STR_P(z), "php")) h->cfg.serializer = TC_SERIALIZE_PHP;
+            else if (zend_string_equals_literal_ci(Z_STR_P(z), "igbinary")) h->cfg.serializer = TC_SERIALIZE_IGBINARY;
+            else if (zend_string_equals_literal_ci(Z_STR_P(z), "msgpack")) h->cfg.serializer = TC_SERIALIZE_MSGPACK;  
+            else if (zend_string_equals_literal_ci(Z_STR_P(z), "native")) h->cfg.serializer = TC_SERIALIZE_NATIVE;
+            else h->cfg.serializer = TC_SERIALIZE_PHP; // Fallback
+        }
     }
 
     if (h->cfg.mode != TC_MODE_TCP) {
@@ -720,12 +874,12 @@ PHP_FUNCTION(tagcache_put) {
     smart_str sval = {0}; 
     const char *val_ptr = NULL; 
     size_t val_len = 0; 
-    int n = tc_serialize_inline(value, inline_buf, sizeof(inline_buf));
+    int n = tc_serialize_inline(value, inline_buf, sizeof(inline_buf), h->cfg.serializer);
     if (n >= 0) { 
         val_ptr = inline_buf; 
         val_len = (size_t)n; 
     } else { 
-        tc_serialize_zval(&sval, value); 
+        tc_serialize_zval(&sval, value, h->cfg.serializer); 
         if (sval.s) { 
             val_ptr = ZSTR_VAL(sval.s); 
             val_len = ZSTR_LEN(sval.s);
@@ -946,12 +1100,12 @@ static int tc_pipelined_bulk_put(tc_client_handle *h, HashTable *items, long ttl
         smart_str sval = {0}; 
         const char *val_ptr = NULL; 
         size_t val_len = 0; 
-        int n = tc_serialize_inline(v, inline_buf, sizeof(inline_buf));
+        int n = tc_serialize_inline(v, inline_buf, sizeof(inline_buf), h->cfg.serializer);
         if (n >= 0) { 
             val_ptr = inline_buf; 
             val_len = (size_t)n; 
         } else { 
-            tc_serialize_zval(&sval, v); 
+            tc_serialize_zval(&sval, v, h->cfg.serializer); 
             if (sval.s) { 
                 val_ptr = ZSTR_VAL(sval.s); 
                 val_len = ZSTR_LEN(sval.s);
@@ -1107,7 +1261,7 @@ PHP_METHOD(TagCache, create) {
     zval rv; zval params[1]; int param_count=0; if (options) { ZVAL_COPY(&params[0], options); param_count=1; }
     // Directly reuse tagcache_create internal code (duplicated minimal for speed)
     tc_client_handle *h = ecalloc(1, sizeof(tc_client_handle));
-    h->cfg.mode = TC_MODE_TCP; h->cfg.host = estrdup("127.0.0.1"); h->cfg.port=1984; h->cfg.http_base=estrdup("http://127.0.0.1:8080"); h->cfg.timeout_ms=5000; h->cfg.connect_timeout_ms=3000; h->cfg.pool_size=8;
+    h->cfg.mode = TC_MODE_TCP; h->cfg.host = estrdup("127.0.0.1"); h->cfg.port=1984; h->cfg.http_base=estrdup("http://127.0.0.1:8080"); h->cfg.timeout_ms=5000; h->cfg.connect_timeout_ms=3000; h->cfg.pool_size=8; h->cfg.serializer=TC_SERIALIZE_PHP;
     if (options) {
         zval *z;
         if ((z=zend_hash_str_find(Z_ARRVAL_P(options), "mode", sizeof("mode")-1))) {
@@ -1121,6 +1275,15 @@ PHP_METHOD(TagCache, create) {
         if ((z=zend_hash_str_find(Z_ARRVAL_P(options), "timeout_ms", sizeof("timeout_ms")-1)) && Z_TYPE_P(z)==IS_LONG) { h->cfg.timeout_ms=Z_LVAL_P(z); }
         if ((z=zend_hash_str_find(Z_ARRVAL_P(options), "connect_timeout_ms", sizeof("connect_timeout_ms")-1)) && Z_TYPE_P(z)==IS_LONG) { h->cfg.connect_timeout_ms=Z_LVAL_P(z); }
         if ((z=zend_hash_str_find(Z_ARRVAL_P(options), "pool_size", sizeof("pool_size")-1)) && Z_TYPE_P(z)==IS_LONG) { h->cfg.pool_size=Z_LVAL_P(z); }
+        
+        // Parse serializer option  
+        if ((z=zend_hash_str_find(Z_ARRVAL_P(options), "serializer", sizeof("serializer")-1)) && Z_TYPE_P(z)==IS_STRING) {
+            if (zend_string_equals_literal_ci(Z_STR_P(z), "php")) h->cfg.serializer=TC_SERIALIZE_PHP;
+            else if (zend_string_equals_literal_ci(Z_STR_P(z), "igbinary")) h->cfg.serializer=TC_SERIALIZE_IGBINARY;
+            else if (zend_string_equals_literal_ci(Z_STR_P(z), "msgpack")) h->cfg.serializer=TC_SERIALIZE_MSGPACK;
+            else if (zend_string_equals_literal_ci(Z_STR_P(z), "native")) h->cfg.serializer=TC_SERIALIZE_NATIVE;
+            else h->cfg.serializer=TC_SERIALIZE_PHP;
+        }
     }
     if (h->cfg.mode != TC_MODE_TCP) {
         php_error_docref(NULL, E_NOTICE, "HTTP/AUTO mode not yet implemented; falling back to TCP");
@@ -1140,8 +1303,8 @@ PHP_METHOD(TagCache, set) {
     char *key; size_t key_len; zval *value; zval *tags=NULL; zval *ttl=NULL;
     if (zend_parse_parameters(ZEND_NUM_ARGS(), "sz|az", &key, &key_len, &value, &tags, &ttl)==FAILURE) RETURN_FALSE;
     tagcache_obj_wrapper *ow = php_tagcache_obj_fetch(Z_OBJ_P(getThis())); if(!ow->h) RETURN_FALSE;
-    char inline_buf[256]; smart_str sval={0}; const char *val_ptr=NULL; size_t val_len=0; int n=tc_serialize_inline(value, inline_buf, sizeof(inline_buf));
-    if (n>=0) { val_ptr=inline_buf; val_len=(size_t)n; } else { tc_serialize_zval(&sval, value); if (sval.s){ val_ptr=ZSTR_VAL(sval.s); val_len=ZSTR_LEN(sval.s);} }
+    char inline_buf[256]; smart_str sval={0}; const char *val_ptr=NULL; size_t val_len=0; int n=tc_serialize_inline(value, inline_buf, sizeof(inline_buf), ow->h->cfg.serializer);
+    if (n>=0) { val_ptr=inline_buf; val_len=(size_t)n; } else { tc_serialize_zval(&sval, value, ow->h->cfg.serializer); if (sval.s){ val_ptr=ZSTR_VAL(sval.s); val_len=ZSTR_LEN(sval.s);} }
     char cmd_buf[512]; size_t pos=0; bool used_stack=true;
     #define APPEND_LIT2(lit) do { size_t ll = sizeof(lit)-1; if (pos+ll < sizeof(cmd_buf)) { memcpy(cmd_buf+pos, lit, ll); pos+=ll; } else { used_stack=false; } } while(0)
     #define APPEND_RAW2(ptr,len) do { size_t ll=(len); if (pos+ll < sizeof(cmd_buf)) { memcpy(cmd_buf+pos, (ptr), ll); pos+=ll; } else { used_stack=false; } } while(0)
@@ -1267,7 +1430,7 @@ PHP_METHOD(TagCache, mSet) {
     tc_tcp_conn *c = tc_get_conn(ow->h); if(!c) RETURN_LONG(0);
     // send all
     ZEND_HASH_FOREACH_STR_KEY_VAL(ht, k, v) {
-        if (!k) continue; char inline_buf[256]; smart_str sval={0}; const char *val_ptr=NULL; size_t val_len=0; int in=tc_serialize_inline(v, inline_buf, sizeof(inline_buf)); if(in>=0){ val_ptr=inline_buf; val_len=(size_t)in; } else { tc_serialize_zval(&sval,v); if(sval.s){ val_ptr=ZSTR_VAL(sval.s); val_len=ZSTR_LEN(sval.s);} }
+        if (!k) continue; char inline_buf[256]; smart_str sval={0}; const char *val_ptr=NULL; size_t val_len=0; int in=tc_serialize_inline(v, inline_buf, sizeof(inline_buf), ow->h->cfg.serializer); if(in>=0){ val_ptr=inline_buf; val_len=(size_t)in; } else { tc_serialize_zval(&sval,v, ow->h->cfg.serializer); if(sval.s){ val_ptr=ZSTR_VAL(sval.s); val_len=ZSTR_LEN(sval.s);} }
         smart_str cmd={0}; smart_str_appends(&cmd, "PUT\t"); smart_str_append(&cmd, k); smart_str_appendc(&cmd,'\t'); if (ttl && Z_TYPE_P(ttl)==IS_LONG) smart_str_append_long(&cmd, Z_LVAL_P(ttl)); else smart_str_appends(&cmd, "-"); smart_str_appendc(&cmd,'\t'); smart_str_appends(&cmd, "-"); smart_str_appendc(&cmd,'\t'); if (val_ptr && val_len) smart_str_appendl(&cmd, val_ptr, val_len); smart_str_appendc(&cmd,'\n'); smart_str_0(&cmd);
     if (tc_write(c, ZSTR_VAL(cmd.s), ZSTR_LEN(cmd.s))!=0) { c->healthy=false; }
         smart_str_free(&cmd); if(sval.s) smart_str_free(&sval); if(!c->healthy) break; }

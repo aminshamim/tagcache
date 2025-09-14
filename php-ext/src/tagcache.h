@@ -20,6 +20,13 @@ extern int le_tagcache_client;
 
 typedef enum { TC_MODE_TCP=0, TC_MODE_HTTP=1, TC_MODE_AUTO=2 } tc_mode_t;
 
+typedef enum { 
+    TC_SERIALIZE_PHP=0,      // Default PHP serialize() 
+    TC_SERIALIZE_IGBINARY=1, // igbinary (if available)
+    TC_SERIALIZE_MSGPACK=2,  // msgpack (if available)
+    TC_SERIALIZE_NATIVE=3    // Native types only (fastest)
+} tc_serialize_t;
+
 typedef struct _tc_client_config {
     tc_mode_t mode;
     char *host;
@@ -28,6 +35,7 @@ typedef struct _tc_client_config {
     int timeout_ms;
     int connect_timeout_ms;
     int pool_size;
+    tc_serialize_t serializer;  // Serialization method
 } tc_client_config;
 
 typedef struct _tc_tcp_conn {
@@ -62,7 +70,7 @@ typedef struct _tc_client_handle {
 } tc_client_handle;
 
 // Internal helpers
-char *tc_serialize_zval(smart_str *buf, zval *val);
+char *tc_serialize_zval(smart_str *buf, zval *val, tc_serialize_t format);
 int tc_deserialize_to_zval(const char *data, size_t len, zval *return_value);
 int tc_tcp_cmd(tc_client_handle *h, const char *cmd, size_t cmd_len, smart_str *resp);
 
