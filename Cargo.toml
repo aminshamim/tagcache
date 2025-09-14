@@ -50,6 +50,7 @@ mime_guess = "2.0"
 toml = "0.8"
 dirs = "5.0"
 sysinfo = "0.30"
+socket2 = "0.6.0"
 
 [dev-dependencies]
 hdrhistogram = "7"
