@@ -17,6 +17,7 @@ use clap::{Parser, Subcommand}; // Command line argument parsing
 use reqwest; // HTTP client for CLI commands
 use axum::response::{Html, IntoResponse};
 use axum::http::{header, Uri};
+use sysinfo::{System}; // System info for CPU monitoring
 
 // Conditionally embed assets only if the dist folder exists
 #[cfg(feature = "embed-ui")]
@@ -953,7 +954,11 @@ impl AuthState {
 }
 
 #[derive(Clone)]
-pub struct AppState { pub cache: Arc<Cache>, pub auth: Arc<AuthState> }
+pub struct AppState { 
+    pub cache: Arc<Cache>, 
+    pub auth: Arc<AuthState>,
+    pub system: Arc<parking_lot::Mutex<System>>, // System monitor for CPU stats
+}
 
 // Request guard for auth (per-route, simpler + fast)
 pub struct Authenticated;
@@ -1017,10 +1022,21 @@ impl Cache {
         };
 
         // If key existed, remove old tag associations to avoid stale reverse index entries.
-        if let Some(old_entry) = shard.entries.get(&key) {
-            for tag in &old_entry.tags {
-                if let Some(keys) = shard.tag_to_keys.get(tag) { // Look up DashSet for this tag
-                    keys.remove(&key);                           // Remove key from tag set
+        let old_tags = if let Some(old_entry) = shard.entries.get(&key) {
+            old_entry.tags.clone()  // Clone the tags to avoid holding the read lock
+        } else {
+            SmallVec::new()  // No old entry, no tags to clean up
+        };
+        // Read lock is dropped here
+        
+        // Clean up old tag associations without holding entry lock
+        for tag in &old_tags {
+            if let Some(keys) = shard.tag_to_keys.get(tag) {
+                keys.remove(&key);
+                // Remove empty tag entries to prevent memory leaks
+                if keys.is_empty() {
+                    drop(keys);  // Drop the reference before removal
+                    shard.tag_to_keys.remove(tag);
                 }
             }
         }
@@ -1042,17 +1058,45 @@ impl Cache {
     pub fn get(&self, key: &Key) -> Option<String> {
         let shard_idx = self.hash_key(key);
         let shard = &self.shards[shard_idx];
-        if let Some(entry) = shard.entries.get(key) {   // entry = DashMap reference guard
-            if entry.is_expired() {                     // TTL check
-                shard.entries.remove(key);              // Eager removal of expired entry
-                self.stats.lock().misses += 1;          // Count as miss
-                None
+        
+        // First, check if entry exists and get its expiration status
+        let (value, is_expired) = if let Some(entry) = shard.entries.get(key) {
+            if entry.is_expired() {
+                (None, true)  // Entry exists but is expired
             } else {
-                self.stats.lock().hits += 1;            // Count as hit
-                Some(entry.value.clone())               // Clone value out (cheap relative to network cost)
+                (Some(entry.value.clone()), false)  // Entry exists and valid
             }
         } else {
-            self.stats.lock().misses += 1;              // Key absent
+            (None, false)  // Entry doesn't exist
+        };
+        // The read lock is automatically dropped here when `entry` goes out of scope
+        
+        // Now handle expired entry removal without holding read lock
+        if is_expired {
+            // Safe to remove now - no lock conflict
+            if let Some((_, old_entry)) = shard.entries.remove(key) {
+                // Clean up tag associations for expired entry
+                for tag in &old_entry.tags {
+                    if let Some(tag_keys) = shard.tag_to_keys.get_mut(tag) {
+                        tag_keys.remove(key);
+                        // Remove empty tag entries to prevent memory leaks
+                        if tag_keys.is_empty() {
+                            drop(tag_keys);  // Drop the mutable reference
+                            shard.tag_to_keys.remove(tag);
+                        }
+                    }
+                }
+            }
+            self.stats.lock().misses += 1;
+            return None;
+        }
+        
+        // Return value if we have one
+        if let Some(val) = value {
+            self.stats.lock().hits += 1;
+            Some(val)
+        } else {
+            self.stats.lock().misses += 1;
             None
         }
     }
@@ -1549,6 +1593,7 @@ pub fn build_app(app_state: Arc<AppState>, allowed_origin: Option<String>) -> Ro
         .route("/auth/change_password", post(change_password_handler))
         .route("/auth/reset", post(reset_credentials_handler))
     .route("/health", get(health_handler))
+    .route("/system", get(system_handler))
         // Serve the React UI for all other routes (SPA routing)
         .fallback(static_handler)
     .with_state(app_state.clone());
@@ -1559,6 +1604,39 @@ pub fn build_app(app_state: Arc<AppState>, allowed_origin: Option<String>) -> Ro
 }
 
 async fn health_handler() -> ResponseJson<serde_json::Value> { ResponseJson(serde_json::json!({"status":"ok","time": chrono::Utc::now().to_rfc3339()})) }
+
+async fn system_handler(State(state): State<Arc<AppState>>) -> ResponseJson<serde_json::Value> {
+    let mut system = state.system.lock();
+    system.refresh_cpu(); // Refresh CPU usage
+    system.refresh_memory(); // Refresh memory usage
+    
+    let cpu_cores: Vec<serde_json::Value> = system.cpus()
+        .iter()
+        .enumerate()
+        .map(|(idx, cpu)| serde_json::json!({
+            "core": idx,
+            "name": cpu.name(),
+            "usage": cpu.cpu_usage(),
+            "frequency": cpu.frequency()
+        }))
+        .collect();
+    
+    // Calculate global CPU usage as average of all cores
+    let global_cpu_usage = if system.cpus().is_empty() {
+        0.0
+    } else {
+        system.cpus().iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / system.cpus().len() as f32
+    };
+    
+    ResponseJson(serde_json::json!({
+        "cpu_cores": cpu_cores,
+        "core_count": system.cpus().len(),
+        "global_cpu_usage": global_cpu_usage,
+        "total_memory": system.total_memory(),
+        "used_memory": system.used_memory(),
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    }))
+}
 
 
 
@@ -1879,7 +1957,17 @@ async fn start_server() -> anyhow::Result<()> {
         password: config.authentication.password.clone(),
     };
     let auth_state = Arc::new(AuthState::new(auth_creds, config_path.clone()));
-    let app_state = Arc::new(AppState { cache: cache.clone(), auth: auth_state.clone() });
+    
+    // Initialize system monitor for CPU stats
+    let mut system = System::new_all();
+    system.refresh_all(); // Initial refresh
+    let system_monitor = Arc::new(parking_lot::Mutex::new(system));
+    
+    let app_state = Arc::new(AppState { 
+        cache: cache.clone(), 
+        auth: auth_state.clone(),
+        system: system_monitor 
+    });
 
     // Background task: periodically sweep expired entries to free memory.
     let cleanup_cache = cache.clone();
