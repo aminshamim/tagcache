@@ -11,8 +11,8 @@ brew install tagcache
 
 ### Debian/Ubuntu
 ```bash
-wget https://github.com/aminshamim/tagcache/releases/latest/download/tagcache_1.0.2_amd64.deb
-sudo dpkg -i tagcache_1.0.2_amd64.deb
+wget https://github.com/aminshamim/tagcache/releases/latest/download/tagcache_amd64.deb
+sudo dpkg -i tagcache_amd64.deb
 ```
 
 ## Basic Usage

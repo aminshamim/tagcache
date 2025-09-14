@@ -45,28 +45,52 @@ jobs:
           body: |
             ## TagCache ${{ steps.get_version.outputs.version }}
             
-            ### Installation
+            ### 📦 Installation
             
-            #### Homebrew (macOS/Linux)
+            #### 🍺 Homebrew (macOS/Linux) - Recommended
             ```bash
+            brew tap aminshamim/tap
             brew install tagcache
             ```
             
-            #### Debian/Ubuntu
+            #### 📥 Direct Download
+            Choose your platform:
+            
+            | Platform | Architecture | Download Link |
+            |----------|-------------|---------------|
+            | **macOS** | Intel (x86_64) | [tagcache-macos-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/tagcache-macos-x86_64.tar.gz) |
+            | **macOS** | Apple Silicon (ARM64) | [tagcache-macos-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/tagcache-macos-arm64.tar.gz) |
+            | **Linux** | x86_64 | [tagcache-linux-x86_64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/tagcache-linux-x86_64.tar.gz) |
+            | **Linux** | ARM64 | [tagcache-linux-arm64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/tagcache-linux-arm64.tar.gz) |
+            | **Windows** | x86_64 | [tagcache-windows-x86_64.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/tagcache-windows-x86_64.zip) |
+            
+            #### 🐧 Package Managers
             ```bash
+            # Debian/Ubuntu
             wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/tagcache_${{ steps.get_version.outputs.version }}_amd64.deb
             sudo dpkg -i tagcache_${{ steps.get_version.outputs.version }}_amd64.deb
+            
+            # RHEL/CentOS/Fedora  
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/tagcache-${{ steps.get_version.outputs.version }}-1.x86_64.rpm
+            sudo rpm -ivh tagcache-${{ steps.get_version.outputs.version }}-1.x86_64.rpm
             ```
             
-            #### Windows
-            Download `tagcache-windows-x86_64.zip` and extract `tagcache.exe`
+            ### ✨ What's New
             
-            #### Direct Download
-            - Linux x86_64: `tagcache-linux-x86_64.tar.gz`
-            - Linux ARM64: `tagcache-linux-arm64.tar.gz`
-            - macOS Intel: `tagcache-macos-x86_64.tar.gz`
-            - macOS Apple Silicon: `tagcache-macos-arm64.tar.gz`
-            - Windows: `tagcache-windows-x86_64.zip`
+            - 🚀 **Both binaries included**: `tagcache` (server) and `bench_tcp` (benchmark tool)
+            - 🌍 **Cross-platform support**: macOS (Intel + Apple Silicon), Linux (x86_64 + ARM64), Windows
+            - 📦 **Multiple formats**: Binary tarballs, Debian packages, RPM packages
+            - 🔧 **Easy installation**: Homebrew, package managers, or direct download
+            
+            ### 🚀 Quick Start
+            ```bash
+            # After installation
+            tagcache --version
+            bench_tcp --help
+            tagcache server
+            ```
+            
+            **Note**: All downloads include both `tagcache` and `bench_tcp` binaries.
           draft: false
           prerelease: false
         env:

@@ -77,8 +77,18 @@ bench_output/
 .env.test.local
 .env.production.local
 
+# ---- Private Development Files ----
+# Personal notes, deployment guides, internal documentation
+.private/
+private/
+.dev/
+dev-notes/
+.notes/
+personal/
+
 # ---- Secrets / Credentials ----
 credential.txt
+tagcache.conf  # Configuration file with credentials
 
 # ---- Frontend (Vite/React) ----
 app/node_modules/

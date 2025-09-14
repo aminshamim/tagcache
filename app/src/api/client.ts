@@ -40,6 +40,16 @@ export async function deleteKey(key: string): Promise<{ ok: boolean; deleted?: n
   return r.data as { ok: boolean; deleted?: number };
 }
 
+export async function flushAll(): Promise<{ success: boolean; count?: number }> {
+  const r = await api.post('/flush');
+  return r.data as { success: boolean; count?: number };
+}
+
+export async function getSystemStats(): Promise<any> {
+  const r = await api.get('/system');
+  return r.data;
+}
+
 // Simple auth token in-memory (non-persistent)
 let authToken: string | null = null;
 export function setAuthToken(t: string | null) { authToken = t; }

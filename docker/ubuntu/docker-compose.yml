@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  tagcache:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tagcache-ubuntu
+    ports:
+      - "8080:8080"   # HTTP API port
+      - "1984:1984"   # TCP protocol port
+    environment:
+      - PORT=8080
+      - TCP_PORT=1984
+      - HOST=0.0.0.0
+      - RUST_LOG=info
+    # volumes:
+      # Optional: mount a config file
+      # - ./tagcache.conf:/etc/tagcache/tagcache.conf:ro
+      # Optional: mount a data directory for persistence
+      # - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# Optional: Add a simple web UI or monitoring
+# You can add more services here like Prometheus, Grafana, etc.

@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { useAuthStore } from '../store/auth';
-import { useState, useMemo } from 'react';
+import { useCacheStore } from '../store/cache';
+import { useState, useMemo, useEffect } from 'react';
 
 interface SearchItem { key:string; ttl_ms?:number; tags:string[]; created_ms?:number }
 
 export function TagDistribution(){
   const token = useAuthStore(s=>s.token);
+  const { flushCounter } = useCacheStore();
   const [activeTag,setActiveTag] = useState<string|null>(null);
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey:['tag-dist', !!token],
@@ -28,6 +30,14 @@ export function TagDistribution(){
     entries.sort((a,b)=> b[1]-a[1]);
     return { cloud: entries.slice(0,80).map(([tag,count])=>({tag,count})), maxCount: Math.max(...entries.map(e=>e[1])), minCount: Math.min(...entries.map(e=>e[1])) };
   },[data]);
+
+  // Listen for flush events and refetch data
+  useEffect(() => {
+    if (flushCounter > 0) {
+      setActiveTag(null);
+      refetch();
+    }
+  }, [flushCounter, refetch]);
   if(!token) return <div className="text-xs text-gray-500">Authenticate to view tags</div>;
   if(isLoading) return <div className="text-xs text-gray-500">Loading tags...</div>;
   if(error) return <div className="text-xs text-red-500">Error loading tags <button onClick={()=>refetch()} className="underline">retry</button></div>;

@@ -1,6 +1,6 @@
 [package]
 name = "tagcache"
-version = "1.0.5"
+version = "1.0.8"
 edition = "2021"
 authors = ["Md. Aminul Islam Sarker <aminshamim@gmail.com>"]
 description = "Lightweight, sharded, tag-aware in-memory cache server"
@@ -20,7 +20,7 @@ name = "bench_tcp"
 path = "src/bin/bench_tcp.rs"
 
 [features]
-default = []
+default = ["embed-ui"]
 embed-ui = ["rust-embed"]
 
 [dependencies]
@@ -42,14 +42,16 @@ anyhow = "1.0"
 rand = "0.8"
 chrono = { version = "0.4", features=["clock", "serde"] }
 base64 = "0.22"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "blocking", "rustls-tls"], default-features = false }
 clap = { version = "4.0", features = ["derive"] }
 tower = { version = "0.4", features = ["util"] }
 rust-embed = { version = "8.0", features = ["debug-embed"], optional = true }
 mime_guess = "2.0"
+toml = "0.8"
+dirs = "5.0"
+sysinfo = "0.30"
 
 [dev-dependencies]
-sysinfo = "0.30"
 hdrhistogram = "7"
 once_cell = "1.19"
 
