@@ -171,6 +171,25 @@ static int tc_tcp_connect_raw(const char *host, int port, int timeout_ms) {
     return saved;
 }
 
+// Setup keep-alive with configuration
+void tc_setup_keep_alive(int fd, tc_client_config *cfg) {
+    if (!cfg->enable_keep_alive) return;
+    
+    int one = 1;
+    setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &one, sizeof(one));
+    
+    // Set keep-alive parameters if supported
+#ifdef TCP_KEEPIDLE
+    setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &cfg->keep_alive_idle, sizeof(cfg->keep_alive_idle));
+#endif
+#ifdef TCP_KEEPINTVL
+    setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &cfg->keep_alive_interval, sizeof(cfg->keep_alive_interval));
+#endif
+#ifdef TCP_KEEPCNT
+    setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cfg->keep_alive_count, sizeof(cfg->keep_alive_count));
+#endif
+}
+
 static tc_tcp_conn *tc_get_conn(tc_client_handle *h) {
     double t = now_mono();
     
@@ -224,6 +243,9 @@ static tc_tcp_conn *tc_get_conn(tc_client_handle *h) {
         int fd = tc_tcp_connect_raw(h->cfg.host, h->cfg.port, fast_timeout);
         
         if (fd >= 0) {
+            // Setup keep-alive if enabled
+            tc_setup_keep_alive(fd, &h->cfg);
+            
             c->fd = fd; 
             c->healthy = true; 
             c->created_at = t; 
@@ -759,6 +781,229 @@ int tc_deserialize_to_zval(const char *data, size_t len, zval *return_value) {
     ZVAL_STRINGL(return_value, data, len); return 0;
 }
 
+// --- Request Pipelining Implementation ---
+
+int tc_pipeline_begin(tc_tcp_conn *conn) {
+    if (!conn || !conn->healthy) return -1;
+    
+    conn->pipeline_mode = true;
+    conn->pending_requests = 0;
+    
+    if (!conn->pipeline_buffer) {
+        conn->pipeline_buf_size = 65536; // 64KB pipeline buffer
+        conn->pipeline_buffer = emalloc(conn->pipeline_buf_size);
+    }
+    conn->pipeline_buf_used = 0;
+    
+    return 0;
+}
+
+int tc_pipeline_add_request(tc_tcp_conn *conn, const char *cmd, size_t cmd_len) {
+    if (!conn || !conn->pipeline_mode || !cmd) return -1;
+    
+    // Check if buffer has space
+    if (conn->pipeline_buf_used + cmd_len >= conn->pipeline_buf_size) {
+        // Buffer full, execute current pipeline first
+        smart_str *responses = NULL;
+        int response_count = 0;
+        if (tc_pipeline_execute(conn, &responses, &response_count) != 0) {
+            return -1;
+        }
+        // Free responses (caller should handle them)
+        if (responses) {
+            for (int i = 0; i < response_count; i++) {
+                smart_str_free(&responses[i]);
+            }
+            efree(responses);
+        }
+    }
+    
+    // Add command to pipeline buffer
+    memcpy(conn->pipeline_buffer + conn->pipeline_buf_used, cmd, cmd_len);
+    conn->pipeline_buf_used += cmd_len;
+    conn->pending_requests++;
+    
+    return 0;
+}
+
+int tc_pipeline_execute(tc_tcp_conn *conn, smart_str **responses, int *response_count) {
+    if (!conn || !conn->pipeline_mode || conn->pending_requests == 0) return -1;
+    
+    // Send all buffered requests at once
+    if (tc_write(conn, conn->pipeline_buffer, conn->pipeline_buf_used) != 0) {
+        conn->healthy = false;
+        return -1;
+    }
+    
+    // Flush write buffer
+    if (tc_flush(conn) != 0) {
+        conn->healthy = false;
+        return -1;
+    }
+    
+    // Allocate response array
+    *responses = ecalloc(conn->pending_requests, sizeof(smart_str));
+    *response_count = conn->pending_requests;
+    
+    // Read all responses
+    for (int i = 0; i < conn->pending_requests; i++) {
+        if (tc_readline(conn, &(*responses)[i]) != 0) {
+            conn->healthy = false;
+            // Free allocated responses
+            for (int j = 0; j < i; j++) {
+                smart_str_free(&(*responses)[j]);
+            }
+            efree(*responses);
+            *responses = NULL;
+            *response_count = 0;
+            return -1;
+        }
+    }
+    
+    // Reset pipeline state
+    conn->pipeline_buf_used = 0;
+    conn->pending_requests = 0;
+    
+    return 0;
+}
+
+int tc_pipeline_end(tc_tcp_conn *conn) {
+    if (!conn) return -1;
+    
+    // Execute any remaining requests
+    if (conn->pending_requests > 0) {
+        smart_str *responses = NULL;
+        int response_count = 0;
+        if (tc_pipeline_execute(conn, &responses, &response_count) != 0) {
+            return -1;
+        }
+        // Free responses
+        if (responses) {
+            for (int i = 0; i < response_count; i++) {
+                smart_str_free(&responses[i]);
+            }
+            efree(responses);
+        }
+    }
+    
+    conn->pipeline_mode = false;
+    return 0;
+}
+
+// --- Async I/O Implementation ---
+
+int tc_async_begin(tc_client_handle *h) {
+    if (!h || !h->cfg.enable_async_io) return -1;
+    
+    h->async_mode = true;
+    h->async_fd_count = 0;
+    
+    if (!h->async_fds) {
+        h->async_fds = ecalloc(h->cfg.pool_size, sizeof(int));
+    }
+    
+    return 0;
+}
+
+int tc_async_add_request(tc_client_handle *h, const char *key, int request_type) {
+    if (!h || !h->async_mode || !key) return -1;
+    
+    // Get a connection from pool (non-blocking)
+    tc_tcp_conn *conn = tc_get_conn(h);
+    if (!conn) return -1;
+    
+    // Set non-blocking mode
+    int flags = fcntl(conn->fd, F_GETFL, 0);
+    fcntl(conn->fd, F_SETFL, flags | O_NONBLOCK);
+    
+    // Add to async fd list
+    if (h->async_fd_count < h->cfg.pool_size) {
+        h->async_fds[h->async_fd_count++] = conn->fd;
+    }
+    
+    // Send request (non-blocking)
+    smart_str cmd = {0};
+    if (request_type == 0) { // GET
+        smart_str_appends(&cmd, "GET\t");
+        smart_str_appends(&cmd, key);
+        smart_str_appendc(&cmd, '\n');
+    }
+    smart_str_0(&cmd);
+    
+    if (tc_write(conn, ZSTR_VAL(cmd.s), ZSTR_LEN(cmd.s)) != 0) {
+        smart_str_free(&cmd);
+        return -1;
+    }
+    
+    smart_str_free(&cmd);
+    return 0;
+}
+
+int tc_async_execute(tc_client_handle *h, zval *results) {
+    if (!h || !h->async_mode || h->async_fd_count == 0) return -1;
+    
+    // Use select() to wait for responses
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    int max_fd = 0;
+    
+    for (int i = 0; i < h->async_fd_count; i++) {
+        FD_SET(h->async_fds[i], &readfds);
+        if (h->async_fds[i] > max_fd) {
+            max_fd = h->async_fds[i];
+        }
+    }
+    
+    struct timeval timeout;
+    timeout.tv_sec = h->cfg.timeout_ms / 1000;
+    timeout.tv_usec = (h->cfg.timeout_ms % 1000) * 1000;
+    
+    int ready = select(max_fd + 1, &readfds, NULL, NULL, &timeout);
+    if (ready <= 0) return -1;
+    
+    // Read responses from ready connections
+    array_init(results);
+    int response_count = 0;
+    
+    for (int i = 0; i < h->async_fd_count; i++) {
+        if (FD_ISSET(h->async_fds[i], &readfds)) {
+            // Find connection by fd
+            tc_tcp_conn *conn = NULL;
+            for (int j = 0; j < h->pool_len; j++) {
+                if (h->pool[j].fd == h->async_fds[i]) {
+                    conn = &h->pool[j];
+                    break;
+                }
+            }
+            
+            if (conn) {
+                smart_str response = {0};
+                if (tc_readline(conn, &response) == 0 && response.s) {
+                    zval result;
+                    tc_deserialize_to_zval(ZSTR_VAL(response.s), ZSTR_LEN(response.s), &result);
+                    add_index_zval(results, response_count++, &result);
+                }
+                smart_str_free(&response);
+                
+                // Restore blocking mode
+                int flags = fcntl(conn->fd, F_GETFL, 0);
+                fcntl(conn->fd, F_SETFL, flags & ~O_NONBLOCK);
+            }
+        }
+    }
+    
+    return response_count;
+}
+
+int tc_async_end(tc_client_handle *h) {
+    if (!h) return -1;
+    
+    h->async_mode = false;
+    h->async_fd_count = 0;
+    
+    return 0;
+}
+
 // --- PHP Functions ---
 // Procedural create: tagcache_create(array $options = null): resource
 PHP_FUNCTION(tagcache_create) {
@@ -775,6 +1020,14 @@ PHP_FUNCTION(tagcache_create) {
     h->cfg.connect_timeout_ms = 3000;
     h->cfg.pool_size = 8;
     h->cfg.serializer = TC_SERIALIZE_PHP; // Default to PHP serialize
+    // Advanced optimization defaults
+    h->cfg.enable_pipelining = false;
+    h->cfg.pipeline_depth = 10;
+    h->cfg.enable_async_io = false;
+    h->cfg.enable_keep_alive = true; // Enabled by default for better performance
+    h->cfg.keep_alive_idle = 60;     // 60 seconds idle before keep-alive
+    h->cfg.keep_alive_interval = 10; // 10 seconds between probes
+    h->cfg.keep_alive_count = 3;     // 3 failed probes before connection considered dead
 
     if (options) {
         zval *z;
@@ -798,6 +1051,29 @@ PHP_FUNCTION(tagcache_create) {
             else if (zend_string_equals_literal_ci(Z_STR_P(z), "native")) h->cfg.serializer = TC_SERIALIZE_NATIVE;
             else h->cfg.serializer = TC_SERIALIZE_PHP; // Fallback
         }
+        
+        // Parse advanced optimization options
+        if ((z = zend_hash_str_find(Z_ARRVAL_P(options), "enable_pipelining", sizeof("enable_pipelining")-1)) && Z_TYPE_P(z)==IS_TRUE) {
+            h->cfg.enable_pipelining = true;
+        }
+        if ((z = zend_hash_str_find(Z_ARRVAL_P(options), "pipeline_depth", sizeof("pipeline_depth")-1)) && Z_TYPE_P(z)==IS_LONG) {
+            h->cfg.pipeline_depth = Z_LVAL_P(z);
+        }
+        if ((z = zend_hash_str_find(Z_ARRVAL_P(options), "enable_async_io", sizeof("enable_async_io")-1)) && Z_TYPE_P(z)==IS_TRUE) {
+            h->cfg.enable_async_io = true;
+        }
+        if ((z = zend_hash_str_find(Z_ARRVAL_P(options), "enable_keep_alive", sizeof("enable_keep_alive")-1)) && Z_TYPE_P(z)==IS_TRUE) {
+            h->cfg.enable_keep_alive = true;
+        }
+        if ((z = zend_hash_str_find(Z_ARRVAL_P(options), "keep_alive_idle", sizeof("keep_alive_idle")-1)) && Z_TYPE_P(z)==IS_LONG) {
+            h->cfg.keep_alive_idle = Z_LVAL_P(z);
+        }
+        if ((z = zend_hash_str_find(Z_ARRVAL_P(options), "keep_alive_interval", sizeof("keep_alive_interval")-1)) && Z_TYPE_P(z)==IS_LONG) {
+            h->cfg.keep_alive_interval = Z_LVAL_P(z);
+        }
+        if ((z = zend_hash_str_find(Z_ARRVAL_P(options), "keep_alive_count", sizeof("keep_alive_count")-1)) && Z_TYPE_P(z)==IS_LONG) {
+            h->cfg.keep_alive_count = Z_LVAL_P(z);
+        }
     }
 
     if (h->cfg.mode != TC_MODE_TCP) {
@@ -806,6 +1082,11 @@ PHP_FUNCTION(tagcache_create) {
     }
     h->pool_len = h->cfg.pool_size;
     h->pool = ecalloc(h->pool_len, sizeof(tc_tcp_conn));
+    
+    // Initialize async I/O if enabled
+    h->async_mode = false;
+    h->async_fds = NULL;
+    h->async_fd_count = 0;
     
     // AGGRESSIVE OPTIMIZATION: Pre-warm ALL connections with optimized settings
     double t = now_mono();
@@ -817,9 +1098,20 @@ PHP_FUNCTION(tagcache_create) {
         h->pool[i].fd = tc_tcp_connect_raw(h->cfg.host, h->cfg.port, fast_timeout);
         
         if (h->pool[i].fd >= 0) {
+            // Setup keep-alive if enabled
+            tc_setup_keep_alive(h->pool[i].fd, &h->cfg);
+            
             h->pool[i].healthy = true;
             h->pool[i].created_at = t;
             h->pool[i].last_used = t;
+            
+            // Initialize pipelining support
+            h->pool[i].pending_requests = 0;
+            h->pool[i].pipeline_mode = false;
+            h->pool[i].pipeline_buffer = NULL;
+            h->pool[i].pipeline_buf_size = 0;
+            h->pool[i].pipeline_buf_used = 0;
+            
             successful_connections++;
             
             // Set first successful connection as pinned
@@ -842,6 +1134,9 @@ PHP_FUNCTION(tagcache_create) {
             if (h->pool[i].fd < 0) { // Only retry failed connections
                 h->pool[i].fd = tc_tcp_connect_raw(h->cfg.host, h->cfg.port, h->cfg.connect_timeout_ms);
                 if (h->pool[i].fd >= 0) {
+                    // Setup keep-alive if enabled
+                    tc_setup_keep_alive(h->pool[i].fd, &h->cfg);
+                    
                     h->pool[i].healthy = true;
                     h->pool[i].created_at = t;
                     h->pool[i].last_used = t;
@@ -906,6 +1201,7 @@ PHP_FUNCTION(tagcache_put) {
     smart_str resp = {0};
     int result = tc_tcp_cmd(h, ZSTR_VAL(cmd.s), ZSTR_LEN(cmd.s), &resp);
     bool ok = (result == 0 && resp.s && zend_string_equals_literal(resp.s, "OK"));
+    
     smart_str_free(&cmd); 
     smart_str_free(&resp); 
     if (sval.s) smart_str_free(&sval);
@@ -967,7 +1263,7 @@ PHP_FUNCTION(tagcache_get) {
     tc_client_handle *h = zend_fetch_resource(Z_RES_P(res), PHP_TAGCACHE_EXTNAME, le_tagcache_client); 
     if(!h) RETURN_NULL();
     
-    // Use original fast path temporarily for debugging
+    // Fetch from server
     smart_str result = {0};
     int rc = tc_fast_get(h, key, key_len, &result);
     if (rc == 1) { RETURN_NULL(); } // not found
@@ -975,6 +1271,7 @@ PHP_FUNCTION(tagcache_get) {
     
     const char *payload = ZSTR_VAL(result.s) + 6; // skip "VALUE\t"
     size_t plen = ZSTR_LEN(result.s) - 6;
+    
     tc_deserialize_to_zval(payload, plen, return_value);
     smart_str_free(&result);
 }
@@ -985,6 +1282,7 @@ PHP_FUNCTION(tagcache_delete) {
     smart_str cmd={0}; smart_str_appends(&cmd, "DEL\t"); smart_str_appendl(&cmd, key, key_len); smart_str_appendc(&cmd,'\n'); smart_str_0(&cmd);
     smart_str resp={0}; if (tc_tcp_cmd(h, ZSTR_VAL(cmd.s), ZSTR_LEN(cmd.s), &resp)!=0) { smart_str_free(&cmd); smart_str_free(&resp); RETURN_FALSE; }
     bool ok=false; if (resp.s) { if (strstr(ZSTR_VAL(resp.s), "ok")) ok=true; }
+    
     smart_str_free(&cmd); smart_str_free(&resp); RETURN_BOOL(ok);
 }
 
@@ -994,6 +1292,7 @@ PHP_FUNCTION(tagcache_invalidate_tag) {
     smart_str cmd={0}; smart_str_appends(&cmd, "INV_TAG\t"); smart_str_appendl(&cmd, tag, tag_len); smart_str_appendc(&cmd,'\n'); smart_str_0(&cmd);
     smart_str resp={0}; if (tc_tcp_cmd(h, ZSTR_VAL(cmd.s), ZSTR_LEN(cmd.s), &resp)!=0) { smart_str_free(&cmd); smart_str_free(&resp); RETURN_LONG(0); }
     long count=0; if (resp.s && ZSTR_LEN(resp.s)>8 && strncmp(ZSTR_VAL(resp.s), "INV_TAG\t",8)==0) { count = atol(ZSTR_VAL(resp.s)+8); }
+    
     smart_str_free(&cmd); smart_str_free(&resp); RETURN_LONG(count);
 }
 
@@ -1034,6 +1333,7 @@ PHP_FUNCTION(tagcache_flush) {
     smart_str cmd={0}; smart_str_appends(&cmd, "FLUSH\n"); smart_str_0(&cmd); smart_str resp={0};
     if (tc_tcp_cmd(h, ZSTR_VAL(cmd.s), ZSTR_LEN(cmd.s), &resp)!=0) { smart_str_free(&cmd); smart_str_free(&resp); RETURN_LONG(0); }
     long count=0; if (resp.s && ZSTR_LEN(resp.s)>6 && strncmp(ZSTR_VAL(resp.s), "FLUSH\t",6)==0) { count = atol(ZSTR_VAL(resp.s)+6); }
+    
     smart_str_free(&cmd); smart_str_free(&resp); RETURN_LONG(count);
 }
 
@@ -1292,7 +1592,12 @@ PHP_METHOD(TagCache, create) {
     h->pool_len = h->cfg.pool_size; h->pool = ecalloc(h->pool_len, sizeof(tc_tcp_conn));
     for(int i=0;i<h->pool_len;i++){
         h->pool[i].fd = tc_tcp_connect_raw(h->cfg.host, h->cfg.port, h->cfg.connect_timeout_ms);
-        if (h->pool[i].fd>=0) { h->pool[i].healthy=true; h->pool[i].created_at=h->pool[i].last_used=now_mono(); }
+        if (h->pool[i].fd>=0) { 
+            // Setup keep-alive if enabled
+            tc_setup_keep_alive(h->pool[i].fd, &h->cfg);
+            
+            h->pool[i].healthy=true; h->pool[i].created_at=h->pool[i].last_used=now_mono(); 
+        }
         h->pool[i].rlen=0; h->pool[i].rpos=0;
     }
     tagcache_obj_wrapper *ow = php_tagcache_obj_fetch(Z_OBJ_P(return_value));
