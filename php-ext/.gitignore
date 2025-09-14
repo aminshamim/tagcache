@@ -1,4 +1,4 @@
-# Build artifacts
+# PHP Extension Build Artifacts
 /.libs/
 /autom4te.cache/
 /build/
