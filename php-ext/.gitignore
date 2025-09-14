@@ -1,0 +1,37 @@
+# Build artifacts
+/.libs/
+/autom4te.cache/
+/build/
+Makefile
+Makefile.fragments
+Makefile.objects
+config.h
+config.h.in~
+config.log
+config.nice
+config.status
+configure
+libtool
+tagcache.la
+*.lo
+*.dep
+
+# Module output
+/modules/*.so
+/modules/*.la
+
+# Test outputs
+*.out
+*.tmp
+*.log
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
