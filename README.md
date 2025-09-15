@@ -21,6 +21,7 @@ TagCache is a high-performance, sharded, tag-aware in-memory cache server that o
 🔹 **JSON HTTP API** (port 8080) - RESTful interface for web applications  
 🔹 **TCP Protocol** (port 1984) - Ultra-low latency binary protocol  
 🔹 **Tag-based Invalidation** - Organize and clear related data efficiently  
+🔹 **Atomic Operations** - ADD, INCR, DECR with race-condition protection  
 🔹 **Built-in Web Dashboard** - Beautiful React UI for monitoring and management  
 🔹 **CLI Interface** - Complete command-line control  
 🔹 **Production Ready** - Authentication, monitoring, and deployment tools  
@@ -31,6 +32,7 @@ TagCache is a high-performance, sharded, tag-aware in-memory cache server that o
 |---------|-------------|
 | 🏎️ **Blazing Fast** | Multi-shard design with DashMap + hash sharding for maximum concurrency |
 | 🏷️ **Tag-Aware** | Associate multiple tags with keys for advanced invalidation strategies |
+| ⚛️ **Atomic Operations** | ADD, INCR, DECR with race-condition protection like Redis |
 | ⏱️ **Flexible TTL** | Precise expiration control in milliseconds or seconds |
 | 🔄 **Dual Protocols** | Choose between JSON HTTP API or high-performance TCP protocol |
 | 📊 **Rich Monitoring** | Real-time statistics, performance metrics, and health checks |
@@ -63,6 +65,9 @@ tagcache server
 
 # Use CLI with default credentials (admin/password)
 tagcache --username admin --password password put "hello" "world"
+tagcache --username admin --password password add "counter" "100"
+tagcache --username admin --password password increment "page_views" --by 1
+tagcache --username admin --password password decrement "quota" --by 5
 tagcache --username admin --password password get key "hello"
 tagcache --username admin --password password stats
 
@@ -477,6 +482,9 @@ tagcache --username <user> --password <pass> stats
 
 #### 📦 Cache Operations
 - `tagcache put <key> <value>` - Store data with optional tags and TTL
+- `tagcache add <key> <value>` - Atomically add data (fails if key exists)
+- `tagcache increment <key>` - Atomically increment numeric value (creates if not exists)
+- `tagcache decrement <key>` - Atomically decrement numeric value (creates if not exists)
 - `tagcache get key <key>` - Retrieve value by key  
 - `tagcache get tag <tags>` - Get keys by comma-separated tags
 - `tagcache flush key <key>` - Remove specific key
@@ -500,6 +508,18 @@ tagcache --username <user> --password <pass> stats
 ```bash
 # Store session data with 1-hour TTL
 tagcache put "session:abc123" "user_data" --tags "session,user:1001" --ttl-ms 3600000
+
+# Atomically add new user counter (fails if exists)
+tagcache add "user:new" "100" --tags "counter,user"
+
+# Increment a counter (creates with value 1 if doesn't exist)
+tagcache increment "page_views" --by 1 --tags "metrics,counter"
+
+# Increment by custom amount
+tagcache increment "user:points:123" --by 50 --tags "points,user:123"
+
+# Decrement with TTL (useful for rate limiting)
+tagcache decrement "rate_limit:api:user123" --by 1 --ttl-ms 60000 --tags "rate_limit"
 
 # Get all active sessions
 tagcache get tag "session,active"
@@ -539,6 +559,57 @@ curl -X POST http://127.0.0.1:8080/put \
 Response:
 ```json
 {"ok":true,"ttl_ms":60000}
+```
+
+### POST /add
+Atomically add a value (fails if key already exists).
+```bash
+curl -X POST http://127.0.0.1:8080/add \
+  -H "Authorization: Basic $B64" \
+  -H 'Content-Type: application/json' \
+  -d '{"key":"counter:new","value":"100","tags":["counters"],"ttl_ms":3600000}'
+```
+Response (success):
+```json
+{"ok":true,"added":true,"ttl_ms":3600000}
+```
+Response (key exists):
+```json
+{"ok":true,"added":false,"ttl_ms":null}
+```
+
+### POST /incr
+Atomically increment a numeric value. Creates key with increment amount if it doesn't exist.
+```bash
+curl -X POST http://127.0.0.1:8080/incr \
+  -H "Authorization: Basic $B64" \
+  -H 'Content-Type: application/json' \
+  -d '{"key":"page_views","by":1,"tags":["metrics"],"ttl_ms":86400000}'
+```
+Response (success):
+```json
+{"ok":true,"value":42,"ttl_ms":86400000}
+```
+Response (error - not numeric):
+```json
+{"ok":false,"error":"value is not an integer"}
+```
+
+### POST /decr
+Atomically decrement a numeric value. Creates key with negative decrement amount if it doesn't exist.
+```bash
+curl -X POST http://127.0.0.1:8080/decr \
+  -H "Authorization: Basic $B64" \
+  -H 'Content-Type: application/json' \
+  -d '{"key":"remaining_quota","by":5,"tags":["quotas","user:123"],"ttl_ms":3600000}'
+```
+Response (success):
+```json
+{"ok":true,"value":95,"ttl_ms":3600000}
+```
+Response (error):
+```json
+{"ok":false,"error":"integer overflow"}
 ```
 
 ### GET /get/:key
@@ -607,6 +678,9 @@ Line-based, tab-delimited. One command per line. Fields separated by `\t` (TAB).
 Commands:
 ```
 PUT <key> <ttl_ms|- > <tag1,tag2|- > <value>
+ADD <key> <ttl_ms|- > <tag1,tag2|- > <value>
+INCR <key> [by] [ttl_ms|-] [tag1,tag2|-]
+DECR <key> [by] [ttl_ms|-] [tag1,tag2|-]
 GET <key>
 DEL <key>
 INV_TAG <tag>
@@ -616,16 +690,29 @@ STATS
 Responses (one line):
 ```
 OK | ERR <msg>
-VALUE <value> | NF
+ADDED | EXISTS
+VALUE <value> | NF | ERR <error>
 DEL ok | DEL nf
 INV_TAG <count>
 KEYS <k1,k2,...>
 STATS <hits> <misses> <puts> <invalidations> <hit_ratio>
 ```
+
+### TCP Protocol Examples
 Example session (using `nc` and showing literal tabs as ↹ for clarity):
 ```
 PUT↹user:1↹60000↹users,trial↹hello world
 OK
+ADD↹counter:new↹-↹counters↹100
+ADDED
+ADD↹counter:new↹-↹-↹200
+EXISTS
+INCR↹page_views↹1↹86400000↹metrics
+VALUE	1
+INCR↹page_views↹5
+VALUE	6
+DECR↹user_quota↹10↹-↹quotas
+VALUE	-10
 GET↹user:1
 VALUE	hello world
 INV_TAG↹trial
@@ -633,6 +720,17 @@ INV_TAG	1
 GET↹user:1
 NF
 ```
+
+### Command Details
+- **PUT**: Store/update a value (upsert)
+- **ADD**: Atomically add only if key doesn't exist (returns ADDED/EXISTS)
+- **INCR**: Atomically increment numeric value (by=1 if omitted, creates if not exists)
+- **DECR**: Atomically decrement numeric value (by=1 if omitted, creates if not exists)
+- **GET**: Retrieve value (returns VALUE <data> or NF for not found)
+- **DEL**: Delete key (returns DEL ok/nf)
+- **INV_TAG**: Invalidate all keys with tag (returns count)
+- **KEYS**: List keys by tag
+- **STATS**: Server statistics
 Notes:
 - Value, key, and tags must not contain tabs or newlines.
 - `-` means no TTL or no tags.

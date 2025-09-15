@@ -96,6 +96,8 @@ fn serve_index_html() -> Html<std::borrow::Cow<'static, [u8]>> {
         <div class="endpoint"><span class="method">GET</span> /stats - Server statistics (requires auth)</div>
         <div class="endpoint"><span class="method">POST</span> /put - Store key-value data (requires auth)</div>
         <div class="endpoint"><span class="method">POST</span> /add - Atomically add key-value data (fails if exists, requires auth)</div>
+        <div class="endpoint"><span class="method">POST</span> /incr - Atomically increment numeric value (requires auth)</div>
+        <div class="endpoint"><span class="method">POST</span> /decr - Atomically decrement numeric value (requires auth)</div>
         <div class="endpoint"><span class="method">GET</span> /get/:key - Retrieve data (requires auth)</div>
         
         <h2>Authentication</h2>
@@ -104,7 +106,7 @@ fn serve_index_html() -> Html<std::borrow::Cow<'static, [u8]>> {
         
         <h2>TCP Protocol</h2>
         <p>High-performance TCP protocol available on port 1984</p>
-        <p>Commands: PUT, ADD (atomic), GET, DEL, INV_TAG, KEYS_BY_TAG, STATS, FLUSH</p>
+        <p>Commands: PUT, ADD (atomic), INCR, DECR, GET, DEL, INV_TAG, KEYS_BY_TAG, STATS, FLUSH</p>
         
         <h2>Documentation</h2>
         <p>Visit <a href="https://github.com/aminshamim/tagcache">github.com/aminshamim/tagcache</a> for complete documentation.</p>
@@ -399,6 +401,36 @@ enum Commands {
         ttl_ms: Option<u64>,
     },
     
+    /// Atomically increment a numeric value (creates if not exists)
+    Increment {
+        /// The cache key
+        key: String,
+        /// Amount to increment by (default: 1)
+        #[arg(long, short, default_value = "1")]
+        by: i64,
+        /// Comma-separated list of tags
+        #[arg(long, short)]
+        tags: Option<String>,
+        /// TTL in milliseconds
+        #[arg(long)]
+        ttl_ms: Option<u64>,
+    },
+    
+    /// Atomically decrement a numeric value (creates if not exists)
+    Decrement {
+        /// The cache key
+        key: String,
+        /// Amount to decrement by (default: 1)
+        #[arg(long, short, default_value = "1")]
+        by: i64,
+        /// Comma-separated list of tags
+        #[arg(long, short)]
+        tags: Option<String>,
+        /// TTL in milliseconds
+        #[arg(long)]
+        ttl_ms: Option<u64>,
+    },
+    
     /// Get operations
     Get {
         #[command(subcommand)]
@@ -590,6 +622,98 @@ impl TagCacheClient {
         } else {
             let error_text = response.text().await?;
             anyhow::bail!("Failed to add key: {}", error_text);
+        }
+
+        Ok(())
+    }
+
+    async fn increment(&self, key: &str, by: i64, tags: Option<&str>, ttl_ms: Option<u64>) -> anyhow::Result<()> {
+        let tags_vec: Vec<String> = if let Some(tags) = tags {
+            tags.split(',').map(|s| s.trim().to_string()).collect()
+        } else {
+            Vec::new()
+        };
+
+        let payload = serde_json::json!({
+            "key": key,
+            "by": by,
+            "tags": if tags_vec.is_empty() { None } else { Some(tags_vec) },
+            "ttl_ms": ttl_ms
+        });
+
+        let mut request = self.client.post(&format!("{}/incr", self.base_url));
+        if let Some(auth) = &self.auth_header {
+            request = request.header("Authorization", auth);
+        }
+
+        let response = request.json(&payload).send().await?;
+        
+        if response.status().is_success() {
+            let json: serde_json::Value = response.json().await?;
+            if let Some(ok) = json.get("ok").and_then(|o| o.as_bool()) {
+                if ok {
+                    if let Some(value) = json.get("value").and_then(|v| v.as_i64()) {
+                        println!("✓ Successfully incremented key '{}' by {} to {}", key, by, value);
+                        if let Some(tags) = tags {
+                            println!("  Tags: {}", tags);
+                        }
+                        if let Some(ttl) = ttl_ms {
+                            println!("  TTL: {}ms", ttl);
+                        }
+                    }
+                } else if let Some(error) = json.get("error").and_then(|e| e.as_str()) {
+                    println!("✗ Increment failed: {}", error);
+                }
+            }
+        } else {
+            let error_text = response.text().await?;
+            anyhow::bail!("Failed to increment key: {}", error_text);
+        }
+
+        Ok(())
+    }
+
+    async fn decrement(&self, key: &str, by: i64, tags: Option<&str>, ttl_ms: Option<u64>) -> anyhow::Result<()> {
+        let tags_vec: Vec<String> = if let Some(tags) = tags {
+            tags.split(',').map(|s| s.trim().to_string()).collect()
+        } else {
+            Vec::new()
+        };
+
+        let payload = serde_json::json!({
+            "key": key,
+            "by": by,
+            "tags": if tags_vec.is_empty() { None } else { Some(tags_vec) },
+            "ttl_ms": ttl_ms
+        });
+
+        let mut request = self.client.post(&format!("{}/decr", self.base_url));
+        if let Some(auth) = &self.auth_header {
+            request = request.header("Authorization", auth);
+        }
+
+        let response = request.json(&payload).send().await?;
+        
+        if response.status().is_success() {
+            let json: serde_json::Value = response.json().await?;
+            if let Some(ok) = json.get("ok").and_then(|o| o.as_bool()) {
+                if ok {
+                    if let Some(value) = json.get("value").and_then(|v| v.as_i64()) {
+                        println!("✓ Successfully decremented key '{}' by {} to {}", key, by, value);
+                        if let Some(tags) = tags {
+                            println!("  Tags: {}", tags);
+                        }
+                        if let Some(ttl) = ttl_ms {
+                            println!("  TTL: {}ms", ttl);
+                        }
+                    }
+                } else if let Some(error) = json.get("error").and_then(|e| e.as_str()) {
+                    println!("✗ Decrement failed: {}", error);
+                }
+            }
+        } else {
+            let error_text = response.text().await?;
+            anyhow::bail!("Failed to decrement key: {}", error_text);
         }
 
         Ok(())
@@ -1194,6 +1318,141 @@ impl Cache {
         }
     }
 
+    // Atomically increment a numeric value stored at key. Creates key with increment if it doesn't exist.
+    // Returns Ok(new_value) on success, Err(reason) if value is not numeric or other error.
+    // Similar to Redis INCR/INCRBY commands with atomic guarantees.
+    pub fn increment(&self, key: Key, by: i64, tags: Vec<Tag>, ttl: Option<Duration>) -> Result<i64, String> {
+        let shard_idx = self.hash_key(&key);
+        let shard = &self.shards[shard_idx];
+
+        match shard.entries.entry(key.clone()) {
+            dashmap::mapref::entry::Entry::Occupied(mut occupied) => {
+                let entry = occupied.get_mut();
+                
+                // Check if expired - if so, treat as non-existent
+                if entry.is_expired() {
+                    // Remove old tag associations
+                    let old_tags = entry.tags.clone();
+                    
+                    // Create new entry with increment value
+                    let new_entry = Entry {
+                        value: by.to_string(),
+                        tags: SmallVec::from_vec(tags.clone()),
+                        created_at: Instant::now(),
+                        ttl,
+                        created_system: SystemTime::now(),
+                    };
+                    
+                    occupied.replace_entry(new_entry);
+                    
+                    // Clean up old tag associations
+                    for tag in &old_tags {
+                        if let Some(keys) = shard.tag_to_keys.get(tag) {
+                            keys.remove(&key);
+                            if keys.is_empty() {
+                                drop(keys);
+                                shard.tag_to_keys.remove(tag);
+                            }
+                        }
+                    }
+                    
+                    // Add new tag associations
+                    for tag in &tags {
+                        shard
+                            .tag_to_keys
+                            .entry(tag.clone())
+                            .or_insert_with(DashSet::new)
+                            .insert(key.clone());
+                    }
+                    
+                    self.stats.lock().puts += 1;
+                    return Ok(by);
+                }
+                
+                // Parse current value as integer
+                match entry.value.trim().parse::<i64>() {
+                    Ok(current) => {
+                        match current.checked_add(by) {
+                            Some(new_value) => {
+                                entry.value = new_value.to_string();
+                                entry.created_at = Instant::now();
+                                entry.created_system = SystemTime::now();
+                                
+                                // Update TTL if provided
+                                if ttl.is_some() {
+                                    entry.ttl = ttl;
+                                }
+                                
+                                // Update tags if provided (merge with existing)
+                                if !tags.is_empty() {
+                                    // Remove old tag associations
+                                    for tag in &entry.tags {
+                                        if let Some(keys) = shard.tag_to_keys.get(tag) {
+                                            keys.remove(&key);
+                                            if keys.is_empty() {
+                                                drop(keys);
+                                                shard.tag_to_keys.remove(tag);
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Set new tags
+                                    entry.tags = SmallVec::from_vec(tags.clone());
+                                    
+                                    // Add new tag associations
+                                    for tag in &tags {
+                                        shard
+                                            .tag_to_keys
+                                            .entry(tag.clone())
+                                            .or_insert_with(DashSet::new)
+                                            .insert(key.clone());
+                                    }
+                                }
+                                
+                                self.stats.lock().puts += 1;
+                                Ok(new_value)
+                            }
+                            None => Err("integer overflow".to_string()),
+                        }
+                    }
+                    Err(_) => Err("value is not an integer".to_string()),
+                }
+            }
+            dashmap::mapref::entry::Entry::Vacant(vacant) => {
+                // Key doesn't exist - create new entry with increment value
+                let entry = Entry {
+                    value: by.to_string(),
+                    tags: SmallVec::from_vec(tags.clone()),
+                    created_at: Instant::now(),
+                    ttl,
+                    created_system: SystemTime::now(),
+                };
+                
+                vacant.insert(entry);
+                
+                // Add tag associations
+                for tag in &tags {
+                    shard
+                        .tag_to_keys
+                        .entry(tag.clone())
+                        .or_insert_with(DashSet::new)
+                        .insert(key.clone());
+                }
+                
+                self.stats.lock().puts += 1;
+                Ok(by)
+            }
+        }
+    }
+
+    // Atomically decrement a numeric value stored at key. Creates key with -decrement if it doesn't exist.
+    // Returns Ok(new_value) on success, Err(reason) if value is not numeric or other error.
+    // Similar to Redis DECR/DECRBY commands with atomic guarantees.
+    pub fn decrement(&self, key: Key, by: i64, tags: Vec<Tag>, ttl: Option<Duration>) -> Result<i64, String> {
+        // Decrement is just increment with negative value
+        self.increment(key, -by, tags, ttl)
+    }
+
     // Retrieve a value if present and not expired.
     pub fn get(&self, key: &Key) -> Option<String> {
         let shard_idx = self.hash_key(key);
@@ -1356,6 +1615,24 @@ pub struct AddRequest { // Input for /add - atomic add operation
     pub ttl_ms: Option<u64>,      // Preferred millisecond TTL
 }
 
+#[derive(Deserialize)]
+pub struct IncrementRequest { // Input for /incr - atomic increment operation
+    pub key: String,
+    pub by: Option<i64>,          // Amount to increment by (default: 1)
+    pub tags: Option<Vec<String>>, // Optional tags to set/update
+    pub ttl_seconds: Option<u64>, // Alternative TTL unit
+    pub ttl_ms: Option<u64>,      // Preferred millisecond TTL
+}
+
+#[derive(Deserialize)]
+pub struct DecrementRequest { // Input for /decr - atomic decrement operation
+    pub key: String,
+    pub by: Option<i64>,          // Amount to decrement by (default: 1)
+    pub tags: Option<Vec<String>>, // Optional tags to set/update
+    pub ttl_seconds: Option<u64>, // Alternative TTL unit
+    pub ttl_ms: Option<u64>,      // Preferred millisecond TTL
+}
+
 #[derive(Serialize)]
 pub struct PutResponse { // Output of /put
     pub ok: bool,
@@ -1366,6 +1643,20 @@ pub struct PutResponse { // Output of /put
 pub struct AddResponse { // Output of /add
     pub ok: bool,
     pub added: bool,      // true if key was added, false if key already existed
+    pub ttl_ms: Option<u64>,
+}
+
+#[derive(Serialize)]
+pub struct IncrementResponse { // Output of /incr
+    pub ok: bool,
+    pub value: i64,       // New value after increment
+    pub ttl_ms: Option<u64>,
+}
+
+#[derive(Serialize)]
+pub struct DecrementResponse { // Output of /decr
+    pub ok: bool,
+    pub value: i64,       // New value after decrement
     pub ttl_ms: Option<u64>,
 }
 
@@ -1477,6 +1768,48 @@ async fn add_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, J
     let ttl_ms_return = ttl.map(|d| d.as_millis() as u64);
     let added = state.cache.add(key, req.value, tags, ttl);
     ResponseJson(AddResponse { ok: true, added, ttl_ms: ttl_ms_return })
+}
+
+// INCREMENT handler - atomically increment a numeric value
+async fn increment_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Json(req): Json<IncrementRequest>) -> ResponseJson<serde_json::Value> {
+    let key = Key(req.key);
+    let by = req.by.unwrap_or(1); // Default increment by 1
+    let tags = req.tags.unwrap_or_default().into_iter().map(Tag).collect();
+    let ttl = req.ttl_ms.map(Duration::from_millis).or_else(|| req.ttl_seconds.map(Duration::from_secs));
+    let ttl_ms_return = ttl.map(|d| d.as_millis() as u64);
+    
+    match state.cache.increment(key, by, tags, ttl) {
+        Ok(new_value) => ResponseJson(serde_json::json!({
+            "ok": true,
+            "value": new_value,
+            "ttl_ms": ttl_ms_return
+        })),
+        Err(error) => ResponseJson(serde_json::json!({
+            "ok": false,
+            "error": error
+        }))
+    }
+}
+
+// DECREMENT handler - atomically decrement a numeric value
+async fn decrement_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Json(req): Json<DecrementRequest>) -> ResponseJson<serde_json::Value> {
+    let key = Key(req.key);
+    let by = req.by.unwrap_or(1); // Default decrement by 1
+    let tags = req.tags.unwrap_or_default().into_iter().map(Tag).collect();
+    let ttl = req.ttl_ms.map(Duration::from_millis).or_else(|| req.ttl_seconds.map(Duration::from_secs));
+    let ttl_ms_return = ttl.map(|d| d.as_millis() as u64);
+    
+    match state.cache.decrement(key, by, tags, ttl) {
+        Ok(new_value) => ResponseJson(serde_json::json!({
+            "ok": true,
+            "value": new_value,
+            "ttl_ms": ttl_ms_return
+        })),
+        Err(error) => ResponseJson(serde_json::json!({
+            "ok": false,
+            "error": error
+        }))
+    }
 }
 
 // GET handler returns either {value: ...} or {error: "not_found"}
@@ -1753,6 +2086,8 @@ pub fn build_app(app_state: Arc<AppState>, allowed_origin: Option<String>) -> Ro
         // Each route maps path + method to handler. State cloned into each closure.
         .route("/put", post(put_handler))
         .route("/add", post(add_handler))
+        .route("/incr", post(increment_handler))
+        .route("/decr", post(decrement_handler))
         .route("/get/:key", get(get_handler))
         .route("/keys-by-tag", get(keys_by_tag_handler))
         .route("/invalidate-key", post(invalidate_key_handler))
@@ -1892,6 +2227,48 @@ async fn handle_tcp_client(cache: Arc<Cache>, mut stream: TcpStream) {
                             "ADDED".to_string()  // Successfully added
                         } else {
                             "EXISTS".to_string() // Key already exists
+                        }
+                    }
+                    _ => "ERR missing_key".to_string()
+                }
+            }
+            // INCR <key> [by] [ttl_ms|-] [tag1,tag2|-] - atomic increment (by defaults to 1)
+            "INCR" => {
+                let maybe_key = parts.next();
+                match maybe_key {
+                    Some(k) if !k.is_empty() => {
+                        let by_part = parts.next().unwrap_or("1");     // Increment amount (default 1)
+                        let ttl_part = parts.next().unwrap_or("-");    // TTL field
+                        let tags_part = parts.next().unwrap_or("-");   // Tags list
+                        
+                        let by = by_part.parse::<i64>().unwrap_or(1);
+                        let ttl = if ttl_part == "-" || ttl_part.is_empty() { None } else { ttl_part.parse::<u64>().ok().map(Duration::from_millis) };
+                        let tags: Vec<Tag> = if tags_part == "-" || tags_part.is_empty() { Vec::new() } else { tags_part.split(',').filter(|s| !s.is_empty()).map(|s| Tag(s.to_string())).collect() };
+                        
+                        match cache.increment(Key(k.to_string()), by, tags, ttl) {
+                            Ok(new_value) => format!("VALUE\t{}", new_value),
+                            Err(error) => format!("ERR {}", error),
+                        }
+                    }
+                    _ => "ERR missing_key".to_string()
+                }
+            }
+            // DECR <key> [by] [ttl_ms|-] [tag1,tag2|-] - atomic decrement (by defaults to 1)
+            "DECR" => {
+                let maybe_key = parts.next();
+                match maybe_key {
+                    Some(k) if !k.is_empty() => {
+                        let by_part = parts.next().unwrap_or("1");     // Decrement amount (default 1)
+                        let ttl_part = parts.next().unwrap_or("-");    // TTL field
+                        let tags_part = parts.next().unwrap_or("-");   // Tags list
+                        
+                        let by = by_part.parse::<i64>().unwrap_or(1);
+                        let ttl = if ttl_part == "-" || ttl_part.is_empty() { None } else { ttl_part.parse::<u64>().ok().map(Duration::from_millis) };
+                        let tags: Vec<Tag> = if tags_part == "-" || tags_part.is_empty() { Vec::new() } else { tags_part.split(',').filter(|s| !s.is_empty()).map(|s| Tag(s.to_string())).collect() };
+                        
+                        match cache.decrement(Key(k.to_string()), by, tags, ttl) {
+                            Ok(new_value) => format!("VALUE\t{}", new_value),
+                            Err(error) => format!("ERR {}", error),
                         }
                     }
                     _ => "ERR missing_key".to_string()
@@ -2218,6 +2595,12 @@ async fn main() -> anyhow::Result<()> {
                 }
                 Commands::Add { key, value, tags, ttl_ms } => {
                     client.add(&key, &value, tags.as_deref(), ttl_ms).await
+                }
+                Commands::Increment { key, by, tags, ttl_ms } => {
+                    client.increment(&key, by, tags.as_deref(), ttl_ms).await
+                }
+                Commands::Decrement { key, by, tags, ttl_ms } => {
+                    client.decrement(&key, by, tags.as_deref(), ttl_ms).await
                 }
                 Commands::Get { get_command } => {
                     match get_command {
