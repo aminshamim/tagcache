@@ -581,6 +581,33 @@ curl -X POST http://127.0.0.1:8080/invalidate-tag \
 ```
 Response: `{ "success": true, "count": <removed> }`
 
+### POST /invalidate-tags-any
+```bash
+curl -X POST http://127.0.0.1:8080/invalidate-tags-any \
+  -H "Authorization: Basic $B64" \
+  -H 'Content-Type: application/json' \
+  -d '{"tags":["users","admins"]}'
+```
+Response: `{ "success": true, "count": <removed> }`
+
+### POST /invalidate-tags-all
+```bash
+curl -X POST http://127.0.0.1:8080/invalidate-tags-all \
+  -H "Authorization: Basic $B64" \
+  -H 'Content-Type: application/json' \
+  -d '{"tags":["users","active"]}'
+```
+Response: `{ "success": true, "count": <removed> }`
+
+### POST /invalidate-keys
+```bash
+curl -X POST http://127.0.0.1:8080/invalidate-keys \
+  -H "Authorization: Basic $B64" \
+  -H 'Content-Type: application/json' \
+  -d '{"keys":["user:1","user:2","order:1"]}'
+```
+Response: `{ "success": true, "count": <removed> }`
+
 ### GET /stats
 ```bash
 curl -H "Authorization: Basic $B64" http://127.0.0.1:8080/stats
@@ -610,6 +637,9 @@ PUT <key> <ttl_ms|- > <tag1,tag2|- > <value>
 GET <key>
 DEL <key>
 INV_TAG <tag>
+INV_TAGS_ANY <tag1,tag2,...>
+INV_TAGS_ALL <tag1,tag2,...>
+INV_KEYS <key1,key2,...>
 KEYS_BY_TAG <tag>   (alias: KEYS <tag>)
 STATS
 ```
@@ -619,6 +649,9 @@ OK | ERR <msg>
 VALUE <value> | NF
 DEL ok | DEL nf
 INV_TAG <count>
+INV_TAGS_ANY <count>
+INV_TAGS_ALL <count>
+INV_KEYS <count>
 KEYS <k1,k2,...>
 STATS <hits> <misses> <puts> <invalidations> <hit_ratio>
 ```
@@ -626,11 +659,15 @@ Example session (using `nc` and showing literal tabs as ↹ for clarity):
 ```
 PUT↹user:1↹60000↹users,trial↹hello world
 OK
+PUT↹user:2↹60000↹users,admin↹jane doe
+OK
 GET↹user:1
 VALUE	hello world
-INV_TAG↹trial
-INV_TAG	1
+INV_TAGS_ANY↹trial,admin
+INV_TAGS_ANY	2
 GET↹user:1
+NF
+GET↹user:2
 NF
 ```
 Notes:

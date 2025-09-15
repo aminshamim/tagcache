@@ -35,6 +35,9 @@ PHP_FUNCTION(tagcache_put);
 PHP_FUNCTION(tagcache_get);
 PHP_FUNCTION(tagcache_delete);
 PHP_FUNCTION(tagcache_invalidate_tag);
+PHP_FUNCTION(tagcache_invalidate_tags_any);
+PHP_FUNCTION(tagcache_invalidate_tags_all);
+PHP_FUNCTION(tagcache_invalidate_keys);
 PHP_FUNCTION(tagcache_keys_by_tag);
 PHP_FUNCTION(tagcache_bulk_get);
 PHP_FUNCTION(tagcache_bulk_put);
@@ -57,6 +60,16 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO_EX(arginfo_tagcache_invalidate_tag, 0, 0, 2)
     ZEND_ARG_INFO(0, handle)
     ZEND_ARG_TYPE_INFO(0, tag, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_tagcache_invalidate_tags, 0, 0, 2)
+    ZEND_ARG_INFO(0, handle)
+    ZEND_ARG_ARRAY_INFO(0, tags, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_tagcache_invalidate_keys, 0, 0, 2)
+    ZEND_ARG_INFO(0, handle)
+    ZEND_ARG_ARRAY_INFO(0, keys, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_tagcache_keys_by_tag, 0, 0, 2)
@@ -1242,7 +1255,22 @@ PHP_FUNCTION(tagcache_put) {
         smart_str_appends(&cmd, "-"); 
     }
     smart_str_appendc(&cmd,'\t');
-    smart_str_appends(&cmd, "-"); // no tags for now
+    
+    // Handle tags properly
+    if (tags && Z_TYPE_P(tags) == IS_ARRAY && zend_hash_num_elements(Z_ARRVAL_P(tags)) > 0) {
+        zval *entry;
+        int first = 1;
+        ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(tags), entry) {
+            if (Z_TYPE_P(entry) == IS_STRING) {
+                if (!first) smart_str_appendc(&cmd, ',');
+                smart_str_appendl(&cmd, Z_STRVAL_P(entry), Z_STRLEN_P(entry));
+                first = 0;
+            }
+        } ZEND_HASH_FOREACH_END();
+    } else {
+        smart_str_appends(&cmd, "-"); // no tags
+    }
+    
     smart_str_appendc(&cmd,'\t'); 
     if (val_ptr && val_len) smart_str_appendl(&cmd, val_ptr, val_len); 
     smart_str_appendc(&cmd,'\n'); 
@@ -1344,6 +1372,123 @@ PHP_FUNCTION(tagcache_invalidate_tag) {
     long count=0; if (resp.s && ZSTR_LEN(resp.s)>8 && strncmp(ZSTR_VAL(resp.s), "INV_TAG\t",8)==0) { count = atol(ZSTR_VAL(resp.s)+8); }
     
     smart_str_free(&cmd); smart_str_free(&resp); RETURN_LONG(count);
+}
+
+PHP_FUNCTION(tagcache_invalidate_tags_any) {
+    zval *res, *tags_array; 
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "ra", &res, &tags_array) == FAILURE) RETURN_LONG(0);
+    tc_client_handle *h = zend_fetch_resource(Z_RES_P(res), PHP_TAGCACHE_EXTNAME, le_tagcache_client); 
+    if (!h) RETURN_LONG(0);
+    
+    smart_str cmd = {0}; 
+    smart_str_appends(&cmd, "INV_TAGS_ANY\t");
+    
+    zval *entry; 
+    int first = 1;
+    ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(tags_array), entry) {
+        if (Z_TYPE_P(entry) == IS_STRING) {
+            if (!first) smart_str_appendc(&cmd, ',');
+            smart_str_appendl(&cmd, Z_STRVAL_P(entry), Z_STRLEN_P(entry));
+            first = 0;
+        }
+    } ZEND_HASH_FOREACH_END();
+    
+    smart_str_appendc(&cmd, '\n'); 
+    smart_str_0(&cmd);
+    
+    smart_str resp = {0}; 
+    if (tc_tcp_cmd(h, ZSTR_VAL(cmd.s), ZSTR_LEN(cmd.s), &resp) != 0) { 
+        smart_str_free(&cmd); 
+        smart_str_free(&resp); 
+        RETURN_LONG(0); 
+    }
+    
+    long count = 0; 
+    if (resp.s && ZSTR_LEN(resp.s) > 13 && strncmp(ZSTR_VAL(resp.s), "INV_TAGS_ANY\t", 13) == 0) { 
+        count = atol(ZSTR_VAL(resp.s) + 13); 
+    }
+    
+    smart_str_free(&cmd); 
+    smart_str_free(&resp); 
+    RETURN_LONG(count);
+}
+
+PHP_FUNCTION(tagcache_invalidate_tags_all) {
+    zval *res, *tags_array; 
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "ra", &res, &tags_array) == FAILURE) RETURN_LONG(0);
+    tc_client_handle *h = zend_fetch_resource(Z_RES_P(res), PHP_TAGCACHE_EXTNAME, le_tagcache_client); 
+    if (!h) RETURN_LONG(0);
+    
+    smart_str cmd = {0}; 
+    smart_str_appends(&cmd, "INV_TAGS_ALL\t");
+    
+    zval *entry; 
+    int first = 1;
+    ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(tags_array), entry) {
+        if (Z_TYPE_P(entry) == IS_STRING) {
+            if (!first) smart_str_appendc(&cmd, ',');
+            smart_str_appendl(&cmd, Z_STRVAL_P(entry), Z_STRLEN_P(entry));
+            first = 0;
+        }
+    } ZEND_HASH_FOREACH_END();
+    
+    smart_str_appendc(&cmd, '\n'); 
+    smart_str_0(&cmd);
+    
+    smart_str resp = {0}; 
+    if (tc_tcp_cmd(h, ZSTR_VAL(cmd.s), ZSTR_LEN(cmd.s), &resp) != 0) { 
+        smart_str_free(&cmd); 
+        smart_str_free(&resp); 
+        RETURN_LONG(0); 
+    }
+    
+    long count = 0; 
+    if (resp.s && ZSTR_LEN(resp.s) > 13 && strncmp(ZSTR_VAL(resp.s), "INV_TAGS_ALL\t", 13) == 0) { 
+        count = atol(ZSTR_VAL(resp.s) + 13); 
+    }
+    
+    smart_str_free(&cmd); 
+    smart_str_free(&resp); 
+    RETURN_LONG(count);
+}
+
+PHP_FUNCTION(tagcache_invalidate_keys) {
+    zval *res, *keys_array; 
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "ra", &res, &keys_array) == FAILURE) RETURN_LONG(0);
+    tc_client_handle *h = zend_fetch_resource(Z_RES_P(res), PHP_TAGCACHE_EXTNAME, le_tagcache_client); 
+    if (!h) RETURN_LONG(0);
+    
+    smart_str cmd = {0}; 
+    smart_str_appends(&cmd, "INV_KEYS\t");
+    
+    zval *entry; 
+    int first = 1;
+    ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(keys_array), entry) {
+        if (Z_TYPE_P(entry) == IS_STRING) {
+            if (!first) smart_str_appendc(&cmd, ',');
+            smart_str_appendl(&cmd, Z_STRVAL_P(entry), Z_STRLEN_P(entry));
+            first = 0;
+        }
+    } ZEND_HASH_FOREACH_END();
+    
+    smart_str_appendc(&cmd, '\n'); 
+    smart_str_0(&cmd);
+    
+    smart_str resp = {0}; 
+    if (tc_tcp_cmd(h, ZSTR_VAL(cmd.s), ZSTR_LEN(cmd.s), &resp) != 0) { 
+        smart_str_free(&cmd); 
+        smart_str_free(&resp); 
+        RETURN_LONG(0); 
+    }
+    
+    long count = 0; 
+    if (resp.s && ZSTR_LEN(resp.s) > 9 && strncmp(ZSTR_VAL(resp.s), "INV_KEYS\t", 9) == 0) { 
+        count = atol(ZSTR_VAL(resp.s) + 9); 
+    }
+    
+    smart_str_free(&cmd); 
+    smart_str_free(&resp); 
+    RETURN_LONG(count);
 }
 
 PHP_FUNCTION(tagcache_keys_by_tag) {
@@ -1729,6 +1874,123 @@ PHP_METHOD(TagCache, invalidateTag) {
     smart_str_free(&cmd); smart_str_free(&resp); RETURN_LONG(count);
 }
 
+PHP_METHOD(TagCache, invalidateTagsAny) {
+    zval *tags_array; 
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "a", &tags_array) == FAILURE) RETURN_LONG(0);
+    tagcache_obj_wrapper *ow = php_tagcache_obj_fetch(Z_OBJ_P(getThis())); 
+    if (!ow->h) RETURN_LONG(0);
+    
+    smart_str cmd = {0}; 
+    smart_str_appends(&cmd, "INV_TAGS_ANY\t");
+    
+    zval *entry; 
+    int first = 1;
+    ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(tags_array), entry) {
+        if (Z_TYPE_P(entry) == IS_STRING) {
+            if (!first) smart_str_appendc(&cmd, ',');
+            smart_str_appendl(&cmd, Z_STRVAL_P(entry), Z_STRLEN_P(entry));
+            first = 0;
+        }
+    } ZEND_HASH_FOREACH_END();
+    
+    smart_str_appendc(&cmd, '\n'); 
+    smart_str_0(&cmd);
+    
+    smart_str resp = {0}; 
+    if (tc_tcp_cmd(ow->h, ZSTR_VAL(cmd.s), ZSTR_LEN(cmd.s), &resp) != 0) { 
+        smart_str_free(&cmd); 
+        smart_str_free(&resp); 
+        RETURN_LONG(0); 
+    }
+    
+    long count = 0; 
+    if (resp.s && ZSTR_LEN(resp.s) > 13 && strncmp(ZSTR_VAL(resp.s), "INV_TAGS_ANY\t", 13) == 0) { 
+        count = atol(ZSTR_VAL(resp.s) + 13); 
+    }
+    
+    smart_str_free(&cmd); 
+    smart_str_free(&resp); 
+    RETURN_LONG(count);
+}
+
+PHP_METHOD(TagCache, invalidateTagsAll) {
+    zval *tags_array; 
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "a", &tags_array) == FAILURE) RETURN_LONG(0);
+    tagcache_obj_wrapper *ow = php_tagcache_obj_fetch(Z_OBJ_P(getThis())); 
+    if (!ow->h) RETURN_LONG(0);
+    
+    smart_str cmd = {0}; 
+    smart_str_appends(&cmd, "INV_TAGS_ALL\t");
+    
+    zval *entry; 
+    int first = 1;
+    ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(tags_array), entry) {
+        if (Z_TYPE_P(entry) == IS_STRING) {
+            if (!first) smart_str_appendc(&cmd, ',');
+            smart_str_appendl(&cmd, Z_STRVAL_P(entry), Z_STRLEN_P(entry));
+            first = 0;
+        }
+    } ZEND_HASH_FOREACH_END();
+    
+    smart_str_appendc(&cmd, '\n'); 
+    smart_str_0(&cmd);
+    
+    smart_str resp = {0}; 
+    if (tc_tcp_cmd(ow->h, ZSTR_VAL(cmd.s), ZSTR_LEN(cmd.s), &resp) != 0) { 
+        smart_str_free(&cmd); 
+        smart_str_free(&resp); 
+        RETURN_LONG(0); 
+    }
+    
+    long count = 0; 
+    if (resp.s && ZSTR_LEN(resp.s) > 13 && strncmp(ZSTR_VAL(resp.s), "INV_TAGS_ALL\t", 13) == 0) { 
+        count = atol(ZSTR_VAL(resp.s) + 13); 
+    }
+    
+    smart_str_free(&cmd); 
+    smart_str_free(&resp); 
+    RETURN_LONG(count);
+}
+
+PHP_METHOD(TagCache, invalidateKeys) {
+    zval *keys_array; 
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "a", &keys_array) == FAILURE) RETURN_LONG(0);
+    tagcache_obj_wrapper *ow = php_tagcache_obj_fetch(Z_OBJ_P(getThis())); 
+    if (!ow->h) RETURN_LONG(0);
+    
+    smart_str cmd = {0}; 
+    smart_str_appends(&cmd, "INV_KEYS\t");
+    
+    zval *entry; 
+    int first = 1;
+    ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(keys_array), entry) {
+        if (Z_TYPE_P(entry) == IS_STRING) {
+            if (!first) smart_str_appendc(&cmd, ',');
+            smart_str_appendl(&cmd, Z_STRVAL_P(entry), Z_STRLEN_P(entry));
+            first = 0;
+        }
+    } ZEND_HASH_FOREACH_END();
+    
+    smart_str_appendc(&cmd, '\n'); 
+    smart_str_0(&cmd);
+    
+    smart_str resp = {0}; 
+    if (tc_tcp_cmd(ow->h, ZSTR_VAL(cmd.s), ZSTR_LEN(cmd.s), &resp) != 0) { 
+        smart_str_free(&cmd); 
+        smart_str_free(&resp); 
+        RETURN_LONG(0); 
+    }
+    
+    long count = 0; 
+    if (resp.s && ZSTR_LEN(resp.s) > 9 && strncmp(ZSTR_VAL(resp.s), "INV_KEYS\t", 9) == 0) { 
+        count = atol(ZSTR_VAL(resp.s) + 9); 
+    }
+    
+    smart_str_free(&cmd); 
+    smart_str_free(&resp); 
+    RETURN_LONG(count);
+}
+
 PHP_METHOD(TagCache, keysByTag) {
     char *tag; size_t tag_len; if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &tag, &tag_len)==FAILURE) RETURN_NULL();
     tagcache_obj_wrapper *ow = php_tagcache_obj_fetch(Z_OBJ_P(getThis())); if(!ow->h) RETURN_NULL();
@@ -1897,6 +2159,9 @@ static const zend_function_entry tagcache_functions[] = {
     PHP_FE(tagcache_get, arginfo_tagcache_get)
     PHP_FE(tagcache_delete, arginfo_tagcache_delete)
     PHP_FE(tagcache_invalidate_tag, arginfo_tagcache_invalidate_tag)
+    PHP_FE(tagcache_invalidate_tags_any, arginfo_tagcache_invalidate_tags)
+    PHP_FE(tagcache_invalidate_tags_all, arginfo_tagcache_invalidate_tags)
+    PHP_FE(tagcache_invalidate_keys, arginfo_tagcache_invalidate_keys)
     PHP_FE(tagcache_keys_by_tag, arginfo_tagcache_keys_by_tag)
     PHP_FE(tagcache_bulk_get, arginfo_tagcache_bulk_get)
     PHP_FE(tagcache_bulk_put, arginfo_tagcache_bulk_put)
@@ -1914,6 +2179,9 @@ PHP_METHOD(TagCache, set);
 PHP_METHOD(TagCache, get);
 PHP_METHOD(TagCache, delete);
 PHP_METHOD(TagCache, invalidateTag);
+PHP_METHOD(TagCache, invalidateTagsAny);
+PHP_METHOD(TagCache, invalidateTagsAll);
+PHP_METHOD(TagCache, invalidateKeys);
 PHP_METHOD(TagCache, keysByTag);
 PHP_METHOD(TagCache, mGet);
 PHP_METHOD(TagCache, mSet);
@@ -1953,6 +2221,9 @@ static const zend_function_entry tagcache_class_methods[] = {
     ZEND_ME(TagCache, get, arginfo_tc_key, ZEND_ACC_PUBLIC)
     ZEND_ME(TagCache, delete, arginfo_tc_key, ZEND_ACC_PUBLIC)
     ZEND_ME(TagCache, invalidateTag, arginfo_tc_tag, ZEND_ACC_PUBLIC)
+    ZEND_ME(TagCache, invalidateTagsAny, arginfo_tc_tags_array, ZEND_ACC_PUBLIC)
+    ZEND_ME(TagCache, invalidateTagsAll, arginfo_tc_tags_array, ZEND_ACC_PUBLIC)
+    ZEND_ME(TagCache, invalidateKeys, arginfo_tc_keys_array, ZEND_ACC_PUBLIC)
     ZEND_ME(TagCache, keysByTag, arginfo_tc_tag, ZEND_ACC_PUBLIC)
     ZEND_ME(TagCache, mGet, arginfo_tc_keys_array, ZEND_ACC_PUBLIC)
     ZEND_ME(TagCache, mSet, arginfo_tagcache_bulk_put, ZEND_ACC_PUBLIC)

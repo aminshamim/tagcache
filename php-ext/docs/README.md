@@ -7,7 +7,7 @@ High-performance, low-latency native PHP 8.4 extension for TagCache. Provides di
 - Persistent TCP connection pooling in C
 - Zero-copy string handling where possible
 - Automatic (de)serialization markers compatible with SDK (`__TC_*` scheme)
-- Feature coverage: put/get/delete, tags, bulk, stats, flush, keysByTag, invalidateTags(any), search (tag_any / tag_all via client-side set ops), basic HTTP fallback
+- Feature coverage: put/get/delete, tags, bulk, stats, flush, keysByTag, multi-tag invalidation (any/all/keys), search (tag_any / tag_all via client-side set ops), basic HTTP fallback
 
 ## Build
 ```bash
@@ -31,6 +31,12 @@ $client = tagcache_create([
 
 tagcache_put($client, 'user:1', ['name' => 'Alice'], ['users'], 60000);
 $value = tagcache_get($client, 'user:1');
+
+// Multi-tag invalidation examples
+tagcache_invalidate_tags_any($client, ['users', 'admins']); // invalidate ANY
+tagcache_invalidate_tags_all($client, ['users', 'active']); // invalidate ALL
+tagcache_invalidate_keys($client, ['user:1', 'user:2']); // invalidate specific keys
+
 $stats = tagcache_stats($client);
 ```
 
@@ -53,6 +59,12 @@ var_dump(array_keys($c->mGet(['a','b','c'])));
 $c->set('order:1', 100, ['orders','priority']);
 $c->set('order:2', 200, ['orders']);
 $orders = $c->keysByTag('orders');
+
+// Multi-tag invalidation
+$c->invalidateTagsAny(['orders', 'urgent']); // Remove items with ANY of these tags
+$c->invalidateTagsAll(['orders', 'processed']); // Remove items with ALL of these tags
+$c->invalidateKeys(['order:1', 'order:2']); // Remove specific keys
+
 $any = $c->searchAny(['orders','priority']);
 $all = $c->searchAll(['orders','priority']);
 
@@ -69,6 +81,9 @@ Destruction: `__destruct()` calls `close()` automatically; manual `$c->close()` 
 | `tagcache_get` | `$c->get()` |
 | `tagcache_delete` | `$c->delete()` |
 | `tagcache_invalidate_tag` | `$c->invalidateTag()` |
+| `tagcache_invalidate_tags_any` | `$c->invalidateTagsAny()` |
+| `tagcache_invalidate_tags_all` | `$c->invalidateTagsAll()` |
+| `tagcache_invalidate_keys` | `$c->invalidateKeys()` |
 | `tagcache_keys_by_tag` | `$c->keysByTag()` |
 | `tagcache_bulk_put` | `$c->mSet()` |
 | `tagcache_bulk_get` | `$c->mGet()` |
@@ -96,7 +111,10 @@ This mirrors the userland SDK so values are interchangeable.
 | `tagcache_put($h, string $key, mixed $value, array $tags=[], ?int $ttl_ms=NULL): bool` | Store value |
 | `tagcache_get($h, string $key): mixed` | Get raw value or null |
 | `tagcache_delete($h, string $key): bool` | Delete key |
-| `tagcache_invalidate_tag($h, string $tag): int` | Invalidate by tag |
+| `tagcache_invalidate_tag($h, string $tag): int` | Invalidate by single tag |
+| `tagcache_invalidate_tags_any($h, array $tags): int` | Invalidate keys with ANY of the tags |
+| `tagcache_invalidate_tags_all($h, array $tags): int` | Invalidate keys with ALL of the tags |
+| `tagcache_invalidate_keys($h, array $keys): int` | Invalidate specific keys by name |
 | `tagcache_keys_by_tag($h, string $tag): array` | List keys for tag |
 | `tagcache_bulk_get($h, array $keys): array` | Bulk get (missing omitted) |
 | `tagcache_bulk_put($h, array $items, ?int $ttl_ms=NULL): int` | Bulk put associative key=>value |
