@@ -95,6 +95,7 @@ fn serve_index_html() -> Html<std::borrow::Cow<'static, [u8]>> {
         <div class="endpoint"><span class="method">GET</span> /health - Health check</div>
         <div class="endpoint"><span class="method">GET</span> /stats - Server statistics (requires auth)</div>
         <div class="endpoint"><span class="method">POST</span> /put - Store key-value data (requires auth)</div>
+        <div class="endpoint"><span class="method">POST</span> /add - Atomically add key-value data (fails if exists, requires auth)</div>
         <div class="endpoint"><span class="method">GET</span> /get/:key - Retrieve data (requires auth)</div>
         
         <h2>Authentication</h2>
@@ -103,6 +104,7 @@ fn serve_index_html() -> Html<std::borrow::Cow<'static, [u8]>> {
         
         <h2>TCP Protocol</h2>
         <p>High-performance TCP protocol available on port 1984</p>
+        <p>Commands: PUT, ADD (atomic), GET, DEL, INV_TAG, KEYS_BY_TAG, STATS, FLUSH</p>
         
         <h2>Documentation</h2>
         <p>Visit <a href="https://github.com/aminshamim/tagcache">github.com/aminshamim/tagcache</a> for complete documentation.</p>
@@ -383,6 +385,20 @@ enum Commands {
         ttl_ms: Option<u64>,
     },
     
+    /// Atomically add a key-value pair (fails if key exists)
+    Add {
+        /// The cache key
+        key: String,
+        /// The value to store
+        value: String,
+        /// Comma-separated list of tags
+        #[arg(long, short)]
+        tags: Option<String>,
+        /// TTL in milliseconds
+        #[arg(long)]
+        ttl_ms: Option<u64>,
+    },
+    
     /// Get operations
     Get {
         #[command(subcommand)]
@@ -530,6 +546,50 @@ impl TagCacheClient {
         } else {
             let error_text = response.text().await?;
             anyhow::bail!("Failed to store key: {}", error_text);
+        }
+
+        Ok(())
+    }
+
+    async fn add(&self, key: &str, value: &str, tags: Option<&str>, ttl_ms: Option<u64>) -> anyhow::Result<()> {
+        let tags_vec: Vec<String> = if let Some(tags) = tags {
+            tags.split(',').map(|s| s.trim().to_string()).collect()
+        } else {
+            Vec::new()
+        };
+
+        let payload = serde_json::json!({
+            "key": key,
+            "value": value,
+            "tags": tags_vec,
+            "ttl_ms": ttl_ms
+        });
+
+        let mut request = self.client.post(&format!("{}/add", self.base_url));
+        if let Some(auth) = &self.auth_header {
+            request = request.header("Authorization", auth);
+        }
+
+        let response = request.json(&payload).send().await?;
+        
+        if response.status().is_success() {
+            let json: serde_json::Value = response.json().await?;
+            if let Some(added) = json.get("added").and_then(|a| a.as_bool()) {
+                if added {
+                    println!("✓ Successfully added key '{}' with value '{}'", key, value);
+                    if let Some(tags) = tags {
+                        println!("  Tags: {}", tags);
+                    }
+                    if let Some(ttl) = ttl_ms {
+                        println!("  TTL: {}ms", ttl);
+                    }
+                } else {
+                    println!("✗ Key '{}' already exists - add operation failed", key);
+                }
+            }
+        } else {
+            let error_text = response.text().await?;
+            anyhow::bail!("Failed to add key: {}", error_text);
         }
 
         Ok(())
@@ -1054,6 +1114,86 @@ impl Cache {
         self.stats.lock().puts += 1;              // Increment PUT counter (lock is short-lived)
     }
 
+    // Atomically add a key only if it doesn't exist. Returns true if added, false if key already exists.
+    // This provides atomic protection against race conditions and prevents accidental overwrites.
+    pub fn add(&self, key: Key, value: String, tags: Vec<Tag>, ttl: Option<Duration>) -> bool {
+        let shard_idx = self.hash_key(&key);
+        let shard = &self.shards[shard_idx];
+
+        // Use entry API for atomic check-and-insert
+        match shard.entries.entry(key.clone()) {
+            dashmap::mapref::entry::Entry::Occupied(occupied) => {
+                // Key exists - check if it's expired
+                if occupied.get().is_expired() {
+                    // Remove old tag associations for expired entry
+                    let old_tags = occupied.get().tags.clone();
+                    
+                    // Build new entry
+                    let entry = Entry {
+                        value,
+                        tags: SmallVec::from_vec(tags.clone()),
+                        created_at: Instant::now(),
+                        ttl,
+                        created_system: SystemTime::now(),
+                    };
+                    
+                    // Replace expired entry with new one
+                    occupied.replace_entry(entry);
+                    
+                    // Clean up old tag associations
+                    for tag in &old_tags {
+                        if let Some(keys) = shard.tag_to_keys.get(tag) {
+                            keys.remove(&key);
+                            if keys.is_empty() {
+                                drop(keys);
+                                shard.tag_to_keys.remove(tag);
+                            }
+                        }
+                    }
+                    
+                    // Add new tag associations
+                    for tag in &tags {
+                        shard
+                            .tag_to_keys
+                            .entry(tag.clone())
+                            .or_insert_with(DashSet::new)
+                            .insert(key.clone());
+                    }
+                    
+                    self.stats.lock().puts += 1;
+                    true
+                } else {
+                    // Key exists and is not expired - fail the add
+                    false
+                }
+            }
+            dashmap::mapref::entry::Entry::Vacant(vacant) => {
+                // Key doesn't exist - safe to insert
+                let entry = Entry {
+                    value,
+                    tags: SmallVec::from_vec(tags.clone()),
+                    created_at: Instant::now(),
+                    ttl,
+                    created_system: SystemTime::now(),
+                };
+                
+                vacant.insert(entry);
+                
+                // Add tag associations
+                for tag in &tags {
+                    shard
+                        .tag_to_keys
+                        .entry(tag.clone())
+                        .or_insert_with(DashSet::new)
+                        .insert(key.clone());
+                }
+                
+                self.stats.lock().puts += 1;
+                true
+            }
+        }
+    }
+
     // Retrieve a value if present and not expired.
     pub fn get(&self, key: &Key) -> Option<String> {
         let shard_idx = self.hash_key(key);
@@ -1207,9 +1347,25 @@ pub struct PutRequest { // Input for /put
     pub ttl_ms: Option<u64>,      // Preferred millisecond TTL
 }
 
+#[derive(Deserialize)]
+pub struct AddRequest { // Input for /add - atomic add operation
+    pub key: String,
+    pub value: String,
+    pub tags: Vec<String>,
+    pub ttl_seconds: Option<u64>, // Alternative TTL unit
+    pub ttl_ms: Option<u64>,      // Preferred millisecond TTL
+}
+
 #[derive(Serialize)]
 pub struct PutResponse { // Output of /put
     pub ok: bool,
+    pub ttl_ms: Option<u64>,
+}
+
+#[derive(Serialize)]
+pub struct AddResponse { // Output of /add
+    pub ok: bool,
+    pub added: bool,      // true if key was added, false if key already existed
     pub ttl_ms: Option<u64>,
 }
 
@@ -1311,6 +1467,16 @@ async fn put_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, J
     let ttl_ms_return = ttl.map(|d| d.as_millis() as u64);
     state.cache.put(key, req.value, tags, ttl);
     ResponseJson(PutResponse { ok: true, ttl_ms: ttl_ms_return })
+}
+
+// ADD handler - atomically adds key only if it doesn't exist
+async fn add_handler(State(state): State<Arc<AppState>>, _auth: Authenticated, Json(req): Json<AddRequest>) -> ResponseJson<AddResponse> {
+    let key = Key(req.key);
+    let tags = req.tags.into_iter().map(Tag).collect();
+    let ttl = req.ttl_ms.map(Duration::from_millis).or_else(|| req.ttl_seconds.map(Duration::from_secs));
+    let ttl_ms_return = ttl.map(|d| d.as_millis() as u64);
+    let added = state.cache.add(key, req.value, tags, ttl);
+    ResponseJson(AddResponse { ok: true, added, ttl_ms: ttl_ms_return })
 }
 
 // GET handler returns either {value: ...} or {error: "not_found"}
@@ -1586,6 +1752,7 @@ pub fn build_app(app_state: Arc<AppState>, allowed_origin: Option<String>) -> Ro
     let router = Router::new()
         // Each route maps path + method to handler. State cloned into each closure.
         .route("/put", post(put_handler))
+        .route("/add", post(add_handler))
         .route("/get/:key", get(get_handler))
         .route("/keys-by-tag", get(keys_by_tag_handler))
         .route("/invalidate-key", post(invalidate_key_handler))
@@ -1707,6 +1874,25 @@ async fn handle_tcp_client(cache: Arc<Cache>, mut stream: TcpStream) {
                         let tags: Vec<Tag> = if tags_part == "-" || tags_part.is_empty() { Vec::new() } else { tags_part.split(',').filter(|s| !s.is_empty()).map(|s| Tag(s.to_string())).collect() };
                         cache.put(Key(k.to_string()), value.to_string(), tags, ttl); // Store entry
                         "OK".to_string()
+                    }
+                    _ => "ERR missing_key".to_string()
+                }
+            }
+            // ADD <key> <ttl_ms|- > <tag1,tag2|- > <value> - atomic add (fails if key exists)
+            "ADD" => {
+                let maybe_key = parts.next();
+                match maybe_key {
+                    Some(k) if !k.is_empty() => {                   // Validate non-empty key
+                        let ttl_part = parts.next().unwrap_or("-"); // TTL field
+                        let tags_part = parts.next().unwrap_or("-"); // Tags list
+                        let value = parts.next().unwrap_or("");      // Remaining value (may contain spaces, not tabs)
+                        let ttl = if ttl_part == "-" || ttl_part.is_empty() { None } else { ttl_part.parse::<u64>().ok().map(Duration::from_millis) };
+                        let tags: Vec<Tag> = if tags_part == "-" || tags_part.is_empty() { Vec::new() } else { tags_part.split(',').filter(|s| !s.is_empty()).map(|s| Tag(s.to_string())).collect() };
+                        if cache.add(Key(k.to_string()), value.to_string(), tags, ttl) {
+                            "ADDED".to_string()  // Successfully added
+                        } else {
+                            "EXISTS".to_string() // Key already exists
+                        }
                     }
                     _ => "ERR missing_key".to_string()
                 }
@@ -2029,6 +2215,9 @@ async fn main() -> anyhow::Result<()> {
             match cmd {
                 Commands::Put { key, value, tags, ttl_ms } => {
                     client.put(&key, &value, tags.as_deref(), ttl_ms).await
+                }
+                Commands::Add { key, value, tags, ttl_ms } => {
+                    client.add(&key, &value, tags.as_deref(), ttl_ms).await
                 }
                 Commands::Get { get_command } => {
                     match get_command {
