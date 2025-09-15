@@ -54,15 +54,18 @@ typedef struct _tc_tcp_conn {
     double created_at;
     double last_used;
     pthread_mutex_t conn_mutex;    // THREAD SAFETY: Per-connection mutex
-    // Phase 1 optimization: buffered read state
-    char  rbuf[8192];
+    // Phase 1 optimization: buffered read state (FIXED: Dynamic allocation for large data)
+    char  *rbuf;               // Dynamic read buffer
+    size_t rbuf_size;          // Current buffer size
     size_t rlen;
     size_t rpos;
-    // Write buffer (small aggregation to reduce syscalls)
-    char wbuf[8192];
+    // Write buffer (FIXED: Dynamic allocation for large data)
+    char *wbuf;                // Dynamic write buffer
+    size_t wbuf_size;          // Current buffer size
     size_t wlen;
-    // Ultra-fast command assembly buffer (16KB for complex commands)
-    char cmd_buf[16384];
+    // Ultra-fast command assembly buffer (FIXED: Dynamic allocation for large commands)
+    char *cmd_buf;             // Dynamic command buffer
+    size_t cmd_buf_size;       // Current buffer size
     // Pipelining support (protected by conn_mutex)
     atomic_int pending_requests;      // THREAD SAFETY: Atomic counter
     bool pipeline_mode;        // Whether connection is in pipeline mode

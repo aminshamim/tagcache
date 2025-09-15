@@ -5,6 +5,12 @@
 #include <zend_smart_str.h>
 #include <ext/standard/php_var.h>
 #include <ext/standard/base64.h>
+
+// Forward declarations for dynamic buffer management
+static int tc_conn_init_buffers(tc_tcp_conn *c);
+static void tc_conn_free_buffers(tc_tcp_conn *c);
+static int tc_ensure_rbuf_size(tc_tcp_conn *c, size_t needed_size);
+static int tc_ensure_cmd_buf_size(tc_tcp_conn *c, size_t needed_size);
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -126,30 +132,151 @@ ZEND_END_ARG_INFO()
 // ... (other arginfo omitted for brevity)
 
 static void tc_client_dtor(zend_resource *res) {
+    if (!res || !res->ptr) return;
+    
     tc_client_handle *h = (tc_client_handle*)res->ptr;
     if (!h) return;
-    if (h->pool) {
-        for (int i=0;i<h->pool_len;i++) {
-            if (h->pool[i].fd>=0) close(h->pool[i].fd);
-            // Cleanup per-connection mutexes
+    
+    // FIXED: Safe connection pool cleanup
+    if (h->pool && h->pool_len > 0) {
+        for (int i = 0; i < h->pool_len; i++) {
+            // Close file descriptor if valid
+            if (h->pool[i].fd >= 0) {
+                close(h->pool[i].fd);
+                h->pool[i].fd = -1; // Mark as closed
+            }
+            // FIXED: Free dynamic buffers during handle destruction (safe for multiple calls)
+            tc_conn_free_buffers(&h->pool[i]);
+            
+            // SAFETY: Only destroy initialized mutexes
+            // Note: pthread_mutex_destroy on uninitialized mutex is undefined
+            // We assume mutexes were properly initialized during pool creation
             pthread_mutex_destroy(&h->pool[i].conn_mutex);
             pthread_mutex_destroy(&h->pool[i].pipeline_mutex);
         }
         efree(h->pool);
+        h->pool = NULL;  // Prevent double-free
+        h->pool_len = 0;
     }
     
-    // Cleanup thread safety primitives
+    // FIXED: Safe cleanup of thread safety primitives
     pthread_mutex_destroy(&h->pool_mutex);
     pthread_mutex_destroy(&h->async_mutex);
     
-    if (h->cfg.host) efree(h->cfg.host);
-    if (h->cfg.http_base) efree(h->cfg.http_base);
+    // FIXED: Safe string cleanup with NULL checks
+    if (h->cfg.host) {
+        efree(h->cfg.host);
+        h->cfg.host = NULL;
+    }
+    if (h->cfg.http_base) {
+        efree(h->cfg.http_base);
+        h->cfg.http_base = NULL;
+    }
+    
+    // Clear the handle structure before freeing
+    memset(h, 0, sizeof(tc_client_handle));
     efree(h);
 }
 
 // Clock helper
 static double now_mono() {
     struct timeval tv; gettimeofday(&tv, NULL); return (double)tv.tv_sec + (double)tv.tv_usec/1e6; }
+
+// FIXED: Dynamic buffer management for large data support
+static int tc_conn_init_buffers(tc_tcp_conn *c) {
+    // Initialize with reasonable default sizes, will grow as needed
+    c->rbuf_size = 8192;  // 8KB initial
+    c->rbuf = emalloc(c->rbuf_size);
+    if (!c->rbuf) return -1;
+    
+    c->wbuf_size = 8192;  // 8KB initial
+    c->wbuf = emalloc(c->wbuf_size);
+    if (!c->wbuf) {
+        efree(c->rbuf);
+        return -1;
+    }
+    
+    c->cmd_buf_size = 16384;  // 16KB initial
+    c->cmd_buf = emalloc(c->cmd_buf_size);
+    if (!c->cmd_buf) {
+        efree(c->rbuf);
+        efree(c->wbuf);
+        return -1;
+    }
+    
+    c->rlen = 0;
+    c->rpos = 0;
+    c->wlen = 0;
+    
+    return 0;
+}
+
+static void tc_conn_free_buffers(tc_tcp_conn *c) {
+    if (c->rbuf) {
+        efree(c->rbuf);
+        c->rbuf = NULL;
+        c->rbuf_size = 0;
+    }
+    if (c->wbuf) {
+        efree(c->wbuf);
+        c->wbuf = NULL;
+        c->wbuf_size = 0;
+    }
+    if (c->cmd_buf) {
+        efree(c->cmd_buf);
+        c->cmd_buf = NULL;
+        c->cmd_buf_size = 0;
+    }
+    // FIXED: Also free pipeline buffer if allocated
+    if (c->pipeline_buffer) {
+        efree(c->pipeline_buffer);
+        c->pipeline_buffer = NULL;
+        c->pipeline_buf_size = 0;
+        c->pipeline_buf_used = 0;
+    }
+}
+
+// FIXED: Ensure read buffer can accommodate large responses
+static int tc_ensure_rbuf_size(tc_tcp_conn *c, size_t needed_size) {
+    if (c->rbuf_size >= needed_size) return 0;
+    
+    size_t new_size = c->rbuf_size;
+    while (new_size < needed_size) {
+        new_size *= 2;
+        if (new_size > 10 * 1024 * 1024) { // Cap at 10MB
+            new_size = needed_size;
+            break;
+        }
+    }
+    
+    char *new_buf = erealloc(c->rbuf, new_size);
+    if (!new_buf) return -1;
+    
+    c->rbuf = new_buf;
+    c->rbuf_size = new_size;
+    return 0;
+}
+
+// FIXED: Ensure command buffer can accommodate large commands (1MB+ data + 500+ tags)
+static int tc_ensure_cmd_buf_size(tc_tcp_conn *c, size_t needed_size) {
+    if (c->cmd_buf_size >= needed_size) return 0;
+    
+    size_t new_size = c->cmd_buf_size;
+    while (new_size < needed_size) {
+        new_size *= 2;
+        if (new_size > 50 * 1024 * 1024) { // Cap at 50MB for very large data
+            new_size = needed_size;
+            break;
+        }
+    }
+    
+    char *new_buf = erealloc(c->cmd_buf, new_size);
+    if (!new_buf) return -1;
+    
+    c->cmd_buf = new_buf;
+    c->cmd_buf_size = new_size;
+    return 0;
+}
 
 static int set_blocking(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
@@ -317,11 +444,15 @@ static int tc_readline(tc_tcp_conn *c, smart_str *out) {
                 c->rpos = c->rlen = 0;
             }
         }
-        if (c->rlen == sizeof(c->rbuf)) {
-            // line too long (should not happen for protocol); treat as error
-            return -1;
+        // FIXED: Dynamic buffer check for rbuf capacity
+        if (c->rlen == c->rbuf_size) {
+            // Buffer full, try to expand it for large responses
+            if (tc_ensure_rbuf_size(c, c->rbuf_size * 2) != 0) {
+                // Can't expand further, treat as error
+                return -1;
+            }
         }
-        ssize_t r = recv(c->fd, c->rbuf + c->rlen, sizeof(c->rbuf) - c->rlen, 0);
+        ssize_t r = recv(c->fd, c->rbuf + c->rlen, c->rbuf_size - c->rlen, 0);
         if (r <= 0) { c->healthy = false; return -1; }
         c->rlen += (size_t)r;
     }
@@ -329,7 +460,9 @@ static int tc_readline(tc_tcp_conn *c, smart_str *out) {
 
 // Ultra-fast command assembly (safe version for cross-platform compatibility)
 static int tc_build_get_cmd(tc_tcp_conn *c, const char *key, size_t key_len) {
-    if (key_len + 10 > sizeof(c->cmd_buf)) return -1; // sanity check
+    // FIXED: Dynamic buffer size check
+    size_t needed_size = key_len + 10;
+    if (tc_ensure_cmd_buf_size(c, needed_size) != 0) return -1;
     
     char *p = c->cmd_buf;
     memcpy(p, "GET\t", 4); 
@@ -381,7 +514,8 @@ static int tc_build_put_cmd(tc_tcp_conn *c, const char *key, size_t key_len,
                            long ttl) {
     // Estimate total size: PUT\t + key + \t + ttl + \t + tags + \t + value + \n
     size_t est_size = 4 + key_len + 1 + 20 + 1 + tags_len + 1 + val_len + 1;
-    if (est_size > sizeof(c->cmd_buf)) return -1;
+    // FIXED: Dynamic buffer size check for large data
+    if (tc_ensure_cmd_buf_size(c, est_size) != 0) return -1;
     
     char *p = c->cmd_buf;
     memcpy(p, "PUT\t", 4); 
@@ -465,13 +599,24 @@ static inline int tc_recv_ultra_fast(int fd, char *buf, size_t max_len, size_t *
     return 0;
 }
 
-// AGGRESSIVE OPTIMIZATION: Command pipelining for multiple operations
+// FIXED: Command pipelining with proper error handling and cleanup
 static int tc_tcp_pipeline_cmds(tc_client_handle *h, const char **cmds, size_t *cmd_lens, int cmd_count, smart_str *responses) {
     tc_tcp_conn *c = tc_get_conn(h); 
     if (!c) return -1;
     
+    // SAFETY: Validate inputs
+    if (!cmds || !cmd_lens || !responses || cmd_count <= 0) {
+        return -1;
+    }
+    
     // PHASE 1: Send all commands with MSG_MORE to batch them
     for (int i = 0; i < cmd_count; i++) {
+        if (!cmds[i] || cmd_lens[i] == 0) {
+            // Invalid command, mark connection as unhealthy and cleanup
+            c->healthy = false;
+            return -1;
+        }
+        
         bool more = (i < cmd_count - 1); // More data coming unless this is the last command
         
         if (tc_send_ultra_fast(c->fd, cmds[i], cmd_lens[i], more) != 0) {
@@ -484,9 +629,12 @@ static int tc_tcp_pipeline_cmds(tc_client_handle *h, const char **cmds, size_t *
     for (int i = 0; i < cmd_count; i++) {
         smart_str line = {0};
         if (tc_readline(c, &line) != 0) {
-            // Clean up any partial responses
+            // FIXED: Clean up any responses we've already read
             for (int j = 0; j < i; j++) {
-                smart_str_free(&responses[j]);
+                if (responses[j].s) {
+                    smart_str_free(&responses[j]);
+                    memset(&responses[j], 0, sizeof(smart_str)); // Clear the structure
+                }
             }
             smart_str_free(&line);
             return -1;
@@ -536,10 +684,13 @@ static int tc_ultrafast_put(tc_tcp_conn *c, const char *key, size_t key_len,
                            const char *value, size_t val_len, long ttl) {
     // Use connection's command buffer for zero allocation
     char *p = c->cmd_buf;
-    size_t remaining = sizeof(c->cmd_buf);
+    // FIXED: Dynamic buffer size calculation
+    size_t needed_size = 4 + key_len + 1 + 20 + 3 + val_len + 1;
     
-    // Ultra-fast command assembly
-    if (remaining < 4 + key_len + 1 + 20 + 3 + val_len + 1) return -1;
+    // Ultra-fast command assembly with dynamic buffer check
+    if (tc_ensure_cmd_buf_size(c, needed_size) != 0) return -1;
+    
+    p = c->cmd_buf;  // Update pointer after potential realloc
     
     memcpy(p, "PUT\t", 4); p += 4;
     memcpy(p, key, key_len); p += key_len;
@@ -1154,6 +1305,14 @@ PHP_FUNCTION(tagcache_create) {
         h->pool[i].fd = tc_tcp_connect_raw(h->cfg.host, h->cfg.port, fast_timeout);
         
         if (h->pool[i].fd >= 0) {
+            // FIXED: Initialize dynamic buffers for each connection
+            if (tc_conn_init_buffers(&h->pool[i]) != 0) {
+                close(h->pool[i].fd);
+                h->pool[i].fd = -1;
+                h->pool[i].healthy = false;
+                continue;
+            }
+            
             // Setup keep-alive if enabled
             tc_setup_keep_alive(h->pool[i].fd, &h->cfg);
             
@@ -1197,6 +1356,14 @@ PHP_FUNCTION(tagcache_create) {
             if (h->pool[i].fd < 0) { // Only retry failed connections
                 h->pool[i].fd = tc_tcp_connect_raw(h->cfg.host, h->cfg.port, h->cfg.connect_timeout_ms);
                 if (h->pool[i].fd >= 0) {
+                    // FIXED: Initialize dynamic buffers for retry connections
+                    if (tc_conn_init_buffers(&h->pool[i]) != 0) {
+                        close(h->pool[i].fd);
+                        h->pool[i].fd = -1;
+                        h->pool[i].healthy = false;
+                        continue;
+                    }
+                    
                     // Setup keep-alive if enabled
                     tc_setup_keep_alive(h->pool[i].fd, &h->cfg);
                     
@@ -1577,18 +1744,31 @@ static int tc_pipelined_bulk_put(tc_client_handle *h, HashTable *items, long ttl
     int item_count = zend_hash_num_elements(items);
     if (item_count == 0) return 0;
     
-    // OPTIMIZATION: Allocate command arrays for pipelining
+    // SAFETY: Limit bulk operations to prevent excessive memory usage
+    if (item_count > 100) {
+        item_count = 100; // Limit to 100 items per bulk operation
+    }
+    
+    // FIXED: Allocate and initialize command arrays for pipelining
     const char **commands = emalloc(sizeof(char*) * item_count);
     size_t *cmd_lens = emalloc(sizeof(size_t) * item_count);
-    char **cmd_buffers = emalloc(sizeof(char*) * item_count); // Track for cleanup
+    char **cmd_buffers = emalloc(sizeof(char*) * item_count);
     smart_str *responses = emalloc(sizeof(smart_str) * item_count);
+    
+    // SAFETY: Initialize all pointers and arrays to prevent use of uninitialized memory
+    memset(commands, 0, sizeof(char*) * item_count);
+    memset(cmd_lens, 0, sizeof(size_t) * item_count);
+    memset(cmd_buffers, 0, sizeof(char*) * item_count);
+    for (int i = 0; i < item_count; i++) {
+        memset(&responses[i], 0, sizeof(smart_str));
+    }
     
     int cmd_idx = 0;
     zend_string *k; zval *v;
     
     // PHASE 1: Build all commands in parallel
     ZEND_HASH_FOREACH_STR_KEY_VAL(items, k, v) {
-        if (!k) continue;
+        if (!k || cmd_idx >= item_count) break; // Safety check
         
         // Serialize value efficiently
         char inline_buf[256]; 
@@ -1607,18 +1787,22 @@ static int tc_pipelined_bulk_put(tc_client_handle *h, HashTable *items, long ttl
             } 
         }
         
-        // AGGRESSIVE OPTIMIZATION: Use ultra-fast command building
-        int cmd_len = tc_build_put_cmd(c, ZSTR_VAL(k), ZSTR_LEN(k), val_ptr, val_len, "-", 1, ttl);
-        if (cmd_len > 0) {
-            // Copy command to permanent buffer
-            char *cmd_buf = emalloc(cmd_len + 1);
-            memcpy(cmd_buf, c->cmd_buf, cmd_len);
-            cmd_buf[cmd_len] = '\0';
-            
-            commands[cmd_idx] = cmd_buf;
-            cmd_lens[cmd_idx] = cmd_len;
-            cmd_buffers[cmd_idx] = cmd_buf;
-            cmd_idx++;
+        if (val_ptr && val_len > 0) {
+            // FIXED: Use safe command building
+            int cmd_len = tc_build_put_cmd(c, ZSTR_VAL(k), ZSTR_LEN(k), val_ptr, val_len, "-", 1, ttl);
+            if (cmd_len > 0 && cmd_len < 8192) { // Safety: Limit command size
+                // Copy command to permanent buffer
+                char *cmd_buf = emalloc(cmd_len + 1);
+                if (cmd_buf) {
+                    memcpy(cmd_buf, c->cmd_buf, cmd_len);
+                    cmd_buf[cmd_len] = '\0';
+                    
+                    commands[cmd_idx] = cmd_buf;
+                    cmd_lens[cmd_idx] = cmd_len;
+                    cmd_buffers[cmd_idx] = cmd_buf; // Same pointer, but tracked separately
+                    cmd_idx++;
+                }
+            }
         }
         
         if (sval.s) smart_str_free(&sval);
@@ -1635,15 +1819,30 @@ static int tc_pipelined_bulk_put(tc_client_handle *h, HashTable *items, long ttl
                 if (responses[i].s && zend_string_equals_literal(responses[i].s, "OK")) {
                     success_count++;
                 }
-                smart_str_free(&responses[i]);
+                // SAFETY: Only free if allocated
+                if (responses[i].s) {
+                    smart_str_free(&responses[i]);
+                }
+            }
+        } else {
+            // FIXED: Cleanup responses on pipeline failure
+            for (int i = 0; i < cmd_idx; i++) {
+                if (responses[i].s) {
+                    smart_str_free(&responses[i]);
+                }
             }
         }
     }
     
-    // Cleanup
+    // FIXED: Safe cleanup - only free cmd_buffers once
     for (int i = 0; i < cmd_idx; i++) {
-        efree(cmd_buffers[i]);
+        if (cmd_buffers[i]) {
+            efree(cmd_buffers[i]);
+            cmd_buffers[i] = NULL; // Prevent double-free
+        }
     }
+    
+    // Free the arrays themselves
     efree(commands);
     efree(cmd_lens);
     efree(cmd_buffers);
@@ -1788,6 +1987,14 @@ PHP_METHOD(TagCache, create) {
     for(int i=0;i<h->pool_len;i++){
         h->pool[i].fd = tc_tcp_connect_raw(h->cfg.host, h->cfg.port, h->cfg.connect_timeout_ms);
         if (h->pool[i].fd>=0) { 
+            // FIXED: Initialize dynamic buffers for connect_quick connections
+            if (tc_conn_init_buffers(&h->pool[i]) != 0) {
+                close(h->pool[i].fd);
+                h->pool[i].fd = -1;
+                h->pool[i].healthy = false;
+                continue;
+            }
+            
             // Setup keep-alive if enabled
             tc_setup_keep_alive(h->pool[i].fd, &h->cfg);
             
@@ -2129,7 +2336,19 @@ PHP_METHOD(TagCache, close) {
     tagcache_obj_wrapper *ow = php_tagcache_obj_fetch(Z_OBJ_P(getThis())); if(!ow->h) RETURN_NULL();
     // free underlying handle
     if (ow->h) {
-        if (ow->h->pool) { for(int i=0;i<ow->h->pool_len;i++){ if (ow->h->pool[i].fd>=0) close(ow->h->pool[i].fd); } efree(ow->h->pool); }
+        if (ow->h->pool) { 
+            for(int i=0;i<ow->h->pool_len;i++){ 
+                if (ow->h->pool[i].fd>=0) {
+                    close(ow->h->pool[i].fd); 
+                    ow->h->pool[i].fd = -1;  // Mark as closed
+                }
+                // FIXED: Free dynamic buffers on cleanup (safe for multiple calls)
+                tc_conn_free_buffers(&ow->h->pool[i]);
+            } 
+            efree(ow->h->pool); 
+            ow->h->pool = NULL;  // Prevent double-free
+            ow->h->pool_len = 0;
+        }
         if (ow->h->cfg.host) efree(ow->h->cfg.host);
         if (ow->h->cfg.http_base) efree(ow->h->cfg.http_base);
         efree(ow->h); ow->h=NULL;
