@@ -1519,16 +1519,29 @@ async fn invalidate_tags_handler(State(state): State<Arc<AppState>>, _auth: Auth
     let mode = body.mode.unwrap_or_else(|| "any".to_string());
     let mut count = 0usize;
     if mode == "any" { for t in body.tags { count += state.cache.invalidate_tag(&Tag(t)); } }
-    else { // all: collect keys having all tags
+    else { // all: collect keys having all tags - fixed to avoid deadlock
         let tags: Vec<Tag> = body.tags.into_iter().map(Tag).collect();
         if !tags.is_empty() {
             let first_keys = state.cache.get_keys_by_tag(&tags[0]);
+            let mut keys_to_invalidate = Vec::new();
+            
+            // First pass: collect keys that have all tags (avoid holding read locks during invalidation)
             for k in first_keys {
                 let shard_idx = state.cache.hash_key(&k);
                 let shard = &state.cache.shards[shard_idx];
                 if let Some(entry) = shard.entries.get(&k) {
                     let tagset: std::collections::HashSet<_> = entry.tags.iter().map(|t| &t.0).collect();
-                    if tags.iter().all(|t| tagset.contains(&t.0)) { if state.cache.invalidate_key(&k) { count+=1; } }
+                    if tags.iter().all(|t| tagset.contains(&t.0)) { 
+                        keys_to_invalidate.push(k.clone());
+                    }
+                }
+                // Read lock is automatically released here
+            }
+            
+            // Second pass: invalidate collected keys
+            for k in keys_to_invalidate {
+                if state.cache.invalidate_key(&k) { 
+                    count += 1; 
                 }
             }
         }
@@ -1714,6 +1727,90 @@ async fn handle_tcp_client(cache: Arc<Cache>, mut stream: TcpStream) {
             "INV_TAG" => {
                 let tag = parts.next();
                 match tag { Some(t) => { let count = cache.invalidate_tag(&Tag(t.to_string())); format!("INV_TAG\t{}", count) }, None => "ERR missing_tag".to_string() }
+            }
+            // INV_TAGS_ANY <tag1,tag2,tag3> - invalidate keys with ANY of the tags (mode="any")
+            "INV_TAGS_ANY" => {
+                let tags_part = parts.next();
+                match tags_part {
+                    Some(tags_str) if !tags_str.is_empty() => {
+                        let tag_list: Vec<String> = tags_str.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+                        if tag_list.is_empty() {
+                            "ERR empty_tags".to_string()
+                        } else {
+                            let mut count = 0usize;
+                            // Same logic as HTTP "any" mode
+                            for t in tag_list { 
+                                count += cache.invalidate_tag(&Tag(t)); 
+                            }
+                            format!("INV_TAGS_ANY\t{}", count)
+                        }
+                    }
+                    _ => "ERR missing_tags".to_string()
+                }
+            }
+            // INV_TAGS_ALL <tag1,tag2,tag3> - invalidate keys with ALL of the tags (mode="all")
+            "INV_TAGS_ALL" => {
+                let tags_part = parts.next();
+                match tags_part {
+                    Some(tags_str) if !tags_str.is_empty() => {
+                        let tag_list: Vec<String> = tags_str.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+                        if tag_list.is_empty() {
+                            "ERR empty_tags".to_string()
+                        } else {
+                            // Fixed logic to avoid deadlock: collect keys first, then invalidate
+                            let tags: Vec<Tag> = tag_list.into_iter().map(Tag).collect();
+                            let mut count = 0usize;
+                            if !tags.is_empty() {
+                                let first_keys = cache.get_keys_by_tag(&tags[0]);
+                                let mut keys_to_invalidate = Vec::new();
+                                
+                                // First pass: collect keys that have all tags (avoid holding read locks during invalidation)
+                                for k in first_keys {
+                                    let shard_idx = cache.hash_key(&k);
+                                    let shard = &cache.shards[shard_idx];
+                                    if let Some(entry) = shard.entries.get(&k) {
+                                        let tagset: std::collections::HashSet<_> = entry.tags.iter().map(|t| &t.0).collect();
+                                        if tags.iter().all(|t| tagset.contains(&t.0)) { 
+                                            keys_to_invalidate.push(k.clone());
+                                        }
+                                    }
+                                    // Read lock is automatically released here
+                                }
+                                
+                                // Second pass: invalidate collected keys
+                                for k in keys_to_invalidate {
+                                    if cache.invalidate_key(&k) { 
+                                        count += 1; 
+                                    }
+                                }
+                            }
+                            format!("INV_TAGS_ALL\t{}", count)
+                        }
+                    }
+                    _ => "ERR missing_tags".to_string()
+                }
+            }
+            // INV_KEYS <key1,key2,key3> - invalidate multiple keys by name
+            "INV_KEYS" => {
+                let keys_part = parts.next();
+                match keys_part {
+                    Some(keys_str) if !keys_str.is_empty() => {
+                        let key_list: Vec<String> = keys_str.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+                        if key_list.is_empty() {
+                            "ERR empty_keys".to_string()
+                        } else {
+                            let mut count = 0usize;
+                            // Same logic as HTTP invalidate_keys_handler
+                            for k in key_list { 
+                                if cache.invalidate_key(&Key(k)) { 
+                                    count += 1; 
+                                } 
+                            }
+                            format!("INV_KEYS\t{}", count)
+                        }
+                    }
+                    _ => "ERR missing_keys".to_string()
+                }
             }
             // KEYS_BY_TAG <tag>  (alias KEYS <tag>)
             "KEYS_BY_TAG" | "KEYS" => {
