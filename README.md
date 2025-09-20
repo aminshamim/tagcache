@@ -2,7 +2,7 @@
 
 <div align="center">
 
-  <img src="assets/banner2.jpeg" alt="Tagcache Banner with Logo" width="100%" />
+  <img src="assets/banner.png" alt="Tagcache Banner with Logo" width="100%" />
 
 
 **A lightning-fast, tag-aware in-memory cache server written in Rust**
