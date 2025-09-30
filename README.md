@@ -29,6 +29,8 @@ TagCache is a high-performance, sharded, tag-aware in-memory cache server that o
 🔹 **CLI Interface** - Complete command-line control  
 🔹 **Production Ready** - Authentication, monitoring, and deployment tools  
 
+[![Financial Contributors on Open Collective](https://opencollective.com/tagcache/all/badge.svg?label=financial+contributors)](https://opencollective.com/tagcache)
+
 ## ✨ Key Features
 
 | Feature | Description |
