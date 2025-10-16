@@ -23,10 +23,10 @@ export default function TagsPage() {
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const [allData, setAllData] = useState<Record<string, Item[]>>({});
-  
+
   const INITIAL_LIMIT = 50;
   const LOAD_MORE_LIMIT = 25;
-  
+
   // Auto-load ALL when tag filter is cleared (debounced)
   const clearTimer = useRef<number | null>(null);
   function parseTags(input:string){
@@ -55,44 +55,44 @@ export default function TagsPage() {
       setOffset(0);
     }
     setError(null);
-    
+
     const tags = parseTags(raw);
     const sig = tags.length? tags.slice().sort().join(',') : '__ALL__';
     setCurrentFilter(tags.length? tags.join(', ') : 'All');
     setActiveTags(tags);
-    
+
     try {
       // Check cache for initial load only
-      if (!forceReload && !isLoadMore && cache[sig]) { 
-        setItems(cache[sig]); 
+      if (!forceReload && !isLoadMore && cache[sig]) {
+        setItems(cache[sig]);
         setHasMore(cache[sig].length >= INITIAL_LIMIT);
-        return; 
+        return;
       }
-      
+
       let list: any[] = [];
       const currentOffset = isLoadMore ? offset : 0;
       const currentLimit = isLoadMore ? LOAD_MORE_LIMIT : INITIAL_LIMIT;
-      
+
       if(tags.length===0){
-        const r = await api.post('/search', { 
-          limit: currentLimit, 
-          offset: currentOffset 
+        const r = await api.post('/search', {
+          limit: currentLimit,
+          offset: currentOffset
         }, { timeout: 30000 });
         list = r.data?.keys || [];
       } else {
-        const r = await api.post('/search', { 
+        const r = await api.post('/search', {
           limit: currentLimit,
           offset: currentOffset,
-          tag_any: tags 
+          tag_any: tags
         }, { timeout: 30000 });
         list = r.data?.keys || [];
       }
-      
+
       // Normalize to Item shape
       const norm: Item[] = list.map((it:any)=> typeof it === 'string' ? ({ key: it }) : ({ key: it.key, created_ms: it.created_ms, ttl_ms: it.ttl_ms, tags: it.tags }));
       // Order by latest created_ms desc, fallback by key desc for stability
       norm.sort((a,b)=> (b.created_ms||0) - (a.created_ms||0) || (b.key > a.key ? 1 : -1));
-      
+
       if (isLoadMore) {
         const existingData = allData[sig] || items;
         const newData = [...existingData, ...norm];
@@ -105,13 +105,13 @@ export default function TagsPage() {
         setItems(norm);
         setOffset(INITIAL_LIMIT);
       }
-      
+
       // Check if we have more data
       setHasMore(list.length === currentLimit);
-      
-    } catch(e:any) { 
-      setError(e?.response?.data?.error || e.message); 
-    } finally { 
+
+    } catch(e:any) {
+      setError(e?.response?.data?.error || e.message);
+    } finally {
       setLoading(false);
       setLoadingMore(false);
     }
@@ -134,7 +134,7 @@ export default function TagsPage() {
     setHasMore(true);
     setOffset(0);
     // remove URL query if present
-    navigate('/tags');
+    navigate('/ui/tags');
     // load remaining items now
     loadData('');
   }
@@ -157,34 +157,34 @@ export default function TagsPage() {
   // Infinite scroll effect with throttling
   useEffect(() => {
     let ticking = false;
-    
+
     const handleScroll = (e: Event) => {
       if (ticking) return;
-      
+
       ticking = true;
       requestAnimationFrame(() => {
         if (loading || loadingMore || !hasMore) {
           ticking = false;
           return;
         }
-        
+
         const target = e.target as HTMLElement;
         const scrollTop = target.scrollTop;
         const scrollHeight = target.scrollHeight;
         const clientHeight = target.clientHeight;
-        
+
         // Trigger when within 300px of bottom for better UX
         if (scrollTop + clientHeight >= scrollHeight - 300) {
           loadMore();
         }
-        
+
         ticking = false;
       });
     };
 
     // Find the scrollable container by traversing up from our component
     let scrollContainer: HTMLElement | null = null;
-    
+
     // Try different approaches to find the scroll container
     const mainElement = document.querySelector('main');
     if (mainElement) {
@@ -193,7 +193,7 @@ export default function TagsPage() {
         scrollContainer = contentDiv as HTMLElement;
       }
     }
-    
+
     // Fallback: find any parent with overflow-auto
     if (!scrollContainer) {
       let parent: HTMLElement | null = document.body;
@@ -212,30 +212,30 @@ export default function TagsPage() {
       scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
       return () => scrollContainer!.removeEventListener('scroll', handleScroll);
     }
-    
+
     // Final fallback to window scroll
     const handleWindowScroll = () => {
       if (ticking) return;
-      
+
       ticking = true;
       requestAnimationFrame(() => {
         if (loading || loadingMore || !hasMore) {
           ticking = false;
           return;
         }
-        
+
         const scrollTop = document.documentElement.scrollTop;
         const scrollHeight = document.documentElement.scrollHeight;
         const clientHeight = document.documentElement.clientHeight;
-        
+
         if (scrollTop + clientHeight >= scrollHeight - 300) {
           loadMore();
         }
-        
+
         ticking = false;
       });
     };
-    
+
     window.addEventListener('scroll', handleWindowScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleWindowScroll);
   }, [loading, loadingMore, hasMore, tagQuery]);
@@ -250,7 +250,7 @@ export default function TagsPage() {
       setError(null);
       setHasMore(true);
       setOffset(0);
-      
+
       // Force reload current query bypassing cache
       const currentQuery = tagQuery.trim();
       loadData(currentQuery, true);
@@ -322,7 +322,7 @@ export default function TagsPage() {
                     <button
                       key={t}
                       type="button"
-                      onClick={(e)=>{ e.stopPropagation(); navigate(`/tags?tags=${encodeURIComponent(t)}`); }}
+                      onClick={(e)=>{ e.stopPropagation(); navigate(`/ui/tags?tags=${encodeURIComponent(t)}`); }}
                       className="inline-flex items-center rounded-full border border-brand-teal/30 bg-white text-brand-teal px-1.5 py-0.5 mr-1 mb-1 text-[10px] shadow-sm hover:bg-brand-teal/10"
                     >{t}</button>
                   ))}</td>
@@ -331,7 +331,7 @@ export default function TagsPage() {
               {!loading && items.length === 0 && <tr><td colSpan={3} className="py-4 text-center text-xs text-gray-500">No results</td></tr>}
             </tbody>
           </table>
-          
+
           {/* Infinite scroll loading indicator */}
           {loadingMore && (
             <div className="flex justify-center mt-4 py-4">

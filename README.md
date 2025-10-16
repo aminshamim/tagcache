@@ -21,13 +21,13 @@
 
 TagCache is a high-performance, sharded, tag-aware in-memory cache server that offers:
 
-🔹 **JSON HTTP API** (port 8080) - RESTful interface for web applications  
-🔹 **TCP Protocol** (port 1984) - Ultra-low latency binary protocol  
-🔹 **Tag-based Invalidation** - Organize and clear related data efficiently  
-🔹 **Atomic Operations** - ADD, INCR, DECR with race-condition protection  
-🔹 **Built-in Web Dashboard** - Beautiful React UI for monitoring and management  
-🔹 **CLI Interface** - Complete command-line control  
-🔹 **Production Ready** - Authentication, monitoring, and deployment tools  
+🔹 **JSON HTTP API** (port 8888) - RESTful interface for web applications
+🔹 **TCP Protocol** (port 1984) - Ultra-low latency binary protocol
+🔹 **Tag-based Invalidation** - Organize and clear related data efficiently
+🔹 **Atomic Operations** - ADD, INCR, DECR with race-condition protection
+🔹 **Built-in Web Dashboard** - Beautiful React UI for monitoring and management
+🔹 **CLI Interface** - Complete command-line control
+🔹 **Production Ready** - Authentication, monitoring, and deployment tools
 
 [![Financial Contributors on Open Collective](https://opencollective.com/tagcache/all/badge.svg?label=financial+contributors)](https://opencollective.com/tagcache)
 
@@ -77,7 +77,7 @@ tagcache --username admin --password password get key "hello"
 tagcache --username admin --password password stats
 
 # Visit web dashboard
-open http://localhost:8080
+open http://localhost:8888
 ```
 
 ## 📥 Installation
@@ -188,12 +188,12 @@ sudo systemctl status tagcache
 ```bash
 # Run with default ports
 docker run -d --name tagcache \
-  -p 8080:8080 -p 1984:1984 \
+  -p 8888:8888 -p 1984:1984 \
   ghcr.io/aminshamim/tagcache:latest
 
 # Or with custom configuration
 docker run -d --name tagcache \
-  -p 9090:8080 -p 1985:1984 \
+  -p 9090:8888 -p 1985:1984 \
   -e NUM_SHARDS=32 \
   -e CLEANUP_INTERVAL_MS=5000 \
   ghcr.io/aminshamim/tagcache:latest
@@ -252,8 +252,8 @@ tagcache --username admin --password password stats
 bench_tcp localhost 1984 32 5  # host port connections duration_seconds
 
 # Open web dashboard
-open http://localhost:8080  # macOS
-# or visit http://localhost:8080 in your browser
+open http://localhost:8888  # macOS
+# or visit http://localhost:8888 in your browser
 ```
 
 ### 📋 What's Included in Each Distribution
@@ -277,11 +277,11 @@ Both tools are available in:
 cargo build --release
 ./target/release/tagcache
 ```
-Server starts HTTP on `:8080` and TCP on `:1984` by default.
+Server starts HTTP on `:8888` and TCP on `:1984` by default.
 
 ### 🌍 Environment Variables
 Primary (preferred):
-- `PORT` – HTTP port (default 8080)
+- `PORT` – HTTP port (default 8888)
 - `TCP_PORT` – TCP protocol port (default 1984)
 - `NUM_SHARDS` – number of shards (default 16)
 - `CLEANUP_INTERVAL_MS` – sweep interval in ms (fallback to seconds if not set)
@@ -405,11 +405,11 @@ All API endpoints (except `/health`) require authentication using Basic Auth:
 
 ```bash
 # Using current credentials
-curl -u admin:password http://localhost:8080/stats
+curl -u admin:password http://localhost:8888/stats
 
 # Or with explicit Basic Auth header
 echo -n "admin:password" | base64  # YWRtaW46cGFzc3dvcmQ=
-curl -H "Authorization: Basic YWRtaW46cGFzc3dvcmQ=" http://localhost:8080/stats
+curl -H "Authorization: Basic YWRtaW46cGFzc3dvcmQ=" http://localhost:8888/stats
 ```
 
 ### 🔄 Advanced Authentication (Tokens & Rotation)
@@ -417,7 +417,7 @@ curl -H "Authorization: Basic YWRtaW46cGFzc3dvcmQ=" http://localhost:8080/stats
 #### Login for Token-Based Auth
 ```bash
 # Get an auth token (alternative to Basic Auth)
-curl -s -X POST http://localhost:8080/auth/login \
+curl -s -X POST http://localhost:8888/auth/login \
   -u admin:password \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"password"}'
@@ -431,13 +431,13 @@ Response:
 ```bash
 # Use token instead of username/password
 TOKEN="your-token-here"
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/stats
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8888/stats
 ```
 
 #### Credential Rotation (Advanced)
 ```bash
 # Rotate to new random credentials (invalidates all tokens)
-curl -X POST http://localhost:8080/auth/rotate \
+curl -X POST http://localhost:8888/auth/rotate \
   -H "Authorization: Bearer $TOKEN"
 ```
 Response:
@@ -455,7 +455,7 @@ Response:
 
 ### 🎯 Authentication Summary
 - **Default:** `admin` / `password` (change immediately!)
-- **CLI Management:** `change-password` and `reset-credentials` commands  
+- **CLI Management:** `change-password` and `reset-credentials` commands
 - **API Access:** Basic Auth for all endpoints (except health check)
 - **Web Dashboard:** Integrated login with token management
 - **Token-based:** Optional Bearer token authentication
@@ -490,7 +490,7 @@ tagcache --username <user> --password <pass> stats
 - `tagcache add <key> <value>` - Atomically add data (fails if key exists)
 - `tagcache increment <key>` - Atomically increment numeric value (creates if not exists)
 - `tagcache decrement <key>` - Atomically decrement numeric value (creates if not exists)
-- `tagcache get key <key>` - Retrieve value by key  
+- `tagcache get key <key>` - Retrieve value by key
 - `tagcache get tag <tags>` - Get keys by comma-separated tags
 - `tagcache flush key <key>` - Remove specific key
 - `tagcache flush tag <tags>` - Remove all keys with tags
@@ -498,7 +498,7 @@ tagcache --username <user> --password <pass> stats
 
 #### 📊 Monitoring & Status
 - `tagcache stats` - Show detailed statistics
-- `tagcache status` - Show server status  
+- `tagcache status` - Show server status
 - `tagcache health` - Health check (no auth required)
 - `tagcache restart` - Restart instructions
 
@@ -529,7 +529,7 @@ tagcache decrement "rate_limit:api:user123" --by 1 --ttl-ms 60000 --tags "rate_l
 # Get all active sessions
 tagcache get tag "session,active"
 
-# Remove expired sessions  
+# Remove expired sessions
 tagcache flush tag "session,expired"
 
 # Check cache performance
@@ -556,7 +556,7 @@ Then prepend `$AUTH` (or copy the header literal) to every curl command.
 ### PUT /put
 Store/update a value.
 ```bash
-curl -X POST http://127.0.0.1:8080/put \
+curl -X POST http://127.0.0.1:8888/put \
   -H "Authorization: Basic $B64" \
   -H 'Content-Type: application/json' \
   -d '{"key":"user:42","value":"hello","tags":["users","trial"],"ttl_ms":6000000}'
@@ -569,7 +569,7 @@ Response:
 ### POST /add
 Atomically add a value (fails if key already exists).
 ```bash
-curl -X POST http://127.0.0.1:8080/add \
+curl -X POST http://127.0.0.1:8888/add \
   -H "Authorization: Basic $B64" \
   -H 'Content-Type: application/json' \
   -d '{"key":"counter:new","value":"100","tags":["counters"],"ttl_ms":3600000}'
@@ -586,7 +586,7 @@ Response (key exists):
 ### POST /incr
 Atomically increment a numeric value. Creates key with increment amount if it doesn't exist.
 ```bash
-curl -X POST http://127.0.0.1:8080/incr \
+curl -X POST http://127.0.0.1:8888/incr \
   -H "Authorization: Basic $B64" \
   -H 'Content-Type: application/json' \
   -d '{"key":"page_views","by":1,"tags":["metrics"],"ttl_ms":86400000}'
@@ -603,7 +603,7 @@ Response (error - not numeric):
 ### POST /decr
 Atomically decrement a numeric value. Creates key with negative decrement amount if it doesn't exist.
 ```bash
-curl -X POST http://127.0.0.1:8080/decr \
+curl -X POST http://127.0.0.1:8888/decr \
   -H "Authorization: Basic $B64" \
   -H 'Content-Type: application/json' \
   -d '{"key":"remaining_quota","by":5,"tags":["quotas","user:123"],"ttl_ms":3600000}'
@@ -619,7 +619,7 @@ Response (error):
 
 ### GET /get/:key
 ```bash
-curl -H "Authorization: Basic $B64" http://127.0.0.1:8080/get/user:42
+curl -H "Authorization: Basic $B64" http://127.0.0.1:8888/get/user:42
 ```
 Response (hit):
 ```json
@@ -632,7 +632,7 @@ Response (miss):
 
 ### GET /keys-by-tag?tag=TAG&limit=N
 ```bash
-curl -H "Authorization: Basic $B64" 'http://127.0.0.1:8080/keys-by-tag?tag=users&limit=50'
+curl -H "Authorization: Basic $B64" 'http://127.0.0.1:8888/keys-by-tag?tag=users&limit=50'
 ```
 Response:
 ```json
@@ -641,7 +641,7 @@ Response:
 
 ### POST /invalidate-key
 ```bash
-curl -X POST http://127.0.0.1:8080/invalidate-key \
+curl -X POST http://127.0.0.1:8888/invalidate-key \
   -H "Authorization: Basic $B64" \
   -H 'Content-Type: application/json' \
   -d '{"key":"user:42"}'
@@ -650,7 +650,7 @@ Response: `{ "success": true }`
 
 ### POST /invalidate-tag
 ```bash
-curl -X POST http://127.0.0.1:8080/invalidate-tag \
+curl -X POST http://127.0.0.1:8888/invalidate-tag \
   -H "Authorization: Basic $B64" \
   -H 'Content-Type: application/json' \
   -d '{"tag":"trial"}'
@@ -659,7 +659,7 @@ Response: `{ "success": true, "count": <removed> }`
 
 ### GET /stats
 ```bash
-curl -H "Authorization: Basic $B64" http://127.0.0.1:8080/stats
+curl -H "Authorization: Basic $B64" http://127.0.0.1:8888/stats
 ```
 Response (extended fields may appear in newer versions):
 ```json
@@ -750,11 +750,11 @@ docker build -t tagcache:latest .
 ```
 Run:
 ```bash
-docker run --rm -p 8080:8080 -p 1984:1984 tagcache:latest
+docker run --rm -p 8888:8888 -p 1984:1984 tagcache:latest
 ```
 Environment overrides:
 ```bash
-docker run -e NUM_SHARDS=64 -e CLEANUP_INTERVAL_MS=5000 -p 8080:8080 -p 1984:1984 tagcache:latest
+docker run -e NUM_SHARDS=64 -e CLEANUP_INTERVAL_MS=5000 -p 8888:8888 -p 1984:1984 tagcache:latest
 ```
 
 ## PHP Example
@@ -793,7 +793,7 @@ bench_tcp --ttl 30000 --keys 1000 localhost 1984 32 5
 Benchmark config: host=127.0.0.1 port=1984 conns=32 duration=10s keys=100 mode=get ttl_ms=60000
 Results:
 Total ops: 1877859
-Throughput: 187785.90 ops/sec  
+Throughput: 187785.90 ops/sec
 Latency (microseconds): min 19.4 p50 166.2 p90 224.4 p95 244.6 p99 289.9 max 914.4 avg 170.2
 ```
 
@@ -824,7 +824,7 @@ end
 ```
 Run:
 ```bash
-wrk -t8 -c64 -d10s -s put.lua http://127.0.0.1:8080
+wrk -t8 -c64 -d10s -s put.lua http://127.0.0.1:8888
 ```
 `get.lua`:
 ```lua
@@ -836,7 +836,7 @@ end
 ```
 Run:
 ```bash
-wrk -t8 -c64 -d10s -s get.lua http://127.0.0.1:8080
+wrk -t8 -c64 -d10s -s get.lua http://127.0.0.1:8888
 ```
 
 ## Performance Tuning

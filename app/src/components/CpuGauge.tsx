@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { api } from '../api/client';
 
 interface CpuCore {
   core: number;
@@ -20,15 +21,8 @@ export function CpuGauge() {
   const { data: systemStats, isLoading, error } = useQuery<SystemStats>({
     queryKey: ['system-stats'],
     queryFn: async () => {
-      const response = await fetch('/system', {
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch system stats: ${response.status}`);
-      }
-      return response.json();
+      const response = await api.get('/system');
+      return response.data;
     },
     enabled: true, // Always enabled since system endpoint doesn't require auth
     refetchInterval: 2000, // Update every 2 seconds
@@ -86,7 +80,7 @@ export function CpuGauge() {
           {systemStats.core_count} cores
         </div>
       </div>
-      
+
       {/* Overall CPU usage gauge */}
       <div className="flex flex-col items-center space-y-3">
         <div className="relative flex flex-col items-center" style={{ width: 80, height: 104 }}>
@@ -120,22 +114,22 @@ export function CpuGauge() {
             <div className="text-xs text-gray-500">Overall</div>
           </div>
         </div>
-        
+
         {/* Individual core bars */}
         <div className="w-full space-y-1">
           <div className="text-xs text-gray-600 mb-2">Per Core:</div>
           {systemStats.cpu_cores.map(core => {
-            const coreColor = core.usage < 30 ? '#10b981' : 
-                             core.usage < 60 ? '#f59e0b' : 
+            const coreColor = core.usage < 30 ? '#10b981' :
+                             core.usage < 60 ? '#f59e0b' :
                              core.usage < 80 ? '#f97316' : '#ef4444';
-            
+
             return (
               <div key={core.core} className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 w-8 text-right">C{core.core}</span>
                 <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full transition-all duration-500 ease-out rounded-full"
-                    style={{ 
+                    style={{
                       width: `${core.usage}%`,
                       backgroundColor: coreColor
                     }}

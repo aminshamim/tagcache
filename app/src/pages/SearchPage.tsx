@@ -31,15 +31,15 @@ export default function SearchPage() {
       setLoadingMore(true);
     }
     setError(null);
-    
+
     try {
       // Load cache entries with pagination
-      const resp = await api.post('/search', { 
+      const resp = await api.post('/search', {
         limit: isInitial ? INITIAL_LIMIT : LOAD_MORE_LIMIT,
         offset: isInitial ? 0 : offset
       });
       const keys = resp.data.keys || [];
-      
+
       // Normalize to SearchResultRow shape
       const normalized: SearchResultRow[] = keys
         .map((item: any) => ({
@@ -49,7 +49,7 @@ export default function SearchPage() {
           created_ms: typeof item === 'string' ? undefined : item.created_ms
         }))
         .sort((a: any, b: any) => (b.created_ms || 0) - (a.created_ms || 0));
-      
+
       if (isInitial) {
         setAllData(normalized);
         setResults(normalized);
@@ -60,13 +60,13 @@ export default function SearchPage() {
         setResults(newData);
         setOffset(prev => prev + LOAD_MORE_LIMIT);
       }
-      
+
       // Check if we have more data
       setHasMore(keys.length === (isInitial ? INITIAL_LIMIT : LOAD_MORE_LIMIT));
-      
+
     } catch (e: any) {
       setError(e?.response?.data?.error || e.message);
-    } finally { 
+    } finally {
       setLoading(false);
       setLoadingMore(false);
     }
@@ -78,10 +78,10 @@ export default function SearchPage() {
       onClear();
       return;
     }
-    
+
     setLoading(true); setError(null); setHasSearched(true);
     setOffset(0); setHasMore(false); // Disable infinite scroll for search results
-    
+
     try {
       const resp = await api.post('/search', { q: query, limit: 1000 });
       const searchResults = resp.data.keys || [];
@@ -118,34 +118,34 @@ export default function SearchPage() {
   // Infinite scroll effect with throttling
   useEffect(() => {
     let ticking = false;
-    
+
     const handleScroll = (e: Event) => {
       if (ticking) return;
-      
+
       ticking = true;
       requestAnimationFrame(() => {
         if (loading || loadingMore || !hasMore || hasSearched) {
           ticking = false;
           return;
         }
-        
+
         const target = e.target as HTMLElement;
         const scrollTop = target.scrollTop;
         const scrollHeight = target.scrollHeight;
         const clientHeight = target.clientHeight;
-        
+
         // Trigger when within 300px of bottom for better UX
         if (scrollTop + clientHeight >= scrollHeight - 300) {
           loadMore();
         }
-        
+
         ticking = false;
       });
     };
 
     // Find the scrollable container by traversing up from our component
     let scrollContainer: HTMLElement | null = null;
-    
+
     // Try different approaches to find the scroll container
     const mainElement = document.querySelector('main');
     if (mainElement) {
@@ -154,7 +154,7 @@ export default function SearchPage() {
         scrollContainer = contentDiv as HTMLElement;
       }
     }
-    
+
     // Fallback: find any parent with overflow-auto
     if (!scrollContainer) {
       let parent: HTMLElement | null = document.body;
@@ -173,30 +173,30 @@ export default function SearchPage() {
       scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
       return () => scrollContainer!.removeEventListener('scroll', handleScroll);
     }
-    
+
     // Final fallback to window scroll
     const handleWindowScroll = () => {
       if (ticking) return;
-      
+
       ticking = true;
       requestAnimationFrame(() => {
         if (loading || loadingMore || !hasMore || hasSearched) {
           ticking = false;
           return;
         }
-        
+
         const scrollTop = document.documentElement.scrollTop;
         const scrollHeight = document.documentElement.scrollHeight;
         const clientHeight = document.documentElement.clientHeight;
-        
+
         if (scrollTop + clientHeight >= scrollHeight - 300) {
           loadMore();
         }
-        
+
         ticking = false;
       });
     };
-    
+
     window.addEventListener('scroll', handleWindowScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleWindowScroll);
   }, [loading, loadingMore, hasMore, hasSearched]);
@@ -221,10 +221,10 @@ export default function SearchPage() {
       <div className="flex gap-2 items-end">
         <div className="flex-1">
           <label className="block text-xs uppercase font-semibold mb-1">Query</label>
-          <input 
-            value={query} 
-            onChange={e=>setQuery(e.target.value)} 
-            placeholder="Search by key" 
+          <input
+            value={query}
+            onChange={e=>setQuery(e.target.value)}
+            placeholder="Search by key"
             className="w-full border rounded px-2 py-1 bg-transparent"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -242,7 +242,7 @@ export default function SearchPage() {
         </button>
       </div>
       {error && <div className="text-red-600 text-sm">Error: {error}</div>}
-      
+
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="text-sm font-semibold">
@@ -253,7 +253,7 @@ export default function SearchPage() {
             )}
           </div>
         </div>
-        
+
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="text-left border-b">
@@ -271,7 +271,7 @@ export default function SearchPage() {
                   <button
                     key={t}
                     type="button"
-                    onClick={(e)=>{ e.stopPropagation(); navigate(`/tags?tags=${encodeURIComponent(t)}`); }}
+                    onClick={(e)=>{ e.stopPropagation(); navigate(`/ui/tags?tags=${encodeURIComponent(t)}`); }}
                     className="inline-flex items-center rounded-full border border-brand-teal/30 bg-white text-brand-teal px-1.5 py-0.5 mr-1 mb-1 text-[10px] shadow-sm hover:bg-brand-teal/10"
                   >{t}</button>
                 ))}</td>
@@ -286,7 +286,7 @@ export default function SearchPage() {
             )}
           </tbody>
         </table>
-        
+
         {/* Infinite scroll loading indicator */}
         {!hasSearched && loadingMore && (
           <div className="flex justify-center mt-4 py-4">

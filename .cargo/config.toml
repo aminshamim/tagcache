@@ -1,0 +1,10 @@
+[alias]
+# Run in development mode (without embed-ui to avoid needing app/dist/)
+dev = "run --bin tagcache --no-default-features"
+
+# Run with embedded UI (requires app/dist/ to be built first)
+dev-ui = "run --bin tagcache --features embed-ui"
+
+# Alternative dev mode with auto-restart on file changes (requires cargo-watch)
+# Uncomment and use: cargo watch-dev
+# watch-dev = "watch -x 'run --bin tagcache --no-default-features'"

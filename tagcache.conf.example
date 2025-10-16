@@ -4,8 +4,8 @@
 # Changes to this file require a server restart to take effect
 
 [server]
-# HTTP server port (default: 8080)
-http_port = 8080
+# HTTP server port (default: 8888)
+http_port = 8888
 
 # TCP protocol port for high-performance operations (default: 1984)
 tcp_port = 1984
