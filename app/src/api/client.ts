@@ -75,7 +75,19 @@ api.interceptors.response.use(r => {
   return r;
 }, err => {
   if (err.response && err.response.status === 401) {
-    // TODO: broadcast logout event
+    // Clear auth token and trigger logout
+    setAuthToken(null);
+    // Dynamically import auth store to trigger logout (avoid circular deps)
+    import('../store/auth').then(mod => {
+      mod.useAuthStore.getState().logout();
+      // Redirect to login page if not already there
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/';
+      }
+    }).catch(() => {
+      // Fallback: just redirect to home/login
+      window.location.href = '/';
+    });
   }
   return Promise.reject(err);
 });

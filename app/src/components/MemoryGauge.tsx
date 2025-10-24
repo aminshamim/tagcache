@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { api } from '../api/client';
 
 interface SystemStats {
   cpu_cores: any[];
@@ -13,15 +14,8 @@ export function MemoryGauge() {
   const { data: systemStats, isLoading, error } = useQuery<SystemStats>({
     queryKey: ['memory-stats'],
     queryFn: async () => {
-      const response = await fetch('/system', {
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch system stats: ${response.status}`);
-      }
-      return response.json();
+      const response = await api.get('/system');
+      return response.data;
     },
     enabled: true, // Always enabled since system endpoint doesn't require auth
     refetchInterval: 2000, // Update every 2 seconds
@@ -65,19 +59,19 @@ export function MemoryGauge() {
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let size = bytes;
     let unitIndex = 0;
-    
+
     while (size >= 1024 && unitIndex < units.length - 1) {
       size /= 1024;
       unitIndex++;
     }
-    
+
     return `${size.toFixed(1)} ${units[unitIndex]}`;
   };
 
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm">
       <h3 className="text-sm font-medium text-gray-600 mb-4">Memory Usage</h3>
-      
+
       <div className="flex flex-col items-center">
         {/* Circular Gauge */}
         <div className="relative mb-4">
@@ -133,17 +127,17 @@ export function MemoryGauge() {
         {/* Status indicator */}
         <div className="mt-3 text-xs">
           <div className={`inline-flex items-center px-2 py-1 rounded-full ${
-            usagePercentage < 60 
-              ? 'bg-green-100 text-green-800' 
-              : usagePercentage < 80 
-                ? 'bg-amber-100 text-amber-800' 
+            usagePercentage < 60
+              ? 'bg-green-100 text-green-800'
+              : usagePercentage < 80
+                ? 'bg-amber-100 text-amber-800'
                 : 'bg-red-100 text-red-800'
           }`}>
             <div className={`w-2 h-2 rounded-full mr-2 ${
-              usagePercentage < 60 
-                ? 'bg-green-500' 
-                : usagePercentage < 80 
-                  ? 'bg-amber-500' 
+              usagePercentage < 60
+                ? 'bg-green-500'
+                : usagePercentage < 80
+                  ? 'bg-amber-500'
                   : 'bg-red-500'
             }`}></div>
             {usagePercentage < 60 ? 'Normal' : usagePercentage < 80 ? 'Warning' : 'Critical'}

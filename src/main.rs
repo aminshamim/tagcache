@@ -1,10 +1,10 @@
 /*!
  * TagCache - Lightweight, sharded, tag-aware in-memory cache server
- * 
+ *
  * Author: Md. Aminul Islam Sarker <aminshamim@gmail.com>
  * GitHub: https://github.com/aminshamim/tagcache
  * LinkedIn: https://www.linkedin.com/in/aminshamim/
- * 
+ *
  * This file contains the main server implementation with detailed comments for Rust beginners.
  * The goal of these comments is to explain: types, ownership, concurrency primitives,
  * async runtime usage, data model, and protocol handling.
@@ -16,27 +16,32 @@ use std::{sync::Arc, time::{Duration, Instant, SystemTime, UNIX_EPOCH}, env}; //
 use clap::{Parser, Subcommand}; // Command line argument parsing
 use reqwest; // HTTP client for CLI commands
 use axum::response::{Html, IntoResponse};
-use axum::http::{header, Uri};
+use axum::http::{header, Uri, Method, StatusCode as HttpStatusCode};
 use sysinfo::{System}; // System info for CPU monitoring
 
 // Conditionally embed assets only if the dist folder exists
 #[cfg(feature = "embed-ui")]
 mod embedded_assets {
     use rust_embed::RustEmbed;
-    
+
     #[derive(RustEmbed)]
     #[folder = "app/dist/"]
     pub struct Assets;
 }
 
 // Static file handler for the web UI
-async fn static_handler(uri: Uri) -> impl IntoResponse {
+async fn static_handler(method: Method, uri: Uri) -> impl IntoResponse {
+    // Only handle GET requests for static files and SPA routing
+    if method != Method::GET {
+        return (HttpStatusCode::METHOD_NOT_ALLOWED, "Method not allowed").into_response();
+    }
+
     let path = uri.path().trim_start_matches('/');
-    
+
     if path.is_empty() || path == "index.html" {
         return serve_index_html().into_response();
     }
-    
+
     #[cfg(feature = "embed-ui")]
     {
         match embedded_assets::Assets::get(path) {
@@ -51,7 +56,7 @@ async fn static_handler(uri: Uri) -> impl IntoResponse {
             None => return serve_index_html().into_response(),
         }
     }
-    
+
     #[cfg(not(feature = "embed-ui"))]
     {
         serve_index_html().into_response()
@@ -66,7 +71,7 @@ fn serve_index_html() -> Html<std::borrow::Cow<'static, [u8]>> {
             None => {}
         }
     }
-    
+
     // Fallback UI when assets are not embedded
     let fallback_html = r#"<!DOCTYPE html>
 <html lang="en">
@@ -90,7 +95,7 @@ fn serve_index_html() -> Html<std::borrow::Cow<'static, [u8]>> {
             <strong>✓ Server is running!</strong><br>
             The TagCache server is operational and ready to handle requests.
         </div>
-        
+
         <h2>API Endpoints</h2>
         <div class="endpoint"><span class="method">GET</span> /health - Health check</div>
         <div class="endpoint"><span class="method">GET</span> /stats - Server statistics (requires auth)</div>
@@ -99,21 +104,21 @@ fn serve_index_html() -> Html<std::borrow::Cow<'static, [u8]>> {
         <div class="endpoint"><span class="method">POST</span> /incr - Atomically increment numeric value (requires auth)</div>
         <div class="endpoint"><span class="method">POST</span> /decr - Atomically decrement numeric value (requires auth)</div>
         <div class="endpoint"><span class="method">GET</span> /get/:key - Retrieve data (requires auth)</div>
-        
+
         <h2>Authentication</h2>
         <p>Use HTTP Basic Auth with username: <code>admin</code> and password: <code>password</code></p>
         <p>Default credentials should be changed in production!</p>
-        
+
         <h2>TCP Protocol</h2>
         <p>High-performance TCP protocol available on port 1984</p>
         <p>Commands: PUT, ADD (atomic), INCR, DECR, GET, DEL, INV_TAG, KEYS_BY_TAG, STATS, FLUSH</p>
-        
+
         <h2>Documentation</h2>
         <p>Visit <a href="https://github.com/aminshamim/tagcache">github.com/aminshamim/tagcache</a> for complete documentation.</p>
     </div>
 </body>
 </html>"#;
-    
+
     Html(fallback_html.as_bytes().into())
 }
 
@@ -196,7 +201,7 @@ impl Default for TagCacheConfig {
     fn default() -> Self {
         Self {
             server: ServerConfig {
-                http_port: 8080,
+                http_port: 8888,
                 tcp_port: 1984,
                 num_shards: 16,
                 cleanup_interval_seconds: 60,
@@ -240,7 +245,7 @@ impl TagCacheConfig {
         if current_dir_config.exists() {
             return current_dir_config;
         }
-        
+
         // Check user config directory
         if let Some(config_dir) = dirs::config_dir() {
             let user_config = config_dir.join("tagcache").join("tagcache.conf");
@@ -248,7 +253,7 @@ impl TagCacheConfig {
                 return user_config;
             }
         }
-        
+
         // Default to current directory
         current_dir_config
     }
@@ -265,25 +270,78 @@ impl TagCacheConfig {
 
         let content = fs::read_to_string(path)?;
         let mut config: TagCacheConfig = toml::from_str(&content)?;
-        
+
         // Apply environment variable overrides
         config.apply_env_overrides();
-        
+
+        // Validate configuration
+        config.validate()?;
+
         Ok(config)
     }
 
     /// Save configuration to file
     pub fn save_to_file<P: AsRef<std::path::Path>>(&self, path: P) -> anyhow::Result<()> {
         let path = path.as_ref();
-        
+
         // Create parent directory if it doesn't exist
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        
+
         let content = toml::to_string_pretty(self)?;
         fs::write(path, content)?;
         println!("Configuration saved to {}", path.display());
+        Ok(())
+    }
+
+    /// Validate configuration values
+    fn validate(&self) -> anyhow::Result<()> {
+        // Validate HTTP port (1024-65535 for non-root users, avoid privileged ports)
+        if self.server.http_port < 1024 {
+            anyhow::bail!(
+                "HTTP port {} is a privileged port (< 1024). Please use a port >= 1024 for safety.",
+                self.server.http_port
+            );
+        }
+
+        // Validate TCP port
+        if self.server.tcp_port < 1024 {
+            anyhow::bail!(
+                "TCP port {} is a privileged port (< 1024). Please use a port >= 1024 for safety.",
+                self.server.tcp_port
+            );
+        }
+
+        // Warn if ports are the same
+        if self.server.http_port == self.server.tcp_port {
+            eprintln!("⚠️  WARNING: HTTP port and TCP port are the same ({}). This may cause conflicts!", self.server.http_port);
+        }
+
+        // Validate port range
+        if self.server.http_port == 0 || self.server.tcp_port == 0 {
+            anyhow::bail!("Port numbers cannot be 0");
+        }
+
+        // Validate shards
+        if self.server.num_shards == 0 {
+            anyhow::bail!("Number of shards must be greater than 0");
+        }
+
+        // Validate max values
+        if self.cache.max_key_length == 0 {
+            anyhow::bail!("max_key_length must be greater than 0");
+        }
+
+        if self.cache.max_value_length == 0 {
+            anyhow::bail!("max_value_length must be greater than 0");
+        }
+
+        // Validate token lifetime
+        if self.authentication.token_lifetime_seconds == 0 {
+            eprintln!("⚠️  WARNING: Token lifetime is 0 seconds. Tokens will never expire!");
+        }
+
         Ok(())
     }
 
@@ -295,28 +353,28 @@ impl TagCacheConfig {
                 self.server.http_port = p;
             }
         }
-        
+
         if let Ok(tcp_port) = env::var("TCP_PORT").or_else(|_| env::var("TC_TCP_PORT")) {
             if let Ok(p) = tcp_port.parse() {
                 self.server.tcp_port = p;
             }
         }
-        
+
         if let Ok(shards) = env::var("NUM_SHARDS").or_else(|_| env::var("TC_NUM_SHARDS")) {
             if let Ok(s) = shards.parse() {
                 self.server.num_shards = s;
             }
         }
-        
+
         // Auth overrides
         if let Ok(username) = env::var("TAGCACHE_USERNAME") {
             self.authentication.username = username;
         }
-        
+
         if let Ok(password) = env::var("TAGCACHE_PASSWORD") {
             self.authentication.password = password;
         }
-        
+
         // Other overrides
         if let Ok(origin) = env::var("ALLOWED_ORIGIN") {
             self.server.allowed_origin = Some(origin);
@@ -359,7 +417,7 @@ struct Cli {
     #[arg(long, short = 'u')]
     username: Option<String>,
 
-    /// Authentication password  
+    /// Authentication password
     #[arg(long)]
     password: Option<String>,
 
@@ -372,7 +430,7 @@ struct Cli {
 enum Commands {
     /// Start the TagCache server
     Server,
-    
+
     /// Store a key-value pair with optional tags
     Put {
         /// The cache key
@@ -386,7 +444,7 @@ enum Commands {
         #[arg(long)]
         ttl_ms: Option<u64>,
     },
-    
+
     /// Atomically add a key-value pair (fails if key exists)
     Add {
         /// The cache key
@@ -400,7 +458,7 @@ enum Commands {
         #[arg(long)]
         ttl_ms: Option<u64>,
     },
-    
+
     /// Atomically increment a numeric value (creates if not exists)
     Increment {
         /// The cache key
@@ -415,7 +473,7 @@ enum Commands {
         #[arg(long)]
         ttl_ms: Option<u64>,
     },
-    
+
     /// Atomically decrement a numeric value (creates if not exists)
     Decrement {
         /// The cache key
@@ -430,40 +488,40 @@ enum Commands {
         #[arg(long)]
         ttl_ms: Option<u64>,
     },
-    
+
     /// Get operations
     Get {
         #[command(subcommand)]
         get_command: GetCommands,
     },
-    
-    /// Flush operations  
+
+    /// Flush operations
     Flush {
         #[command(subcommand)]
         flush_command: FlushCommands,
     },
-    
+
     /// Show server statistics
     Stats,
-    
+
     /// Show server status/health
     Status,
-    
+
     /// Show server health check
     Health,
-    
+
     /// Restart server (if running as service)
     Restart,
-    
+
     /// Change password
     ChangePassword {
         /// New password
         new_password: String,
     },
-    
+
     /// Reset to default credentials (admin/password)
     ResetCredentials,
-    
+
     /// Configuration management
     Config {
         #[command(subcommand)]
@@ -566,7 +624,7 @@ impl TagCacheClient {
         }
 
         let response = request.json(&payload).send().await?;
-        
+
         if response.status().is_success() {
             println!("✓ Successfully stored key '{}' with value '{}'", key, value);
             if let Some(tags) = tags {
@@ -603,7 +661,7 @@ impl TagCacheClient {
         }
 
         let response = request.json(&payload).send().await?;
-        
+
         if response.status().is_success() {
             let json: serde_json::Value = response.json().await?;
             if let Some(added) = json.get("added").and_then(|a| a.as_bool()) {
@@ -647,7 +705,7 @@ impl TagCacheClient {
         }
 
         let response = request.json(&payload).send().await?;
-        
+
         if response.status().is_success() {
             let json: serde_json::Value = response.json().await?;
             if let Some(ok) = json.get("ok").and_then(|o| o.as_bool()) {
@@ -693,7 +751,7 @@ impl TagCacheClient {
         }
 
         let response = request.json(&payload).send().await?;
-        
+
         if response.status().is_success() {
             let json: serde_json::Value = response.json().await?;
             if let Some(ok) = json.get("ok").and_then(|o| o.as_bool()) {
@@ -726,7 +784,7 @@ impl TagCacheClient {
         }
 
         let response = request.send().await?;
-        
+
         if response.status().is_success() {
             let json: serde_json::Value = response.json().await?;
             if let Some(value) = json.get("value") {
@@ -744,7 +802,7 @@ impl TagCacheClient {
 
     async fn get_keys_by_tag(&self, tags: &str) -> anyhow::Result<()> {
         let tag_list: Vec<&str> = tags.split(',').map(|s| s.trim()).collect();
-        
+
         for tag in &tag_list {
             let mut request = self.client.get(&format!("{}/keys-by-tag?tag={}", self.base_url, tag));
             if let Some(auth) = &self.auth_header {
@@ -752,7 +810,7 @@ impl TagCacheClient {
             }
 
             let response = request.send().await?;
-            
+
             if response.status().is_success() {
                 let json: serde_json::Value = response.json().await?;
                 if let Some(keys) = json.get("keys").and_then(|k| k.as_array()) {
@@ -782,7 +840,7 @@ impl TagCacheClient {
         }
 
         let response = request.json(&payload).send().await?;
-        
+
         if response.status().is_success() {
             let json: serde_json::Value = response.json().await?;
             if json.get("success").and_then(|s| s.as_bool()).unwrap_or(false) {
@@ -808,7 +866,7 @@ impl TagCacheClient {
         }
 
         let response = request.json(&payload).send().await?;
-        
+
         if response.status().is_success() {
             let json: serde_json::Value = response.json().await?;
             if let Some(count) = json.get("count").and_then(|c| c.as_u64()) {
@@ -829,7 +887,7 @@ impl TagCacheClient {
         }
 
         let response = request.send().await?;
-        
+
         if response.status().is_success() {
             let json: serde_json::Value = response.json().await?;
             if let Some(count) = json.get("count").and_then(|c| c.as_u64()) {
@@ -850,10 +908,10 @@ impl TagCacheClient {
         }
 
         let response = request.send().await?;
-        
+
         if response.status().is_success() {
             let json: serde_json::Value = response.json().await?;
-            
+
             println!("TagCache Statistics:");
             println!("==================");
             if let Some(hits) = json.get("hits") {
@@ -892,7 +950,7 @@ impl TagCacheClient {
 
     async fn health(&self) -> anyhow::Result<()> {
         let response = self.client.get(&format!("{}/health", self.base_url)).send().await?;
-        
+
         if response.status().is_success() {
             let json: serde_json::Value = response.json().await?;
             println!("Health Check: ✓ OK");
@@ -910,7 +968,7 @@ impl TagCacheClient {
         // Try to connect to both HTTP and TCP ports
         println!("TagCache Server Status:");
         println!("=====================");
-        
+
         // Check HTTP endpoint
         match self.client.get(&format!("{}/health", self.base_url)).send().await {
             Ok(response) if response.status().is_success() => {
@@ -920,7 +978,7 @@ impl TagCacheClient {
                 println!("HTTP Server: ✗ Not responding on {}", self.base_url);
             }
         }
-        
+
         // Try to get stats for more detailed status
         match self.stats().await {
             Ok(_) => {},
@@ -950,7 +1008,7 @@ impl TagCacheClient {
         }
 
         let response = request.json(&payload).send().await?;
-        
+
         if response.status().is_success() {
             let json: serde_json::Value = response.json().await?;
             if json.get("success").and_then(|s| s.as_bool()).unwrap_or(false) {
@@ -974,7 +1032,7 @@ impl TagCacheClient {
         }
 
         let response = request.send().await?;
-        
+
         if response.status().is_success() {
             let json: serde_json::Value = response.json().await?;
             if json.get("success").and_then(|s| s.as_bool()).unwrap_or(false) {
@@ -1076,58 +1134,58 @@ pub struct CacheStats {
 pub struct Credentials { pub username: String, pub password: String }
 
 #[derive(Clone, Debug)]
-pub struct AuthState { 
-    credentials: Arc<Mutex<Credentials>>, 
+pub struct AuthState {
+    credentials: Arc<Mutex<Credentials>>,
     tokens: DashSet<String>,
     config_path: Arc<Mutex<PathBuf>>,  // Path to configuration file for persistence
 }
 
 impl AuthState {
-    fn new(creds: Credentials, config_path: PathBuf) -> Self { 
-        Self { 
-            credentials: Arc::new(Mutex::new(creds)), 
+    fn new(creds: Credentials, config_path: PathBuf) -> Self {
+        Self {
+            credentials: Arc::new(Mutex::new(creds)),
             tokens: DashSet::new(),
             config_path: Arc::new(Mutex::new(config_path)),
-        } 
+        }
     }
     fn issue_token(&self) -> String { let token: String = rand::thread_rng().sample_iter(&Alphanumeric).take(48).map(char::from).collect(); self.tokens.insert(token.clone()); token }
     fn rotate(&self) -> Credentials { let new = Credentials { username: rand::thread_rng().sample_iter(&Alphanumeric).take(16).map(char::from).collect(), password: rand::thread_rng().sample_iter(&Alphanumeric).take(24).map(char::from).collect() }; *self.credentials.lock() = new.clone(); self.tokens.clear(); new }
     fn validate_basic(&self, u:&str, p:&str) -> bool { let c = self.credentials.lock(); c.username==u && c.password==p }
     fn validate_token(&self, t:&str) -> bool { self.tokens.contains(t) }
-    
+
     fn change_password(&self, new_password: String) -> bool {
         let mut creds = self.credentials.lock();
         creds.password = new_password.clone();
-        
+
         // Persist to configuration file
         if let Err(e) = self.persist_credentials_to_config(Some(creds.username.clone()), Some(new_password)) {
             eprintln!("Warning: Failed to persist password change to config file: {}", e);
             // Don't fail the operation, just warn
         }
-        
+
         // Clear all tokens to force re-authentication
         self.tokens.clear();
         true
     }
-    
+
     fn reset_to_defaults(&self) -> bool {
         let new = Credentials {
             username: "admin".to_string(),
             password: "password".to_string(),
         };
         *self.credentials.lock() = new.clone();
-        
+
         // Persist to configuration file
         if let Err(e) = self.persist_credentials_to_config(Some(new.username), Some(new.password)) {
             eprintln!("Warning: Failed to persist credential reset to config file: {}", e);
             // Don't fail the operation, just warn
         }
-        
+
         // Clear all tokens to force re-authentication
         self.tokens.clear();
         true
     }
-    
+
     fn persist_credentials_to_config(&self, username: Option<String>, password: Option<String>) -> anyhow::Result<()> {
         let config_path = self.config_path.lock();
         let mut config = TagCacheConfig::load_from_file(&*config_path)?;
@@ -1138,8 +1196,8 @@ impl AuthState {
 }
 
 #[derive(Clone)]
-pub struct AppState { 
-    pub cache: Arc<Cache>, 
+pub struct AppState {
+    pub cache: Arc<Cache>,
     pub auth: Arc<AuthState>,
     pub system: Arc<parking_lot::Mutex<System>>, // System monitor for CPU stats
 }
@@ -1212,7 +1270,7 @@ impl Cache {
             SmallVec::new()  // No old entry, no tags to clean up
         };
         // Read lock is dropped here
-        
+
         // Clean up old tag associations without holding entry lock
         for tag in &old_tags {
             if let Some(keys) = shard.tag_to_keys.get(tag) {
@@ -1251,7 +1309,7 @@ impl Cache {
                 if occupied.get().is_expired() {
                     // Remove old tag associations for expired entry
                     let old_tags = occupied.get().tags.clone();
-                    
+
                     // Build new entry
                     let entry = Entry {
                         value,
@@ -1260,10 +1318,10 @@ impl Cache {
                         ttl,
                         created_system: SystemTime::now(),
                     };
-                    
+
                     // Replace expired entry with new one
                     occupied.replace_entry(entry);
-                    
+
                     // Clean up old tag associations
                     for tag in &old_tags {
                         if let Some(keys) = shard.tag_to_keys.get(tag) {
@@ -1274,7 +1332,7 @@ impl Cache {
                             }
                         }
                     }
-                    
+
                     // Add new tag associations
                     for tag in &tags {
                         shard
@@ -1283,7 +1341,7 @@ impl Cache {
                             .or_insert_with(DashSet::new)
                             .insert(key.clone());
                     }
-                    
+
                     self.stats.lock().puts += 1;
                     true
                 } else {
@@ -1300,9 +1358,9 @@ impl Cache {
                     ttl,
                     created_system: SystemTime::now(),
                 };
-                
+
                 vacant.insert(entry);
-                
+
                 // Add tag associations
                 for tag in &tags {
                     shard
@@ -1311,7 +1369,7 @@ impl Cache {
                         .or_insert_with(DashSet::new)
                         .insert(key.clone());
                 }
-                
+
                 self.stats.lock().puts += 1;
                 true
             }
@@ -1328,12 +1386,12 @@ impl Cache {
         match shard.entries.entry(key.clone()) {
             dashmap::mapref::entry::Entry::Occupied(mut occupied) => {
                 let entry = occupied.get_mut();
-                
+
                 // Check if expired - if so, treat as non-existent
                 if entry.is_expired() {
                     // Remove old tag associations
                     let old_tags = entry.tags.clone();
-                    
+
                     // Create new entry with increment value
                     let new_entry = Entry {
                         value: by.to_string(),
@@ -1342,9 +1400,9 @@ impl Cache {
                         ttl,
                         created_system: SystemTime::now(),
                     };
-                    
+
                     occupied.replace_entry(new_entry);
-                    
+
                     // Clean up old tag associations
                     for tag in &old_tags {
                         if let Some(keys) = shard.tag_to_keys.get(tag) {
@@ -1355,7 +1413,7 @@ impl Cache {
                             }
                         }
                     }
-                    
+
                     // Add new tag associations
                     for tag in &tags {
                         shard
@@ -1364,11 +1422,11 @@ impl Cache {
                             .or_insert_with(DashSet::new)
                             .insert(key.clone());
                     }
-                    
+
                     self.stats.lock().puts += 1;
                     return Ok(by);
                 }
-                
+
                 // Parse current value as integer
                 match entry.value.trim().parse::<i64>() {
                     Ok(current) => {
@@ -1377,12 +1435,12 @@ impl Cache {
                                 entry.value = new_value.to_string();
                                 entry.created_at = Instant::now();
                                 entry.created_system = SystemTime::now();
-                                
+
                                 // Update TTL if provided
                                 if ttl.is_some() {
                                     entry.ttl = ttl;
                                 }
-                                
+
                                 // Update tags if provided (merge with existing)
                                 if !tags.is_empty() {
                                     // Remove old tag associations
@@ -1395,10 +1453,10 @@ impl Cache {
                                             }
                                         }
                                     }
-                                    
+
                                     // Set new tags
                                     entry.tags = SmallVec::from_vec(tags.clone());
-                                    
+
                                     // Add new tag associations
                                     for tag in &tags {
                                         shard
@@ -1408,7 +1466,7 @@ impl Cache {
                                             .insert(key.clone());
                                     }
                                 }
-                                
+
                                 self.stats.lock().puts += 1;
                                 Ok(new_value)
                             }
@@ -1427,9 +1485,9 @@ impl Cache {
                     ttl,
                     created_system: SystemTime::now(),
                 };
-                
+
                 vacant.insert(entry);
-                
+
                 // Add tag associations
                 for tag in &tags {
                     shard
@@ -1438,7 +1496,7 @@ impl Cache {
                         .or_insert_with(DashSet::new)
                         .insert(key.clone());
                 }
-                
+
                 self.stats.lock().puts += 1;
                 Ok(by)
             }
@@ -1457,7 +1515,7 @@ impl Cache {
     pub fn get(&self, key: &Key) -> Option<String> {
         let shard_idx = self.hash_key(key);
         let shard = &self.shards[shard_idx];
-        
+
         // First, check if entry exists and get its expiration status
         let (value, is_expired) = if let Some(entry) = shard.entries.get(key) {
             if entry.is_expired() {
@@ -1469,7 +1527,7 @@ impl Cache {
             (None, false)  // Entry doesn't exist
         };
         // The read lock is automatically dropped here when `entry` goes out of scope
-        
+
         // Now handle expired entry removal without holding read lock
         if is_expired {
             // Safe to remove now - no lock conflict
@@ -1489,7 +1547,7 @@ impl Cache {
             self.stats.lock().misses += 1;
             return None;
         }
-        
+
         // Return value if we have one
         if let Some(val) = value {
             self.stats.lock().hits += 1;
@@ -1777,7 +1835,7 @@ async fn increment_handler(State(state): State<Arc<AppState>>, _auth: Authentica
     let tags = req.tags.unwrap_or_default().into_iter().map(Tag).collect();
     let ttl = req.ttl_ms.map(Duration::from_millis).or_else(|| req.ttl_seconds.map(Duration::from_secs));
     let ttl_ms_return = ttl.map(|d| d.as_millis() as u64);
-    
+
     match state.cache.increment(key, by, tags, ttl) {
         Ok(new_value) => ResponseJson(serde_json::json!({
             "ok": true,
@@ -1798,7 +1856,7 @@ async fn decrement_handler(State(state): State<Arc<AppState>>, _auth: Authentica
     let tags = req.tags.unwrap_or_default().into_iter().map(Tag).collect();
     let ttl = req.ttl_ms.map(Duration::from_millis).or_else(|| req.ttl_seconds.map(Duration::from_secs));
     let ttl_ms_return = ttl.map(|d| d.as_millis() as u64);
-    
+
     match state.cache.decrement(key, by, tags, ttl) {
         Ok(new_value) => ResponseJson(serde_json::json!({
             "ok": true,
@@ -2023,24 +2081,24 @@ async fn invalidate_tags_handler(State(state): State<Arc<AppState>>, _auth: Auth
         if !tags.is_empty() {
             let first_keys = state.cache.get_keys_by_tag(&tags[0]);
             let mut keys_to_invalidate = Vec::new();
-            
+
             // First pass: collect keys that have all tags (avoid holding read locks during invalidation)
             for k in first_keys {
                 let shard_idx = state.cache.hash_key(&k);
                 let shard = &state.cache.shards[shard_idx];
                 if let Some(entry) = shard.entries.get(&k) {
                     let tagset: std::collections::HashSet<_> = entry.tags.iter().map(|t| &t.0).collect();
-                    if tags.iter().all(|t| tagset.contains(&t.0)) { 
+                    if tags.iter().all(|t| tagset.contains(&t.0)) {
                         keys_to_invalidate.push(k.clone());
                     }
                 }
                 // Read lock is automatically released here
             }
-            
+
             // Second pass: invalidate collected keys
             for k in keys_to_invalidate {
-                if state.cache.invalidate_key(&k) { 
-                    count += 1; 
+                if state.cache.invalidate_key(&k) {
+                    count += 1;
                 }
             }
         }
@@ -2124,7 +2182,7 @@ async fn system_handler(State(state): State<Arc<AppState>>) -> ResponseJson<serd
     let mut system = state.system.lock();
     system.refresh_cpu(); // Refresh CPU usage
     system.refresh_memory(); // Refresh memory usage
-    
+
     let cpu_cores: Vec<serde_json::Value> = system.cpus()
         .iter()
         .enumerate()
@@ -2135,14 +2193,14 @@ async fn system_handler(State(state): State<Arc<AppState>>) -> ResponseJson<serd
             "frequency": cpu.frequency()
         }))
         .collect();
-    
+
     // Calculate global CPU usage as average of all cores
     let global_cpu_usage = if system.cpus().is_empty() {
         0.0
     } else {
         system.cpus().iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / system.cpus().len() as f32
     };
-    
+
     ResponseJson(serde_json::json!({
         "cpu_cores": cpu_cores,
         "core_count": system.cpus().len(),
@@ -2240,11 +2298,11 @@ async fn handle_tcp_client(cache: Arc<Cache>, mut stream: TcpStream) {
                         let by_part = parts.next().unwrap_or("1");     // Increment amount (default 1)
                         let ttl_part = parts.next().unwrap_or("-");    // TTL field
                         let tags_part = parts.next().unwrap_or("-");   // Tags list
-                        
+
                         let by = by_part.parse::<i64>().unwrap_or(1);
                         let ttl = if ttl_part == "-" || ttl_part.is_empty() { None } else { ttl_part.parse::<u64>().ok().map(Duration::from_millis) };
                         let tags: Vec<Tag> = if tags_part == "-" || tags_part.is_empty() { Vec::new() } else { tags_part.split(',').filter(|s| !s.is_empty()).map(|s| Tag(s.to_string())).collect() };
-                        
+
                         match cache.increment(Key(k.to_string()), by, tags, ttl) {
                             Ok(new_value) => format!("VALUE\t{}", new_value),
                             Err(error) => format!("ERR {}", error),
@@ -2261,11 +2319,11 @@ async fn handle_tcp_client(cache: Arc<Cache>, mut stream: TcpStream) {
                         let by_part = parts.next().unwrap_or("1");     // Decrement amount (default 1)
                         let ttl_part = parts.next().unwrap_or("-");    // TTL field
                         let tags_part = parts.next().unwrap_or("-");   // Tags list
-                        
+
                         let by = by_part.parse::<i64>().unwrap_or(1);
                         let ttl = if ttl_part == "-" || ttl_part.is_empty() { None } else { ttl_part.parse::<u64>().ok().map(Duration::from_millis) };
                         let tags: Vec<Tag> = if tags_part == "-" || tags_part.is_empty() { Vec::new() } else { tags_part.split(',').filter(|s| !s.is_empty()).map(|s| Tag(s.to_string())).collect() };
-                        
+
                         match cache.decrement(Key(k.to_string()), by, tags, ttl) {
                             Ok(new_value) => format!("VALUE\t{}", new_value),
                             Err(error) => format!("ERR {}", error),
@@ -2302,8 +2360,8 @@ async fn handle_tcp_client(cache: Arc<Cache>, mut stream: TcpStream) {
                         } else {
                             let mut count = 0usize;
                             // Same logic as HTTP "any" mode
-                            for t in tag_list { 
-                                count += cache.invalidate_tag(&Tag(t)); 
+                            for t in tag_list {
+                                count += cache.invalidate_tag(&Tag(t));
                             }
                             format!("INV_TAGS_ANY\t{}", count)
                         }
@@ -2326,24 +2384,24 @@ async fn handle_tcp_client(cache: Arc<Cache>, mut stream: TcpStream) {
                             if !tags.is_empty() {
                                 let first_keys = cache.get_keys_by_tag(&tags[0]);
                                 let mut keys_to_invalidate = Vec::new();
-                                
+
                                 // First pass: collect keys that have all tags (avoid holding read locks during invalidation)
                                 for k in first_keys {
                                     let shard_idx = cache.hash_key(&k);
                                     let shard = &cache.shards[shard_idx];
                                     if let Some(entry) = shard.entries.get(&k) {
                                         let tagset: std::collections::HashSet<_> = entry.tags.iter().map(|t| &t.0).collect();
-                                        if tags.iter().all(|t| tagset.contains(&t.0)) { 
+                                        if tags.iter().all(|t| tagset.contains(&t.0)) {
                                             keys_to_invalidate.push(k.clone());
                                         }
                                     }
                                     // Read lock is automatically released here
                                 }
-                                
+
                                 // Second pass: invalidate collected keys
                                 for k in keys_to_invalidate {
-                                    if cache.invalidate_key(&k) { 
-                                        count += 1; 
+                                    if cache.invalidate_key(&k) {
+                                        count += 1;
                                     }
                                 }
                             }
@@ -2364,10 +2422,10 @@ async fn handle_tcp_client(cache: Arc<Cache>, mut stream: TcpStream) {
                         } else {
                             let mut count = 0usize;
                             // Same logic as HTTP invalidate_keys_handler
-                            for k in key_list { 
-                                if cache.invalidate_key(&Key(k)) { 
-                                    count += 1; 
-                                } 
+                            for k in key_list {
+                                if cache.invalidate_key(&Key(k)) {
+                                    count += 1;
+                                }
                             }
                             format!("INV_KEYS\t{}", count)
                         }
@@ -2406,27 +2464,27 @@ async fn run_tcp_server(cache: Arc<Cache>, port: u16, perf_config: PerformanceCo
     info!("TCP cache protocol listening on {} (nodelay: {}, keepalive: {}s)", port, perf_config.tcp_nodelay, perf_config.tcp_keepalive_seconds);
     loop {                                                      // Accept loop
         let (sock, _) = listener.accept().await?;               // Wait for next connection
-        
+
         // Apply TCP socket options
         if perf_config.tcp_nodelay {
             if let Err(e) = sock.set_nodelay(true) {
                 warn!("Failed to set TCP_NODELAY: {}", e);
             }
         }
-        
+
         // Set TCP keepalive if configured
         if perf_config.tcp_keepalive_seconds > 0 {
             // Convert to socket2::Socket to set keepalive, then back to TcpStream
             let std_sock = sock.into_std()?;
             let socket2_sock = socket2::Socket::from(std_sock);
-            
+
             let keepalive = socket2::TcpKeepalive::new()
                 .with_time(std::time::Duration::from_secs(perf_config.tcp_keepalive_seconds));
-            
+
             if let Err(e) = socket2_sock.set_tcp_keepalive(&keepalive) {
                 warn!("Failed to set TCP keepalive: {}", e);
             }
-            
+
             // Convert back to tokio TcpStream
             let sock = TcpStream::from_std(socket2_sock.into())?;
             let c = cache.clone();
@@ -2450,7 +2508,7 @@ async fn handle_config_command(config_command: ConfigCommands) -> anyhow::Result
         ConfigCommands::Show { config } => {
             let config_path = config.map(PathBuf::from)
                 .unwrap_or_else(|| TagCacheConfig::default_config_path());
-            
+
             match TagCacheConfig::load_from_file(&config_path) {
                 Ok(cfg) => {
                     println!("Configuration from: {}", config_path.display());
@@ -2463,13 +2521,13 @@ async fn handle_config_command(config_command: ConfigCommands) -> anyhow::Result
             }
             Ok(())
         }
-        
+
         ConfigCommands::Set { key, value, config } => {
             let config_path = config.map(PathBuf::from)
                 .unwrap_or_else(|| TagCacheConfig::default_config_path());
-            
+
             let mut cfg = TagCacheConfig::load_from_file(&config_path)?;
-            
+
             // Parse the key and update the config
             match set_config_value(&mut cfg, &key, &value) {
                 Ok(_) => {
@@ -2485,11 +2543,11 @@ async fn handle_config_command(config_command: ConfigCommands) -> anyhow::Result
             }
             Ok(())
         }
-        
+
         ConfigCommands::Reset { config } => {
             let config_path = config.map(PathBuf::from)
                 .unwrap_or_else(|| TagCacheConfig::default_config_path());
-            
+
             let default_cfg = TagCacheConfig::default();
             default_cfg.save_to_file(&config_path)?;
             println!("✓ Configuration reset to defaults");
@@ -2497,7 +2555,7 @@ async fn handle_config_command(config_command: ConfigCommands) -> anyhow::Result
             println!("Restart the server for changes to take effect.");
             Ok(())
         }
-        
+
         ConfigCommands::Path => {
             let config_path = TagCacheConfig::default_config_path();
             println!("Configuration file path: {}", config_path.display());
@@ -2516,10 +2574,10 @@ fn set_config_value(config: &mut TagCacheConfig, key: &str, value: &str) -> anyh
     if parts.len() != 2 {
         anyhow::bail!("Invalid config key format. Use section.key (e.g., authentication.password)");
     }
-    
+
     let section = parts[0];
     let field = parts[1];
-    
+
     match section {
         "server" => match field {
             "http_port" => config.server.http_port = value.parse()?,
@@ -2568,7 +2626,7 @@ fn set_config_value(config: &mut TagCacheConfig, key: &str, value: &str) -> anyh
         },
         _ => anyhow::bail!("Unknown config section: {}", section),
     }
-    
+
     Ok(())
 }
 
@@ -2578,7 +2636,7 @@ fn set_config_value(config: &mut TagCacheConfig, key: &str, value: &str) -> anyh
 #[tokio::main] // Macro sets up a multi-threaded async runtime and runs this async fn as root task.
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    
+
     match cli.command {
         Some(Commands::Server) | None => {
             // Start server mode (default behavior)
@@ -2588,7 +2646,7 @@ async fn main() -> anyhow::Result<()> {
             // Handle CLI commands
             let client = TagCacheClient::new(&cli.host, cli.port)
                 .with_auth(cli.username, cli.password, cli.token);
-            
+
             match cmd {
                 Commands::Put { key, value, tags, ttl_ms } => {
                     client.put(&key, &value, tags.as_deref(), ttl_ms).await
@@ -2642,29 +2700,29 @@ async fn start_server() -> anyhow::Result<()> {
     // Load configuration from file
     let config_path = TagCacheConfig::default_config_path();
     let config = TagCacheConfig::load_from_file(&config_path)?;
-    
+
     println!("TagCache Server starting...");
     println!("Configuration loaded from: {}", config_path.display());
 
     // Build the cache (Arc so it can be shared across tasks / threads).
     let cache = Arc::new(Cache::new(config.server.num_shards));
-    
+
     // Use credentials from configuration file
     let auth_creds = Credentials {
         username: config.authentication.username.clone(),
         password: config.authentication.password.clone(),
     };
     let auth_state = Arc::new(AuthState::new(auth_creds, config_path.clone()));
-    
+
     // Initialize system monitor for CPU stats
     let mut system = System::new_all();
     system.refresh_all(); // Initial refresh
     let system_monitor = Arc::new(parking_lot::Mutex::new(system));
-    
-    let app_state = Arc::new(AppState { 
-        cache: cache.clone(), 
+
+    let app_state = Arc::new(AppState {
+        cache: cache.clone(),
         auth: auth_state.clone(),
-        system: system_monitor 
+        system: system_monitor
     });
 
     // Background task: periodically sweep expired entries to free memory.
@@ -2693,7 +2751,7 @@ async fn start_server() -> anyhow::Result<()> {
 
     // Bind TCP listener for HTTP (await returns listener only when bind succeeds).
     let listener = tokio::net::TcpListener::bind(&format!("0.0.0.0:{}", config.server.http_port)).await?;
-    info!("TagCache HTTP port={} TCP port={} shards={} cleanup={}s", 
+    info!("TagCache HTTP port={} TCP port={} shards={} cleanup={}s",
           config.server.http_port, config.server.tcp_port, config.server.num_shards, config.server.cleanup_interval_seconds);
 
     // Serve HTTP forever (await until server stops via error / shutdown signal).

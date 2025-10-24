@@ -45,7 +45,7 @@ export function RightPanel() {
   });
 
   const now = Date.now();
-  
+
   // Listen for flush events and refetch data
   useEffect(() => {
     if (flushCounter > 0) {
@@ -53,7 +53,7 @@ export function RightPanel() {
       refetch(); // Refetch latest keys
     }
   }, [flushCounter, clear, refetch]);
-  
+
   // Close key details when clicking outside the details card AND outside the selected row
   useEffect(() => {
     function onDocClick(e: MouseEvent){
@@ -110,7 +110,7 @@ export function RightPanel() {
                     {sel.data.tags && sel.data.tags.length>0 ? (
                       <div className="flex flex-wrap gap-1">
                           {sel.data.tags.map(t=> (
-                            <button key={t} type="button" onClick={(e)=>{ e.stopPropagation(); navigate(`/tags?tags=${encodeURIComponent(t)}`); }} className="inline-flex items-center rounded-full border border-brand-teal/30 bg-white text-brand-teal px-1.5 py-0.5 text-[10px] shadow-sm hover:bg-brand-teal/10">{t}</button>
+                            <button key={t} type="button" onClick={(e)=>{ e.stopPropagation(); navigate(`/ui/tags?tags=${encodeURIComponent(t)}`); }} className="inline-flex items-center rounded-full border border-brand-teal/30 bg-white text-brand-teal px-1.5 py-0.5 text-[10px] shadow-sm hover:bg-brand-teal/10">{t}</button>
                           ))}
                       </div>
                     ) : (
@@ -241,7 +241,7 @@ export function RightPanel() {
                 {k.tags.length>0 && (
                   <div className="mt-1 flex flex-wrap gap-1">
                       {k.tags.slice(0,6).map(t=> (
-                        <button key={t} type="button" onClick={(e)=>{ e.stopPropagation(); navigate(`/tags?tags=${encodeURIComponent(t)}`); }} className="inline-flex items-center rounded-full border border-brand-teal/30 bg-white text-brand-teal px-1.5 py-0.5 text-[10px] shadow-sm hover:bg-brand-teal/10">{t}</button>
+                        <button key={t} type="button" onClick={(e)=>{ e.stopPropagation(); navigate(`/ui/tags?tags=${encodeURIComponent(t)}`); }} className="inline-flex items-center rounded-full border border-brand-teal/30 bg-white text-brand-teal px-1.5 py-0.5 text-[10px] shadow-sm hover:bg-brand-teal/10">{t}</button>
                       ))}
                     {k.tags.length>6 && <span className="text-[10px] text-gray-500">+{k.tags.length-6}</span>}
                   </div>

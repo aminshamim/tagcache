@@ -7,17 +7,17 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      // Proxy API calls during dev so hitting http://localhost:5173/... reaches backend
-      '/auth': { target: 'http://127.0.0.1:8080', changeOrigin: true },
-      '/stats': { target: 'http://127.0.0.1:8080', changeOrigin: true },
-      '/system': { target: 'http://127.0.0.1:8080', changeOrigin: true },
-      '/put': { target: 'http://127.0.0.1:8080', changeOrigin: true },
-      '/get': { target: 'http://127.0.0.1:8080', changeOrigin: true },
-      '/keys': { target: 'http://127.0.0.1:8080', changeOrigin: true },
-      '/search': { target: 'http://127.0.0.1:8080', changeOrigin: true },
-      '/invalidate': { target: 'http://127.0.0.1:8080', changeOrigin: true },
-      '/flush': { target: 'http://127.0.0.1:8080', changeOrigin: true },
-      '/health': { target: 'http://127.0.0.1:8080', changeOrigin: true },
+      // Proxy API calls to backend at port 8888
+      '/auth': { target: 'http://127.0.0.1:8888', changeOrigin: true },
+      '/stats': { target: 'http://127.0.0.1:8888', changeOrigin: true },
+      '/system': { target: 'http://127.0.0.1:8888', changeOrigin: true },
+      '/put': { target: 'http://127.0.0.1:8888', changeOrigin: true },
+      '/get': { target: 'http://127.0.0.1:8888', changeOrigin: true },
+      '/keys': { target: 'http://127.0.0.1:8888', changeOrigin: true },
+      '/search': { target: 'http://127.0.0.1:8888', changeOrigin: true },
+      '/invalidate': { target: 'http://127.0.0.1:8888', changeOrigin: true },
+      '/flush': { target: 'http://127.0.0.1:8888', changeOrigin: true },
+      '/health': { target: 'http://127.0.0.1:8888', changeOrigin: true },
     }
   },
 });
